@@ -1,7 +1,33 @@
+import tkinter
 import socket
 import ssl
 
+WIDTH, HEIGHT = 800, 600
 
+
+def main():
+    u = URL("http://localhost:3000")
+    content = u.request()
+    print(f"response: {content}")
+
+    Browser().load("")
+
+    tkinter.mainloop()
+
+
+# 浏览器
+class Browser:
+    def __init__(self):
+        self.window = tkinter.Tk()
+        self.canvas = tkinter.Canvas(self.window, width=WIDTH, height=HEIGHT)
+        self.canvas.pack()
+
+    def load(self, url):
+        self.canvas.create_rectangle(10, 20, 500, 300)
+        self.canvas.create_oval(100, 10, 150, 150)
+
+
+# URL，根据url发送http请求并返回纯文本的http response body
 class URL:
     def __init__(self, url):
         # 解析url中的scheme、host以及path
@@ -67,8 +93,4 @@ class URL:
 #       in_tag = False
 #       elif not
 
-
-u = URL("http://localhost:3000")
-content = u.request()
-
-print(f"response: {content}")
+main()
