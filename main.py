@@ -1,8 +1,12 @@
 import tkinter
+import tkinter.font
 import socket
 import ssl
 
+# canvas的大小
 WIDTH, HEIGHT = 800, 600
+# 在canvas上绘制文字时的间距与行距
+HSTEP, VSTEP = 13, 18
 
 
 def main():
@@ -22,9 +26,27 @@ class Browser:
         self.canvas = tkinter.Canvas(self.window, width=WIDTH, height=HEIGHT)
         self.canvas.pack()
 
+        self.scroll = 0  # 当前已向上滑动的距离
+
+        # 将初始窗口在屏幕上居中
+        self.window.update_idletasks()
+        w = self.window.winfo_width()
+        h = self.window.winfo_height()
+        scr_w = self.window.winfo_screenwidth()
+        scr_h = self.window.winfo_screenheight()
+        x = (scr_w - w) // 2
+        y = (scr_h - h) // 2
+        self.window.geometry(f"+{x}+{y}")
+
     def load(self, url):
-        self.canvas.create_rectangle(10, 20, 500, 300)
-        self.canvas.create_oval(100, 10, 150, 150)
+        body = url.request()
+        text = lex(body)
+        self.display_list = layout(text)
+        self.draw()
+
+    def draw():
+        for x, y, c in self.display_list:
+            self.canvas.create_text(x, y)
 
 
 # URL，根据url发送http请求并返回纯文本的http response body
@@ -84,13 +106,56 @@ class URL:
         return content
 
 
-# def show(body):
-#   in_tag = False
-#   for c in body:
-#     if c == "<":
-#       in_tag = True
-#     elif c == ">":
-#       in_tag = False
-#       elif not
+# HTML代码中位于标签内外的纯文本
+class Text:
+    def __init__(self, text):
+        self.text = text
+
+
+# HTML代码中的标签
+class Tag:
+    def __init__(self, tag):
+        self.tag = tag
+
+
+# 提取HTML代码中标签与纯文本
+def lex(body):
+    out = []
+    buffer = ""
+    in_tag = False
+
+    for c in body:
+        if c == "<":
+            in_tag = True
+            if buffer:
+                out.append(Text(buffer))
+            buffer = ""
+        elif c == ">":
+            in_tag = False
+            out.append(Tag(buffer))
+            buffer = ""
+        else:
+            buffer += c
+
+    if not in_tag and buffer:
+        out.append(Text(buffer))
+
+    return out  # 返回提取后的各个tokens
+
+
+def layout(tokens):
+    cursor_x, cursor_y = 0, 0
+    display_list = []
+    for tok in tokens:
+        if isinstance(tok, Text):
+            for c in tok.text:
+                if cursor_x + HSTEP > WIDTH:
+                    cursor_x = 0
+                    cursor_y += VSTEP
+                display_list.append((cursor_x, cursor_y, c))
+                cursor_x += HSTEP
+
+    return display_list
+
 
 main()
