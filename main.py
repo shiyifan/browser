@@ -7,14 +7,14 @@ import ssl
 WIDTH, HEIGHT = 800, 600
 # 在canvas上绘制文字时的间距与行距
 HSTEP, VSTEP = 13, 18
+# 滚动步长
+SCROLL_STEP = 20
 
+# HTTP_URL = "http://localhost:3000";
+HTTP_URL = "https://browser.engineering/examples/xiyouji.html"
 
 def main():
-    u = URL("http://localhost:3000")
-    content = u.request()
-    print(f"response: {content}")
-
-    Browser().load("")
+    Browser().load(URL(HTTP_URL))
 
     tkinter.mainloop()
 
@@ -26,27 +26,39 @@ class Browser:
         self.canvas = tkinter.Canvas(self.window, width=WIDTH, height=HEIGHT)
         self.canvas.pack()
 
+        self.window.bind("<Down>", self.scrolldown)
+        self.window.bind("<Up>", self.scrollup)
+
         self.scroll = 0  # 当前已向上滑动的距离
 
         # 将初始窗口在屏幕上居中
-        self.window.update_idletasks()
-        w = self.window.winfo_width()
-        h = self.window.winfo_height()
-        scr_w = self.window.winfo_screenwidth()
-        scr_h = self.window.winfo_screenheight()
-        x = (scr_w - w) // 2
-        y = (scr_h - h) // 2
-        self.window.geometry(f"+{x}+{y}")
+        center(self.window)
 
     def load(self, url):
         body = url.request()
-        text = lex(body)
-        self.display_list = layout(text)
+        tokens = lex(body)
+        self.display_list = layout(tokens)
         self.draw()
 
-    def draw():
+    # 在canvas上绘制
+    def draw(self):
+        simsun = tkinter.font.Font(family="NSimSun", size=12)
+        self.canvas.delete("all")
         for x, y, c in self.display_list:
-            self.canvas.create_text(x, y)
+            if y - self.scroll >  HEIGHT: continue
+            if y+ VSTEP < self.scroll: continue
+
+            self.canvas.create_text(x, y - self.scroll, text=c, font=simsun)
+
+    def scrollup(self, e):
+        if self.scroll <= 0: return
+
+        self.scroll -= SCROLL_STEP
+        self.draw()
+
+    def scrolldown(self, e):
+        self.scroll += SCROLL_STEP
+        self.draw()
 
 
 # URL，根据url发送http请求并返回纯文本的http response body
@@ -55,12 +67,17 @@ class URL:
         # 解析url中的scheme、host以及path
         self.scheme, url = url.split("://", 1)
 
+        if self.scheme == "http": 
+            self.port = 80
+        elif self.scheme == "https": 
+            self.port = 443
+
         if "/" not in url:
             url = url + "/"
         self.host, url = url.split("/", 1)
         if ":" in self.host:
             self.host, port = self.host.split(":", 1)
-            self.port = int(port)
+            if port: self.port = int(port)
         self.path = "/" + url
 
         print(f"host: {self.host}, scheme: {self.scheme}, path: {self.path}")
@@ -72,9 +89,9 @@ class URL:
             family=socket.AF_INET, type=socket.SOCK_STREAM, proto=socket.IPPROTO_TCP
         )
 
-        # 如果使用tls，那么需要下面的代码
-        # ctx = ssl.create_default_context()
-        # s = ctx.wrap_socket(s, server_hostname=self.host)
+        if self.scheme == "https":
+            ctx = ssl.create_default_context()
+            s = ctx.wrap_socket(s, server_hostname=self.host)
 
         s.connect((self.host, self.port))
 
@@ -144,13 +161,13 @@ def lex(body):
 
 
 def layout(tokens):
-    cursor_x, cursor_y = 0, 0
+    cursor_x, cursor_y = HSTEP, VSTEP
     display_list = []
     for tok in tokens:
         if isinstance(tok, Text):
             for c in tok.text:
                 if cursor_x + HSTEP > WIDTH:
-                    cursor_x = 0
+                    cursor_x = HSTEP
                     cursor_y += VSTEP
                 display_list.append((cursor_x, cursor_y, c))
                 cursor_x += HSTEP
@@ -158,4 +175,16 @@ def layout(tokens):
     return display_list
 
 
+def center(window):
+    window.update_idletasks()
+    w = window.winfo_width()
+    h = window.winfo_height()
+    scr_w = window.winfo_screenwidth()
+    scr_h = window.winfo_screenheight()
+    x = (scr_w - w) // 2
+    y = (scr_h - h) // 2
+    window.geometry(f"+{x}+{y}")
+
+
+# keep this being the last statement
 main()
