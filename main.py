@@ -43,16 +43,19 @@ class URL:
         # 读取响应报文中所有的Response Header
         response_headers = {}
         while True:
-            line = response
+            line = response.readline()
             if line == "\r\n":
                 break
 
             header, value = line.split(":", 1)
             response_headers[header.casefold()] = value.strip()
 
+        print(f"headers: {response_headers}")
+
         # 读取Response Body
         content = response.read()
         s.close()
+        return content
 
 
 # def show(body):
@@ -65,4 +68,7 @@ class URL:
 #       elif not
 
 
-u = URL("http://www.baidu.com/hello")
+u = URL("http://localhost:3000")
+content = u.request()
+
+print(f"response: {content}")
