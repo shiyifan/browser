@@ -10,9 +10,9 @@ HSTEP, VSTEP = 13, 18
 # 滚动步长
 SCROLL_STEP = 20
 
-HTTP_URL = "http://localhost:3000"
+# HTTP_URL = "http://localhost:3000"
 # HTTP_URL = "https://browser.engineering/examples/xiyouji.html"
-# HTTP_URL = "https://browser.engineering/text.html"
+HTTP_URL = "https://browser.engineering/text.html"
 
 
 def main():
@@ -39,7 +39,7 @@ class Browser:
     def load(self, url):
         body = url.request()
         tokens = lex(body)
-        self.display_list = layout(tokens)
+        self.display_list = Layout(tokens).display_list
         self.draw()
 
     # 在canvas上绘制
@@ -172,36 +172,43 @@ def lex(body):
 
 
 # 根据页面宽度，计算每个页面元素的绘制坐标、字体等
-def layout(tokens):
-    weight = "normal"
-    style = "roman"
+class Layout:
+    def __init__(self, tokens):
+        self.display_list = []
+        self.cursor_x = HSTEP
+        self.cursor_y = VSTEP
+        self.weight = "normal"
+        self.style = "roman"
 
-    cursor_x, cursor_y = HSTEP, VSTEP
-    display_list = []  # 保存页面元素的绘制坐标
+        for tok in tokens:
+            self.token(tok)
 
-    for tok in tokens:
+    def token(self, tok):
         if isinstance(tok, Text):
             # 如果是纯文本则计算坐标
-            for word in tok.text.split():
-                font = tkinter.font.Font(family="Times", size=16, weight=weight, slant=style)
-                w = font.measure(word)
-                if cursor_x + w > WIDTH:
-                    cursor_x = HSTEP
-                    cursor_y += font.metrics("linespace") * 1.25
-                display_list.append((cursor_x, cursor_y, word, font))
-                cursor_x += w + font.measure(" ")
+            self.word(tok)
 
         # 如果是"<i>" "<b>"标签,则修改样式
         elif tok.tag == "i":
-            style = "italic"
+            self.style = "italic"
         elif tok.tag == "/i":
-            style = "roman"
+            self.style = "roman"
         elif tok.tag == "b":
-            weight = "bold"
+            self.weight = "bold"
         elif tok.tag == "/b":
-            weight = "normal"
+            self.weight = "normal"
 
-    return display_list
+    def word(self, tok):
+        for word in tok.text.split():
+            font = tkinter.font.Font(
+                family="Times", size=16, weight=self.weight, slant=self.style
+            )
+            w = font.measure(word)
+            if self.cursor_x + w > WIDTH - HSTEP:
+                self.cursor_x = HSTEP
+                self.cursor_y += font.metrics("linespace") * 1.25
+            self.display_list.append((self.cursor_x, self.cursor_y, word, font))
+            self.cursor_x += w + font.measure(" ")
 
 
 # 居中初始窗口
