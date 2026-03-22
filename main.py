@@ -10,8 +10,9 @@ HSTEP, VSTEP = 13, 18
 # 滚动步长
 SCROLL_STEP = 20
 
-# HTTP_URL = "http://localhost:3000";
-HTTP_URL = "https://browser.engineering/examples/xiyouji.html"
+HTTP_URL = "http://localhost:3000"
+# HTTP_URL = "https://browser.engineering/examples/xiyouji.html"
+# HTTP_URL = "https://browser.engineering/text.html"
 
 
 def main():
@@ -43,18 +44,17 @@ class Browser:
 
     # 在canvas上绘制
     def draw(self):
-        simsun = tkinter.font.Font(family="NSimSun", size=12)
         self.canvas.delete("all")
 
         # 根据计算后页面元素的坐标、样式开始绘制
-        for x, y, c in self.display_list:
+        for x, y, c, font in self.display_list:
             # 不绘制位于窗口可见区域之外的内容
             if y - self.scroll > HEIGHT:
                 continue
             if y + VSTEP < self.scroll:
                 continue
 
-            self.canvas.create_text(x, y - self.scroll, text=c, font=simsun)
+            self.canvas.create_text(x, y - self.scroll, text=c, font=font, anchor="nw")
 
     def scrollup(self, e):
         if self.scroll <= 0:
@@ -173,17 +173,33 @@ def lex(body):
 
 # 根据页面宽度，计算每个页面元素的绘制坐标、字体等
 def layout(tokens):
+    weight = "normal"
+    style = "roman"
+
     cursor_x, cursor_y = HSTEP, VSTEP
     display_list = []  # 保存页面元素的绘制坐标
 
     for tok in tokens:
         if isinstance(tok, Text):
-            for c in tok.text:
-                if cursor_x + HSTEP > WIDTH:
+            # 如果是纯文本则计算坐标
+            for word in tok.text.split():
+                font = tkinter.font.Font(family="Times", size=16, weight=weight, slant=style)
+                w = font.measure(word)
+                if cursor_x + w > WIDTH:
                     cursor_x = HSTEP
-                    cursor_y += VSTEP
-                display_list.append((cursor_x, cursor_y, c))
-                cursor_x += HSTEP
+                    cursor_y += font.metrics("linespace") * 1.25
+                display_list.append((cursor_x, cursor_y, word, font))
+                cursor_x += w + font.measure(" ")
+
+        # 如果是"<i>" "<b>"标签,则修改样式
+        elif tok.tag == "i":
+            style = "italic"
+        elif tok.tag == "/i":
+            style = "roman"
+        elif tok.tag == "b":
+            weight = "bold"
+        elif tok.tag == "/b":
+            weight = "normal"
 
     return display_list
 
