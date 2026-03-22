@@ -4,15 +4,18 @@ import socket
 import ssl
 
 # canvas的大小
-WIDTH, HEIGHT = 800, 600
+WIDTH, HEIGHT = 1024, 768
 # 在canvas上绘制文字时的间距与行距
 HSTEP, VSTEP = 13, 18
 # 滚动步长
 SCROLL_STEP = 20
 
-HTTP_URL = "http://localhost:3000"
+# HTTP_URL = "http://localhost:3000"
 # HTTP_URL = "https://browser.engineering/examples/xiyouji.html"
-# HTTP_URL = "https://browser.engineering/text.html"
+HTTP_URL = "https://browser.engineering/text.html"
+
+# 字体缓存
+FONTS = {}
 
 
 def main():
@@ -182,15 +185,22 @@ class Layout:
         # 字体的默认值
         self.weight = "normal"
         self.style = "roman"
-        self.size = 12
+        self.size = 20
+
+        # 作为buffer,临时保存一行字符，用于计算该行baseline的位置
+        # line中的字符仅计算了x轴的绘制坐标，需要根据baseline的位置计算每个字符的y轴坐标
+        self.line = []
 
         for tok in tokens:
             self.token(tok)
 
+        self.flush()
+
     def token(self, tok):
         if isinstance(tok, Text):
             # 如果是纯文本则计算坐标
-            self.word(tok)
+            for word in tok.text.split():
+                self.word(word)
 
         # 如果是"<i>" "<b>"标签,则修改样式
         elif tok.tag == "i":
@@ -209,18 +219,47 @@ class Layout:
             self.size += 4
         elif tok.tag == "/big":
             self.size -= 4
+        elif tok.tag == "br":
+            self.flush()
+        elif tok.tag == "p":
+            self.flush()
 
-    def word(self, tok):
-        for word in tok.text.split():
-            font = tkinter.font.Font(
-                family="Times", size=self.size, weight=self.weight, slant=self.style
-            )
-            w = font.measure(word)
-            if self.cursor_x + w > WIDTH - HSTEP:
-                self.cursor_x = HSTEP
-                self.cursor_y += font.metrics("linespace") * 1.25
-            self.display_list.append((self.cursor_x, self.cursor_y, word, font))
-            self.cursor_x += w + font.measure(" ")
+    def word(self, word):
+        font = get_font(self.size, self.weight, self.style)
+        w = font.measure(word)
+
+        if self.cursor_x + w > WIDTH - HSTEP:
+            # 根据canvas宽度，字符已占满一行，计算该行的baseline位置并更新word的y轴绘制坐标
+            self.flush()
+        self.line.append((self.cursor_x, word, font))
+        self.cursor_x += w + font.measure(" ")
+
+    # 计算一行字符的baseline位置
+    def flush(self):
+        if not self.line:
+            return
+
+        # 根据每个字符的font,计算一行中最大的ascent
+        metrics = [font.metrics() for x, word, font in self.line]
+        max_ascent = max([metric["ascent"] for metric in metrics])
+
+        # 可以直接以"max_ascent"作为baseline的位置，或者在这个基础上、在最大字符的ascent与descent之外再
+        # 添加一些leading（空白区域），ascent上面添加一半leading, descent下面添加一半leading,
+        # 这样，lineheight = (ascent + descent) + ascent_leading + descent_leading
+        # 这里选择额外添加总共25%的leading,其中ascent上面与descent下面各占一半leading
+        baseline = (
+            self.cursor_y + 1.25 * max_ascent
+        )  # 根据上一行的"cursor_y"坐标计算baseline坐标
+
+        for x, word, font in self.line:
+            y = baseline - font.metrics("ascent")
+            self.display_list.append((x, y, word, font))
+
+        max_descent = max([metric["descent"] for metric in metrics])
+        self.cursor_y = baseline + max_descent * 1.25
+
+        self.cursor_x = HSTEP
+        self.line = []
 
 
 # 居中初始窗口
@@ -233,6 +272,18 @@ def center(window):
     x = (scr_w - w) // 2
     y = (scr_h - h) // 2
     window.geometry(f"+{x}+{y}")
+
+
+# 从"FONTS"缓存中获取字体
+def get_font(size, weight, style):
+    key = (size, weight, style)
+
+    if key not in FONTS:
+        font = tkinter.font.Font(family="Times", size=size, weight=weight, slant=style)
+        label = tkinter.Label(font=font)
+        FONTS[key] = (font, label)
+
+    return FONTS[key][0]
 
 
 # keep this being the last statement
