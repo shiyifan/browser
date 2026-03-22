@@ -13,6 +13,7 @@ SCROLL_STEP = 20
 # HTTP_URL = "http://localhost:3000";
 HTTP_URL = "https://browser.engineering/examples/xiyouji.html"
 
+
 def main():
     Browser().load(URL(HTTP_URL))
 
@@ -44,14 +45,20 @@ class Browser:
     def draw(self):
         simsun = tkinter.font.Font(family="NSimSun", size=12)
         self.canvas.delete("all")
+
+        # 根据计算后页面元素的坐标、样式开始绘制
         for x, y, c in self.display_list:
-            if y - self.scroll >  HEIGHT: continue
-            if y+ VSTEP < self.scroll: continue
+            # 不绘制位于窗口可见区域之外的内容
+            if y - self.scroll > HEIGHT:
+                continue
+            if y + VSTEP < self.scroll:
+                continue
 
             self.canvas.create_text(x, y - self.scroll, text=c, font=simsun)
 
     def scrollup(self, e):
-        if self.scroll <= 0: return
+        if self.scroll <= 0:
+            return
 
         self.scroll -= SCROLL_STEP
         self.draw()
@@ -67,9 +74,9 @@ class URL:
         # 解析url中的scheme、host以及path
         self.scheme, url = url.split("://", 1)
 
-        if self.scheme == "http": 
+        if self.scheme == "http":
             self.port = 80
-        elif self.scheme == "https": 
+        elif self.scheme == "https":
             self.port = 443
 
         if "/" not in url:
@@ -77,7 +84,8 @@ class URL:
         self.host, url = url.split("/", 1)
         if ":" in self.host:
             self.host, port = self.host.split(":", 1)
-            if port: self.port = int(port)
+            if port:
+                self.port = int(port)
         self.path = "/" + url
 
         print(f"host: {self.host}, scheme: {self.scheme}, path: {self.path}")
@@ -89,6 +97,7 @@ class URL:
             family=socket.AF_INET, type=socket.SOCK_STREAM, proto=socket.IPPROTO_TCP
         )
 
+        # 如果请求"https"，那么额外需要tls
         if self.scheme == "https":
             ctx = ssl.create_default_context()
             s = ctx.wrap_socket(s, server_hostname=self.host)
@@ -138,16 +147,18 @@ class Tag:
 # 提取HTML代码中标签与纯文本
 def lex(body):
     out = []
-    buffer = ""
+    buffer = ""  # 保存标签文本或者纯文本
     in_tag = False
 
     for c in body:
         if c == "<":
             in_tag = True
             if buffer:
+                # 提取标签之前（"<"字符之前）的纯文本
                 out.append(Text(buffer))
             buffer = ""
         elif c == ">":
+            # 读取标签结束字符">",并提取标签
             in_tag = False
             out.append(Tag(buffer))
             buffer = ""
@@ -160,9 +171,11 @@ def lex(body):
     return out  # 返回提取后的各个tokens
 
 
+# 根据页面宽度，计算每个页面元素的绘制坐标、字体等
 def layout(tokens):
     cursor_x, cursor_y = HSTEP, VSTEP
-    display_list = []
+    display_list = []  # 保存页面元素的绘制坐标
+
     for tok in tokens:
         if isinstance(tok, Text):
             for c in tok.text:
@@ -175,6 +188,7 @@ def layout(tokens):
     return display_list
 
 
+# 居中初始窗口
 def center(window):
     window.update_idletasks()
     w = window.winfo_width()
