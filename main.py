@@ -10,9 +10,9 @@ HSTEP, VSTEP = 13, 18
 # 滚动步长
 SCROLL_STEP = 20
 
-# HTTP_URL = "http://localhost:3000"
+HTTP_URL = "http://localhost:3000"
 # HTTP_URL = "https://browser.engineering/examples/xiyouji.html"
-HTTP_URL = "https://browser.engineering/text.html"
+# HTTP_URL = "https://browser.engineering/text.html"
 
 
 def main():
@@ -175,10 +175,14 @@ def lex(body):
 class Layout:
     def __init__(self, tokens):
         self.display_list = []
+
         self.cursor_x = HSTEP
         self.cursor_y = VSTEP
+
+        # 字体的默认值
         self.weight = "normal"
         self.style = "roman"
+        self.size = 12
 
         for tok in tokens:
             self.token(tok)
@@ -197,11 +201,19 @@ class Layout:
             self.weight = "bold"
         elif tok.tag == "/b":
             self.weight = "normal"
+        elif tok.tag == "small":
+            self.size -= 4
+        elif tok.tag == "/small":
+            self.size += 4
+        elif tok.tag == "big":
+            self.size += 4
+        elif tok.tag == "/big":
+            self.size -= 4
 
     def word(self, tok):
         for word in tok.text.split():
             font = tkinter.font.Font(
-                family="Times", size=16, weight=self.weight, slant=self.style
+                family="Times", size=self.size, weight=self.weight, slant=self.style
             )
             w = font.measure(word)
             if self.cursor_x + w > WIDTH - HSTEP:
