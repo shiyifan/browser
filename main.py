@@ -29,11 +29,11 @@ class Browser:
     def __init__(self):
         self.window = tkinter.Tk()
         self.canvas = tkinter.Canvas(self.window, width=WIDTH, height=HEIGHT)
-        self.canvas.pack(fill=tkinter.BOTH, expand=1) # 让canvas填充window的空间
+        self.canvas.pack(fill=tkinter.BOTH, expand=1)  # 让canvas填充window的空间
 
         self.window.bind("<Down>", self.scrolldown)
         self.window.bind("<Up>", self.scrollup)
-        self.window.bind("<Configure>", self.reconfigure) # 当窗口大小更新时，重新布局
+        self.window.bind("<Configure>", self.reconfigure)  # 当窗口大小更新时，重新布局
 
         self.scroll = 0  # 当前已向上滑动的距离
 
@@ -151,41 +151,56 @@ class URL:
 
 # HTML代码中位于标签内外的纯文本
 class Text:
-    def __init__(self, text):
+    def __init__(self, text, parent):
         self.text = text
+        self.children = []
+        self.parent = parent
 
 
 # HTML代码中的标签
-class Tag:
-    def __init__(self, tag):
+class Element:
+    def __init__(self, tag, parent):
         self.tag = tag
+        self.children = []
+        self.parent = parent
 
 
-# 提取HTML代码中标签与纯文本
-def lex(body):
-    out = []
-    buffer = ""  # 保存标签文本或者纯文本
-    in_tag = False
+class HTMLParser:
+    def __init__(self, body):
+        self.body = body
+        self.unfinished = []
 
-    for c in body:
-        if c == "<":
-            in_tag = True
-            if buffer:
-                # 提取标签之前（"<"字符之前）的纯文本
-                out.append(Text(buffer))
-            buffer = ""
-        elif c == ">":
-            # 读取标签结束字符">",并提取标签
-            in_tag = False
-            out.append(Tag(buffer))
-            buffer = ""
-        else:
-            buffer += c
+    # 提取HTML代码中标签与纯文本
+    def parse(self):
+        out = []
+        buffer = ""  # 保存标签文本或者纯文本
+        in_tag = False
 
-    if not in_tag and buffer:
-        out.append(Text(buffer))
+        for c in body:
+            if c == "<":
+                in_tag = True
+                if buffer:
+                    # 提取标签之前（"<"字符之前）的纯文本
+                    out.append(Text(buffer))
+                buffer = ""
+            elif c == ">":
+                # 读取标签结束字符">",并提取标签
+                in_tag = False
+                out.append(Tag(buffer))
+                buffer = ""
+            else:
+                buffer += c
 
-    return out  # 返回提取后的各个tokens
+        if not in_tag and buffer:
+            out.append(Text(buffer))
+
+        return out  # 返回提取后的各个tokens
+
+    def add_text(self):
+        pass
+
+    def add_tag(tag):
+        pass
 
 
 # 根据页面宽度，计算每个页面元素的绘制坐标、字体等
