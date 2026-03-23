@@ -170,37 +170,64 @@ class HTMLParser:
         self.body = body
         self.unfinished = []
 
-    # 提取HTML代码中标签与纯文本
+    # 解析HTML代码中标签与纯文本
     def parse(self):
-        out = []
-        buffer = ""  # 保存标签文本或者纯文本
+        text = ""
         in_tag = False
 
-        for c in body:
+        for c in self.body:
             if c == "<":
                 in_tag = True
-                if buffer:
+                if text:
                     # 提取标签之前（"<"字符之前）的纯文本
-                    out.append(Text(buffer))
-                buffer = ""
+                    self.add_text(text)
+                text = ""
             elif c == ">":
                 # 读取标签结束字符">",并提取标签
                 in_tag = False
-                out.append(Tag(buffer))
-                buffer = ""
+                self.add_tag(text)
+                text = ""
             else:
-                buffer += c
+                text += c
 
-        if not in_tag and buffer:
-            out.append(Text(buffer))
+        if not in_tag and text:
+            self.add_text(text)
 
-        return out  # 返回提取后的各个tokens
+        return self.finish()  # 返回提取后的各个tokens
 
-    def add_text(self):
-        pass
+    # 在DOM树中添加text html node
+    def add_text(self, text):
+        parent = self.unfinished[-1]
+        node = Text(text, parent)
+        parent.children.append(node)
 
-    def add_tag(tag):
-        pass
+    # 在DOM树中添加tag html node
+    def add_tag(self, tag):
+        if tag.startswith("/"):
+            # 如果是close label"</xxxx>"
+
+            if len(self.unfinished) == 1:
+                # 如果仅剩余最顶级标签，该标签无parent，那么直接返回
+                return
+            node = self.unfinished.pop()
+            parent = self.unfinished[-1]
+            parent.children.append(node)
+
+        else:
+            # 如果是open label"<xxxx>"
+
+            # 如果是第一个标签，那么该标签无parent
+            parent = self.unfinished[-1] if self.unfinished else None
+
+            node = Element(tag, parent)
+            self.unfinished.append(node)
+
+    def finish(self):
+        while len(self.unfinished) > 1:
+            node = self.unfinished.pop()
+            parent = self.unfinished[-1]
+            parent.children.append(node)
+        return self.unfinished.pop()
 
 
 # 根据页面宽度，计算每个页面元素的绘制坐标、字体等
