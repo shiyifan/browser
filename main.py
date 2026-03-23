@@ -29,10 +29,11 @@ class Browser:
     def __init__(self):
         self.window = tkinter.Tk()
         self.canvas = tkinter.Canvas(self.window, width=WIDTH, height=HEIGHT)
-        self.canvas.pack()
+        self.canvas.pack(fill=tkinter.BOTH, expand=1) # 让canvas填充window的空间
 
         self.window.bind("<Down>", self.scrolldown)
         self.window.bind("<Up>", self.scrollup)
+        self.window.bind("<Configure>", self.reconfigure) # 当窗口大小更新时，重新布局
 
         self.scroll = 0  # 当前已向上滑动的距离
 
@@ -41,8 +42,8 @@ class Browser:
 
     def load(self, url):
         body = url.request()
-        tokens = lex(body)
-        self.display_list = Layout(tokens).display_list
+        self.tokens = lex(body)
+        self.display_list = Layout(self.tokens).display_list
         self.draw()
 
     # 在canvas上绘制
@@ -68,6 +69,19 @@ class Browser:
 
     def scrolldown(self, e):
         self.scroll += SCROLL_STEP
+        self.draw()
+
+    def reconfigure(self, e):
+        if not self.tokens:
+            return
+
+        global WIDTH, HEIGHT
+        if WIDTH == e.width and HEIGHT == e.height:
+            return
+        WIDTH = e.width
+        HEIGHT = e.height
+
+        self.display_list = Layout(self.tokens).display_list
         self.draw()
 
 
