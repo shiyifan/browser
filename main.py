@@ -311,7 +311,7 @@ class HTMLParser:
 
         return tag, attributes
 
-    def implicit_tags(self):
+    def implicit_tags(self, tag):
         while True:
             open_tags = [node.tag for node in self.unfinished]
 
