@@ -17,6 +17,24 @@ HTTP_URL = "https://browser.engineering/text.html"
 # 字体缓存
 FONTS = {}
 
+# 无end close tag的标签
+SELF_CLOSING_TAGS = [
+    "area",
+    "base",
+    "br",
+    "col",
+    "embed",
+    "hr",
+    "img",
+    "input",
+    "link",
+    "meta",
+    "param",
+    "source",
+    "track",
+    "wbr",
+]
+
 
 def main():
     Browser().load(URL(HTTP_URL))
@@ -42,9 +60,11 @@ class Browser:
 
     def load(self, url):
         body = url.request()
-        self.tokens = lex(body)
-        self.display_list = Layout(self.tokens).display_list
+        self.nodes = HTMLParser(body).parse()
+        self.display_list = Layout(self.nodes).display_list
         self.draw()
+
+        # print_tree(nodes)
 
     # 在canvas上绘制
     def draw(self):
@@ -72,7 +92,7 @@ class Browser:
         self.draw()
 
     def reconfigure(self, e):
-        if not self.tokens:
+        if not self.nodes:
             return
 
         global WIDTH, HEIGHT
@@ -81,7 +101,7 @@ class Browser:
         WIDTH = e.width
         HEIGHT = e.height
 
-        self.display_list = Layout(self.tokens).display_list
+        self.display_list = Layout(self.nodes).display_list
         self.draw()
 
 
@@ -156,13 +176,20 @@ class Text:
         self.children = []
         self.parent = parent
 
+    def __repr__(self):
+        return repr(self.text)
+
 
 # HTML代码中的标签
 class Element:
-    def __init__(self, tag, parent):
+    def __init__(self, tag, attributes, parent):
         self.tag = tag
         self.children = []
+        self.attributes = attributes
         self.parent = parent
+
+    def __repr__(self):
+        return "<" + self.tag + ">"
 
 
 class HTMLParser:
@@ -193,18 +220,29 @@ class HTMLParser:
         if not in_tag and text:
             self.add_text(text)
 
-        return self.finish()  # 返回提取后的各个tokens
+        return self.finish()  # 返回DOM结构
 
-    # 在DOM树中添加text html node
+    # 在DOM树中添加text节点
     def add_text(self, text):
+        if text.isspace():
+            # 忽略仅空白字符构成的text结点
+            return
+
         parent = self.unfinished[-1]
         node = Text(text, parent)
         parent.children.append(node)
 
-    # 在DOM树中添加tag html node
+    # 在DOM树中添加tag结点
     def add_tag(self, tag):
+        if tag.startswith("!"):
+            # 忽略"<!doctype html>"
+            return
+
+        tag, attributes = self.get_attibutes(tag)  # 解析标签名与标签属性
+
         if tag.startswith("/"):
-            # 如果是close label"</xxxx>"
+            # 如果是close label"</xxxx>"，
+            # 表示unfinished中最后一个label已结束，并添加至父结点中
 
             if len(self.unfinished) == 1:
                 # 如果仅剩余最顶级标签，该标签无parent，那么直接返回
@@ -213,13 +251,18 @@ class HTMLParser:
             parent = self.unfinished[-1]
             parent.children.append(node)
 
+        elif tag in SELF_CLOSING_TAGS:
+            parent = self.unfinished[-1]
+            parent.children.append(Element(tag, attributes, parent))
+
         else:
-            # 如果是open label"<xxxx>"
+            # 如果是open label"<xxxx>"，
+            # 新建一个label,其父结点是unfinished中最后一个label,并且将该label添加至unfinished中
 
             # 如果是第一个标签，那么该标签无parent
             parent = self.unfinished[-1] if self.unfinished else None
 
-            node = Element(tag, parent)
+            node = Element(tag, attributes, parent)
             self.unfinished.append(node)
 
     def finish(self):
@@ -229,10 +272,31 @@ class HTMLParser:
             parent.children.append(node)
         return self.unfinished.pop()
 
+    def get_attibutes(self, text):
+        parts = text.split()
+        tag = parts[0].casefold()
+        attributes = {}
+
+        # 解析标签的属性声明
+        for attrpair in parts[1:]:
+            if "=" in attrpair:
+                # 形如"id=button"的属性声明
+                key, value = attrpair.split("=", 1)
+                # 如果属性值两侧有引号
+                if len(value) > 2 and value[0] in ["'", '"']:
+                    value = value[1:-1]
+
+                attributes[key.casefold()] = value
+            else:
+                # 形如"disabled"、仅有属性名称的属性声明
+                attributes[attrpair.casefold()] = ""
+
+        return tag, attributes
+
 
 # 根据页面宽度，计算每个页面元素的绘制坐标、字体等
 class Layout:
-    def __init__(self, tokens):
+    def __init__(self, nodes):
         self.display_list = []
 
         self.cursor_x = HSTEP
@@ -247,38 +311,43 @@ class Layout:
         # line中的字符仅计算了x轴的绘制坐标，需要根据baseline的位置计算每个字符的y轴坐标
         self.line = []
 
-        for tok in tokens:
-            self.token(tok)
+        self.recurse(nodes)
 
         self.flush()
 
-    def token(self, tok):
-        if isinstance(tok, Text):
-            # 如果是纯文本则计算坐标
-            for word in tok.text.split():
+    def recurse(self, tree):
+        if isinstance(tree, Text):
+            for word in tree.text.split():
                 self.word(word)
+        else:
+            self.open_tag(tree.tag)
+            for child in tree.children:
+                self.recurse(child)
+            self.close_tag(tree.tag)
 
-        # 如果是"<i>" "<b>"标签,则修改样式
-        elif tok.tag == "i":
+    def open_tag(self, tag):
+        if tag == "i":
             self.style = "italic"
-        elif tok.tag == "/i":
-            self.style = "roman"
-        elif tok.tag == "b":
+        elif tag == "b":
             self.weight = "bold"
-        elif tok.tag == "/b":
+        elif tag == "small":
+            self.size -= 4
+        elif tag == "big":
+            self.size += 4
+        elif tag == "br":
+            self.flush()
+        elif tag == "p":
+            self.flush()
+
+    def close_tag(self, tag):
+        if tag == "i":
+            self.style = "roman"
+        elif tag == "b":
             self.weight = "normal"
-        elif tok.tag == "small":
-            self.size -= 4
-        elif tok.tag == "/small":
+        elif tag == "small":
             self.size += 4
-        elif tok.tag == "big":
-            self.size += 4
-        elif tok.tag == "/big":
+        elif tag == "big":
             self.size -= 4
-        elif tok.tag == "br":
-            self.flush()
-        elif tok.tag == "p":
-            self.flush()
 
     def word(self, word):
         font = get_font(self.size, self.weight, self.style)
@@ -340,6 +409,13 @@ def get_font(size, weight, style):
         FONTS[key] = (font, label)
 
     return FONTS[key][0]
+
+
+# 输出DOM Tree结构
+def print_tree(node, indent=0):
+    print(" " * indent, node)
+    for child in node.children:
+        print_tree(child, indent + 2)
 
 
 # keep this being the last statement
