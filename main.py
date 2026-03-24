@@ -35,6 +35,19 @@ SELF_CLOSING_TAGS = [
     "wbr",
 ]
 
+# 允许在"<head>"内的标签
+HEAD_TAGS = [
+    "base",
+    "basefont",
+    "bgsound",
+    "noscript",
+    "link",
+    "meta",
+    "title",
+    "style",
+    "script",
+]
+
 
 def main():
     Browser().load(URL(HTTP_URL))
@@ -227,6 +240,7 @@ class HTMLParser:
         if text.isspace():
             # 忽略仅空白字符构成的text结点
             return
+        self.implicit_tags(None)
 
         parent = self.unfinished[-1]
         node = Text(text, parent)
@@ -239,6 +253,7 @@ class HTMLParser:
             return
 
         tag, attributes = self.get_attibutes(tag)  # 解析标签名与标签属性
+        self.implicit_tags(tag)
 
         if tag.startswith("/"):
             # 如果是close label"</xxxx>"，
@@ -266,6 +281,9 @@ class HTMLParser:
             self.unfinished.append(node)
 
     def finish(self):
+        if not self.unfinished:
+            self.implicit_tags(None)
+
         while len(self.unfinished) > 1:
             node = self.unfinished.pop()
             parent = self.unfinished[-1]
@@ -292,6 +310,25 @@ class HTMLParser:
                 attributes[attrpair.casefold()] = ""
 
         return tag, attributes
+
+    def implicit_tags(self):
+        while True:
+            open_tags = [node.tag for node in self.unfinished]
+
+            if open_tags == [] and tag != "html":
+                # 如果第一个open的标签不是html，手动插入"<html>"
+                self.add_tag("html")
+            elif open_tags == ["html"] and tag not in ["head", "body", "/html"]:
+                # 如果第二个open的标签不是<head>, <body>, </html>，那么
+                # 也需要手动插入
+                if tag in HEAD_TAGS:
+                    self.add_tag("head")
+                else:
+                    self.add_tag("body")
+            elif open_tags == ["html", "head"] and tag not in ["/head"] + HEAD_TAGS:
+                self.add_tag("/head")
+            else:
+                break
 
 
 # 根据页面宽度，计算每个页面元素的绘制坐标、字体等
