@@ -10,9 +10,9 @@ HSTEP, VSTEP = 13, 18
 # 滚动步长
 SCROLL_STEP = 20
 
-# HTTP_URL = "http://localhost:3000"
+HTTP_URL = "http://localhost:3000"
 # HTTP_URL = "https://browser.engineering/examples/xiyouji.html"
-HTTP_URL = "https://browser.engineering/text.html"
+# HTTP_URL = "https://browser.engineering/text.html"
 
 # 字体缓存
 FONTS = {}
