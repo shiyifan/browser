@@ -1,4 +1,5 @@
 from tags import Text, Element
+from const import *
 
 
 class HTMLParser:
