@@ -7,6 +7,8 @@ from const import *
 FONTS = {}
 
 
+# 对应于DOM tree,创建一个用于布局的layout tree。并且DOM tree中每个
+# 可绘制的结点对应于layout tree中的结点
 # Layout Tree上的结点，对应于每个DOM结点
 class BlockLayout:
     def __init__(self, node, parent, previous):

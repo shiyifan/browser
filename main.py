@@ -34,7 +34,7 @@ class Browser:
 
         self.document = BlockLayout(self.nodes, None, None)
         self.document.layout()
-        # self.display_list = self.document.display_list
+        self.display_list = self.document.display_list
 
         # self.draw()
 

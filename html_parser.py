@@ -7,7 +7,7 @@ class HTMLParser:
         self.body = body
         self.unfinished = []
 
-    # 解析HTML代码中标签与纯文本
+    # 解析HTML代码中标签与纯文本，并返回由"Text"与"Element"构成的DOM树
     def parse(self):
         text = ""
         in_tag = False
