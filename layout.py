@@ -17,6 +17,11 @@ class BlockLayout:
         self.previous = previous  # previous sibling
         self.children = []
 
+        self.x = None
+        self.y = None
+        self.width = None
+        self.height = None
+
         self.display_list = []
 
         self.cursor_x = HSTEP
@@ -37,14 +42,28 @@ class BlockLayout:
 
     # 根据绘制方式创建layout tree
     def layout(self):
-        mode = self.layout_mode()
+        # 根据layout tree中的父结点以及previous计算当前结点的x坐标、y坐标以及宽度width
+        self.x = self.parent.x
+        self.width = self.parent.width
+        if self.previous:
+            self.y = self.previous.y + self.previous.height
+        else:
+            self.y = self.parent.y
 
+        mode = self.layout_mode()
         if mode == "block":
             previous = None
             for child in self.node.children:
                 next = BlockLayout(child, self, previous)
                 self.children.append(next)
                 previous = next
+
+            for child in self.children:
+                child.layout()
+
+            # block html element的高度等于所有子结点的高度之和
+            # 在所有子结点计算得到height之后再计算当前结点的高度
+            self.height = sum([child.height for child in self.children])
         else:
             # 计算inline元素的绘制信息，并将信息保存至"display list"中
             self.cursor_x = 0
@@ -55,9 +74,7 @@ class BlockLayout:
             self.line = []
             self.recurse(self.node)
             self.flush()
-
-        for child in self.children:
-            child.layout()
+            self.height = self.cursor_y  # inline html element的高度等于文本的高度
 
     # 根据当前DOM结点以及所包含子结点的类型，确定当前节点的绘制方式
     #
@@ -121,8 +138,8 @@ class BlockLayout:
         font = get_font(self.size, self.weight, self.style)
         w = font.measure(word)
 
-        if self.cursor_x + w > WIDTH - HSTEP:
-            # 根据canvas宽度，字符已占满一行，计算该行的baseline位置并更新word的y轴绘制坐标
+        if self.cursor_x + w > self.width:
+            # 根据BlockLayout宽度，字符已占满一行，计算该行的baseline位置并更新word的y轴绘制坐标
             self.flush()
         self.line.append((self.cursor_x, word, font))
         self.cursor_x += w + font.measure(" ")
@@ -144,14 +161,15 @@ class BlockLayout:
             self.cursor_y + 1.25 * max_ascent
         )  # 根据上一行的"cursor_y"坐标计算baseline坐标
 
-        for x, word, font in self.line:
+        for rel_x, word, font in self.line:
+            x = self.x + rel_x
             y = baseline - font.metrics("ascent")
             self.display_list.append((x, y, word, font))
 
         max_descent = max([metric["descent"] for metric in metrics])
         self.cursor_y = baseline + max_descent * 1.25
 
-        self.cursor_x = HSTEP
+        self.cursor_x = 0
         self.line = []
 
 
@@ -160,6 +178,11 @@ class DocumentLayout:
         self.node = node
         self.parent = None
         self.children = []
+
+        self.x = None
+        self.y = None
+        self.width = None
+        self.height = None
 
     def layout(self):
         child = BlockLayout(self.node, self, None)
