@@ -1,7 +1,7 @@
 import tkinter.font
 
 from tags import Text, Element
-from const import *
+import const
 
 # 字体缓存
 FONTS = {}
@@ -17,28 +17,28 @@ class BlockLayout:
         self.previous = previous  # previous sibling
         self.children = []
 
+        # 该layout相对于canvas左上角的绝对坐标
         self.x = None
         self.y = None
+
         self.width = None
         self.height = None
 
+        # layout内的子结点相对于layout左上角的相对坐标
+        # 所以子结点的绝对坐标等于"self.x + self.cursor_x"
+        self.cursor_x = None
+        self.cursor_y = None
+
         self.display_list = []
 
-        self.cursor_x = HSTEP
-        self.cursor_y = VSTEP
-
         # 字体的默认值
-        self.weight = "normal"
-        self.style = "roman"
-        self.size = 20
+        self.weight = None
+        self.style = None
+        self.size = None
 
         # 作为buffer,临时保存一行字符，用于计算该行baseline的位置
         # line中的字符仅计算了x轴的绘制坐标，需要根据baseline的位置计算每个字符的y轴坐标
         self.line = []
-
-        # self.recurse(nodes)
-
-        # self.flush()
 
     # 根据绘制方式创建layout tree
     def layout(self):
@@ -86,7 +86,7 @@ class BlockLayout:
             return "inline"
         elif any(
             [
-                isinstance(child, Element) and child.tag in BLOCK_ELEMENTS
+                isinstance(child, Element) and child.tag in const.BLOCK_ELEMENTS
                 for child in self.node.children
             ]
         ):
@@ -163,7 +163,7 @@ class BlockLayout:
 
         for rel_x, word, font in self.line:
             x = self.x + rel_x
-            y = baseline - font.metrics("ascent")
+            y = self.y + baseline - font.metrics("ascent")
             self.display_list.append((x, y, word, font))
 
         max_descent = max([metric["descent"] for metric in metrics])
@@ -171,6 +171,9 @@ class BlockLayout:
 
         self.cursor_x = 0
         self.line = []
+
+    def paint(self):
+        return self.display_list
 
 
 class DocumentLayout:
@@ -185,15 +188,17 @@ class DocumentLayout:
         self.height = None
 
     def layout(self):
-        self.width = WIDTH - 2 * HSTEP
-        self.x = HSTEP
-        self.y = VSTEP
+        self.width = const.WIDTH - 2 * const.HSTEP
+        self.x = const.HSTEP
+        self.y = const.VSTEP
 
         child = BlockLayout(self.node, self, None)
         self.children.append(child)
         child.layout()
-        self.display_list = child.display_list
         self.height = child.height
+
+    def paint(self):
+        return []
 
 
 # 从"FONTS"缓存中获取字体
