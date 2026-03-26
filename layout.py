@@ -1,6 +1,7 @@
 import tkinter.font
 
 from tags import Text, Element
+from commands import DrawText, DrawRect
 import const
 
 # 字体缓存
@@ -173,7 +174,20 @@ class BlockLayout:
         self.line = []
 
     def paint(self):
-        return self.display_list
+        cmds = []
+
+        # 必须先绘制背景，再绘制背景上的文本
+        if isinstance(self.node, Element) and self.node.tag == "pre":
+            x2, y2 = self.x + self.width, self.y + self.height
+            rect = DrawRect(self.x, self.y, x2, y2, "gray")
+            cmds.append(rect)
+
+        if self.layout_mode() == "inline":
+            for x, y, word, font in self.display_list:
+                cmds.append(DrawText(x, y, word, font))
+
+
+        return cmds
 
 
 class DocumentLayout:
