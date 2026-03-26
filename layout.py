@@ -61,7 +61,9 @@ class BlockLayout:
     # 根据当前结点在DOM中对应的结点,创建该结点Layout Tree的子结点
     # def layout_intermediate(self):
 
-    # 根据当前DOM结点以及子结点的类型，确定绘制方式
+    # 根据当前DOM结点以及所包含子结点的类型，确定当前节点的绘制方式
+    # 目前的DOM树中仅有两种标签类型：Text与Element，Text表示纯文本节点，Element表示标签自身，纯文本节点可能
+    # 位于Element的"children"属性中
     def layout_mode(self):
         if isinstance(self.node, Text):
             # 当前DOM结点是纯文本,以inline方式绘制
