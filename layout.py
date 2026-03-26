@@ -35,6 +35,7 @@ class BlockLayout:
 
         # self.flush()
 
+    # 根据绘制方式创建layout tree
     def layout(self):
         mode = self.layout_mode()
 
@@ -58,15 +59,13 @@ class BlockLayout:
         for child in self.children:
             child.layout()
 
-    # 根据当前结点在DOM中对应的结点,创建该结点Layout Tree的子结点
-    # def layout_intermediate(self):
-
     # 根据当前DOM结点以及所包含子结点的类型，确定当前节点的绘制方式
-    # 目前的DOM树中仅有两种标签类型：Text与Element，Text表示纯文本节点，Element表示标签自身，纯文本节点可能
-    # 位于Element的"children"属性中
+    #
+    # 目前DOM树中仅有两种节点类型：Text与Element，Text表示纯文本节点，Element表示除纯文本外其他的HTML tag结点
+    # Text节点无子节点，Element的子结点既可以是Text,也可以是Element
     def layout_mode(self):
         if isinstance(self.node, Text):
-            # 当前DOM结点是纯文本,以inline方式绘制
+            # DOM tree中，Text结点作为叶子结点，所以计算该结点的display list
             return "inline"
         elif any(
             [
@@ -74,11 +73,12 @@ class BlockLayout:
                 for child in self.node.children
             ]
         ):
-            # 如果DOM结点node的子结点中，至少存在一个是block html element而且是"Element"类型，
-            # 那么以block方式绘制该元素
+            # DOM tree中，如果Element结点的子结点中，至少有一个是block Html Element，
+            # 那么在layout tree中，该结点作为非叶子结点，不计算display list,仅将子结点添加至"children"数组中
             return "block"
         elif self.node.children:
-            # 子结点中没有block html element,则以inline方式绘制
+            # 在layout tree中，该结点的子结点中只有inline Html Element,那么将该结点视为叶子结点，
+            # 并计算结点的display list
             return "inline"
         else:
             return "block"
