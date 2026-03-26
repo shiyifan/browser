@@ -162,7 +162,7 @@ class BlockLayout:
         )  # 根据上一行的"cursor_y"坐标计算baseline坐标
 
         for rel_x, word, font in self.line:
-            x = self.x + rel_x
+            x = self.x + rel_x  # 此时应该计算相对于canvas的绝对坐标
             y = self.y + baseline - font.metrics("ascent")
             self.display_list.append((x, y, word, font))
 
