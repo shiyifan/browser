@@ -3,7 +3,7 @@ import tkinter
 from url import URL
 from html_parser import HTMLParser
 from const import *
-from layout import BlockLayout
+from layout import DocumentLayout, BlockLayout
 
 
 def main():
@@ -32,11 +32,11 @@ class Browser:
         body = url.request()
         self.nodes = HTMLParser(body).parse()
 
-        self.document = BlockLayout(self.nodes, None, None)
+        self.document = DocumentLayout(self.nodes)
         self.document.layout()
         self.display_list = self.document.display_list
 
-        # self.draw()
+        self.draw()
 
         # print_tree(nodes)
 
@@ -75,8 +75,9 @@ class Browser:
         WIDTH = e.width
         HEIGHT = e.height
 
-        # self.display_list = BlockLayout(self.nodes, None, None).display_list
-        # self.draw()
+        self.document.layout()
+        self.display_list = self.document.display_list
+        self.draw()
 
 
 # 居中初始窗口

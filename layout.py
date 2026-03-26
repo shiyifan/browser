@@ -185,10 +185,15 @@ class DocumentLayout:
         self.height = None
 
     def layout(self):
+        self.width = WIDTH - 2 * HSTEP
+        self.x = HSTEP
+        self.y = VSTEP
+
         child = BlockLayout(self.node, self, None)
         self.children.append(child)
         child.layout()
         self.display_list = child.display_list
+        self.height = child.height
 
 
 # 从"FONTS"缓存中获取字体
