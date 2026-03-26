@@ -24,6 +24,7 @@ class Browser:
         self.window.bind("<Configure>", self.reconfigure)  # 当窗口大小更新时，重新布局
 
         self.scroll = 0  # 当前已向上滑动的距离
+        self.loaded = False
 
         # 将初始窗口在屏幕上居中
         center(self.window)
@@ -38,7 +39,7 @@ class Browser:
 
         self.draw()
 
-        # print_tree(nodes)
+        self.loaded = True
 
     # 在canvas上绘制
     def draw(self):
@@ -66,18 +67,19 @@ class Browser:
         self.draw()
 
     def reconfigure(self, e):
-        if not self.nodes:
-            return
-
         global WIDTH, HEIGHT
         if WIDTH == e.width and HEIGHT == e.height:
             return
         WIDTH = e.width
         HEIGHT = e.height
 
-        self.document.layout()
-        self.display_list = self.document.display_list
-        self.draw()
+        if self.loaded:
+            if not self.nodes:
+                return
+            self.document.layout()
+            self.display_list = []
+            paint_tree(self.document, self.display_list)
+            self.draw()
 
 
 # 居中初始窗口
