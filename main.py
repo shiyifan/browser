@@ -48,14 +48,14 @@ class Browser:
         self.canvas.delete("all")
 
         # 根据计算后页面元素的坐标、样式开始绘制
-        for x, y, c, font in self.display_list:
+        for cmd in self.display_list:
             # 不绘制位于窗口可见区域之外的内容
-            if y - self.scroll > const.HEIGHT:
+            if cmd.top > self.scroll + const.HEIGHT:
                 continue
-            if y + const.VSTEP < self.scroll:
+            if cmd.bottom < self.scroll:
                 continue
 
-            self.canvas.create_text(x, y - self.scroll, text=c, font=font, anchor="nw")
+            cmd.execute(self.scroll, self.canvas)
 
     def scrollup(self, e):
         if self.scroll <= 0:

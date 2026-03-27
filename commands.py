@@ -9,6 +9,7 @@ class DrawText:
         self.text = text
         self.font = font
 
+        # 表示当前行的底部纵坐标，用于判断绘制位置是否位于canvas的可见区域外
         self.bottom = y1 + font.metrics("linespace")
 
     def execute(self, scroll, canvas):

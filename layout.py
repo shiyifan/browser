@@ -186,7 +186,6 @@ class BlockLayout:
             for x, y, word, font in self.display_list:
                 cmds.append(DrawText(x, y, word, font))
 
-
         return cmds
 
 
