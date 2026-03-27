@@ -65,7 +65,10 @@ class Browser:
         self.draw()
 
     def scrolldown(self, e):
-        self.scroll += const.SCROLL_STEP
+        # 已显示最后一行内容后，不再继续向下滚动
+        max_y = max(self.document.height + 2 * const.VSTEP - const.HEIGHT, 0)
+        self.scroll = min(self.scroll + const.SCROLL_STEP, max_y)
+
         self.draw()
 
     def reconfigure(self, e):
