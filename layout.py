@@ -145,7 +145,7 @@ class BlockLayout:
         self.line.append((self.cursor_x, word, font))
         self.cursor_x += w + font.measure(" ")
 
-    # 计算一行字符的baseline位置
+    # 计算一行字符的baseline位置，并确定绘制每个字符时的y坐标
     def flush(self):
         if not self.line:
             return
