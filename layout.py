@@ -13,7 +13,7 @@ FONTS = {}
 # Layout Tree上的结点，对应于每个DOM结点
 class BlockLayout:
     def __init__(self, node, parent, previous):
-        self.node = node
+        self.node = node  # DOM结点
         self.parent = parent
         self.previous = previous  # previous sibling
         self.children = []
