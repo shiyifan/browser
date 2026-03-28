@@ -1,4 +1,4 @@
-from selectors import TagSelector, DescendantSelector
+from css_selectors import TagSelector, DescendantSelector
 
 
 # html element "style"属性解析
@@ -35,31 +35,33 @@ class CSSParser:
             )
         self.i += 1
 
-    # 从当前位置向后解析，获取一个css属性名与属性值
+    # 从当前位置向后解析，截取一个css属性名与属性值
     def pair(self):
-        prop = self.word()
+        prop = self.word()  # 截取属性名
         self.whitespace()
         self.literal(":")
         self.whitespace()
-        val = self.word()
+        val = self.word()  # 截取属性值
         return prop.casefold(), val
 
     def body(self):
         pairs = {}
-        while self.i < len(self.s):
-            # try:
-            prop, val = self.pair()
-            pairs[prop] = val
-            self.whitespace()
-            self.literal(";")
-            self.whitespace()
-            # except Exception:
-            #     why = self.ignore_until([";"])
-            #     if why == ";":
-            #         self.literal(";")
-            #         self.whitespace()
-            #     else:
-            #         break;
+        # 解析css selector后花括号里面的具体rule，直到"}"字符
+        while self.i < len(self.s) and self.s[self.i] != "}":
+            try:
+                prop, val = self.pair()
+                pairs[prop] = val
+                self.whitespace()
+                self.literal(";")
+                self.whitespace()
+            except Exception as e:
+                # 如果解析rule时发生异常，那么忽略后续字符直到";"或者"}"
+                why = self.ignore_until([";", "}"])
+                if why == ";":
+                    self.literal(";")
+                    self.whitespace()
+                else:
+                    break
         return pairs
 
     def ignore_until(self, chars):
@@ -102,11 +104,20 @@ class CSSParser:
     def parse(self):
         rules = []
         while self.i < len(self.s):
-            self.whitespace()
-            selector = self.selector()
-            self.literal("{")
-            self.whitespace()
-            body = self.body()
-            self.literal("}")
-            rules.append((selector, body))
+            try:
+                self.whitespace()
+                selector = self.selector()
+                self.literal("{")
+                self.whitespace()
+                body = self.body()  # body中的异常已在函数内捕获并处理
+                self.literal("}")
+                rules.append((selector, body))
+            except Exception as e:
+                # 解析selector时发生异常，忽略后续字符直到"}"
+                why = self.ignore_until(["}"])
+                if why == "}":
+                    self.literal("}")
+                    self.whitespace()
+                else:
+                    break
         return rules

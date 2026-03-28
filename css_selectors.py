@@ -4,7 +4,7 @@
 
 class TagSelector:
     def __init__(self, tag):
-        this.tag = tag
+        self.tag = tag
 
     def matches(self, node):
         return isinstance(node, Element) and self.tag == node.tag
@@ -12,8 +12,8 @@ class TagSelector:
 
 class DescendantSelector:
     def __init__(self, ancestor, descendant):
-        this.ancestor = ancestor
-        this.descendant = descendant
+        self.ancestor = ancestor
+        self.descendant = descendant
 
     def matched(self, node):
         # 先判断DOM结点是否匹配低位的selector，如果低位的selector匹配失败，那么无需继续匹配高位selector
