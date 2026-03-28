@@ -1,3 +1,5 @@
+# html element "style"属性解析
+# 注意属性值中不可以包含空格，因为"HTMLParser"根据空格分词
 class CSSParser:
     def __init__(self, s):
         self.s = s  # css字符串
