@@ -176,10 +176,10 @@ class BlockLayout:
     def paint(self):
         cmds = []
 
-        # 必须先绘制背景，再绘制背景上的文本
-        if isinstance(self.node, Element) and self.node.tag == "pre":
+        bgcolor = self.node.style.get("background-color", "transparent")
+        if bgcolor != "transparent":
             x2, y2 = self.x + self.width, self.y + self.height
-            rect = DrawRect(self.x, self.y, x2, y2, "gray")
+            rect = DrawRect(self.x, self.y, x2, y2, bgcolor)
             cmds.append(rect)
 
         if self.layout_mode() == "inline":

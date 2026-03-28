@@ -4,6 +4,8 @@ from url import URL
 from html_parser import HTMLParser
 import const
 from layout import DocumentLayout, BlockLayout
+from tags import Element
+from css_parser import CSSParser
 
 
 def main():
@@ -34,6 +36,7 @@ class Browser:
     def load(self, url):
         body = url.request()
         self.nodes = HTMLParser(body).parse()
+        style(self.nodes)
 
         self.document = DocumentLayout(self.nodes)
         self.document.layout()
@@ -110,6 +113,19 @@ def paint_tree(layout_object, display_list):
     display_list.extend(layout_object.paint())
     for child in layout_object.children:
         paint_tree(child, display_list)
+
+
+# 根据DOM结点上"style"属性创建CSS对象并赋值为"style"属性
+def style(node):
+    node.style = {}  # CSS解析后的对象
+    if isinstance(node, Element) and "style" in node.attributes:
+        pairs = CSSParser(node.attributes["style"]).body()
+        for property, value in pairs.items():
+            node.style[property] = value
+
+    # 解析并创建子结点的CSS对象
+    for child in node.children:
+        style(child)
 
 
 # keep this being the last statement

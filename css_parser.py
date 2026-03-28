@@ -18,6 +18,7 @@ class CSSParser:
             else:
                 break
         if not (self.i > start):
+            # 未能截取到任何有效的字符
             raise Exception(f"Parsing Error, start: {start}, self.i: {self.i}")
         return self.s[start : self.i]  # 返回截取得到的值
 
@@ -25,7 +26,7 @@ class CSSParser:
     def literal(self, literal):
         if not (self.i < len(self.s) and self.s[self.i] == literal):
             raise Exception(
-                f"Parsing Error, literal expected: {literal}, actual: {self.s[self.i]}"
+                f"Parsing Error, literal expected: {literal}, actual: {self.s}[{self.i}]"
             )
         self.i += 1
 
