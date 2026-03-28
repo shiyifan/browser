@@ -1,3 +1,6 @@
+from selectors import TagSelector, DescendantSelector
+
+
 # html element "style"属性解析
 # 注意属性值中不可以包含空格，因为"HTMLParser"根据空格分词
 class CSSParser:
@@ -66,3 +69,35 @@ class CSSParser:
             else:
                 self.i += 1
         return None
+
+    # 截取selector
+    #
+    # 对于多个tag selector构成的DescendantSelector，最终的selector对象将是这样的嵌套结构
+    #
+    # selector: div header span
+    #
+    #
+    #                 DescendantSelector
+    # +---------------------------------------------------+
+    # |                                                   |
+    # |         DescendantSelector                        |
+    # |   +----------------------------+                  |
+    # |   |     div          header    |       span       |
+    # |   | (ancestor)    (descendant) |                  |
+    # |   +----------------------------+                  |
+    # |             (ancestor)             (descendant)   |
+    # |                                                   |
+    # +---------------------------------------------------+
+    def selector(self):
+        out = TagSelector(self.word().casefold())
+        self.whitespace()
+        while self.i < len(self.s) and self.s[self.i] != "{":
+            # tag selector之后还有其他selector,说明这是一个descendant selector，继续解析
+            tag = self.word()
+            descendant = TagSelector(tag.casefold())
+            out = DescendantSelector(out, descendant)  # 创建嵌套式的DescendantSelector
+            self.whitespace()
+        return out
+
+    def parse(self):
+        rules = []
