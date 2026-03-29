@@ -64,3 +64,28 @@ class URL:
         content = response.read()
         s.close()
         return content
+
+    # 将absolute url或者relative url根据当前URL对象，返回完整的url
+    def resolve(self, url):
+        # 包含"://"的url为absolute url,无需添加其他内容
+        if "://" in url:
+            return URL(url)
+
+        # 以下为relative url,需要补全缺失的部分
+
+        if not url.startswith("/"):
+            # 不以"/"开头的url,默认与当前path相同
+
+            dir, _ = self.path.rsplit("/", 1)
+            while url.startswith("../"):
+                _, url = url.split("/", 1)
+                if "/" in dir:
+                    dir, _ = dir.rsplit("/", 1)
+            url = dir + "/" + url
+
+        if url.startswith("//"):
+            # 以"//"开头的url,默认与当前scheme相同
+            return URL(self.scheme + ":" + url)
+        else:
+            # 以"/"开头的url,默认与当前scheme, host, port相同
+            return URL(self.scheme + "://" + self.host + ":" + str(self.port) + url)

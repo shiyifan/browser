@@ -38,8 +38,26 @@ class Browser:
 
     def load(self, url):
         body = url.request()
-        self.nodes = HTMLParser(body).parse()
-        rules = DEFAULT_STYLE_SHEET.copy()
+        self.nodes = HTMLParser(body).parse()  # 将HTML代码解析为DOM tree
+
+        rules = DEFAULT_STYLE_SHEET.copy()  # 解析user agent stylesheet
+        # HTML代码中，所有的"<link rel=stylesheet>"标签中的css url
+        links = [
+            node.attributes["href"]
+            for node in tree_to_list(self.nodes, [])
+            if isinstance(node, Element)
+            and node.tag == "link"
+            and node.attributes.get("rel") == "stylesheet"
+            and "href" in node.attributes
+        ]
+        for link in links:
+            style_url = url.resolve(link)
+            try:
+                body = style_url.request()
+            except:
+                continue
+            rules.extend(CSSParser(body).parse())  # 获取author stylesheet
+
         style(self.nodes, rules)
 
         self.document = DocumentLayout(self.nodes)
@@ -139,6 +157,14 @@ def style(node, rules):
     # 解析并创建子结点的CSS对象
     for child in node.children:
         style(child, rules)
+
+
+# 树状结构转为扁平的list结构
+def tree_to_list(tree, list):
+    list.append(tree)
+    for child in tree.children:
+        tree_to_list(child, list)
+    return list
 
 
 # keep this being the last statement
