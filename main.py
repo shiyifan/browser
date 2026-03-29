@@ -7,6 +7,9 @@ from layout import DocumentLayout, BlockLayout
 from tags import Element
 from css_parser import CSSParser
 
+# 浏览器默认样式，user agent style
+DEFAULT_STYLE_SHEET = CSSParser(open("browser.css").read()).parse()
+
 
 def main():
     Browser().load(URL(const.HTTP_URL))
@@ -36,7 +39,8 @@ class Browser:
     def load(self, url):
         body = url.request()
         self.nodes = HTMLParser(body).parse()
-        style(self.nodes)
+        rules = DEFAULT_STYLE_SHEET.copy()
+        style(self.nodes, rules)
 
         self.document = DocumentLayout(self.nodes)
         self.document.layout()
@@ -115,9 +119,18 @@ def paint_tree(layout_object, display_list):
         paint_tree(child, display_list)
 
 
-# 根据DOM结点上"style"属性创建CSS对象并赋值为"style"属性
-def style(node):
+# 根据DOM结点上"style"属性、css文件、<style>中的代码创建CSS对象并赋值为"style"属性
+def style(node, rules):
     node.style = {}  # CSS解析后的对象
+
+    # 解析css代码中的样式
+    for selector, body in rules:
+        if not selector.matches(node):
+            continue
+        for property, value in body.items():
+            node.style[property] = value
+
+    # 解析DOM中"style"属性的样式
     if isinstance(node, Element) and "style" in node.attributes:
         pairs = CSSParser(node.attributes["style"]).body()
         for property, value in pairs.items():
@@ -125,7 +138,7 @@ def style(node):
 
     # 解析并创建子结点的CSS对象
     for child in node.children:
-        style(child)
+        style(child, rules)
 
 
 # keep this being the last statement

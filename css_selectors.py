@@ -1,6 +1,6 @@
 # 目前仅支持tag selector以及由tag selector构成的descendant selector
 # 例如："span", "div span", "div header p"
-
+from tags import Element
 
 class TagSelector:
     def __init__(self, tag):
