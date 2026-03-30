@@ -5,6 +5,7 @@ from tags import Element
 class TagSelector:
     def __init__(self, tag):
         self.tag = tag
+        self.priority = 1
 
     def matches(self, node):
         return isinstance(node, Element) and self.tag == node.tag
@@ -14,8 +15,9 @@ class DescendantSelector:
     def __init__(self, ancestor, descendant):
         self.ancestor = ancestor
         self.descendant = descendant
+        self.priority = ancestor.priority + descendant.priority
 
-    def matched(self, node):
+    def matches(self, node):
         # 先判断DOM结点是否匹配低位的selector，如果低位的selector匹配失败，那么无需继续匹配高位selector
         if not self.descendant.matches(node):
             return False

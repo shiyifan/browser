@@ -58,7 +58,7 @@ class Browser:
                 continue
             rules.extend(CSSParser(body).parse())  # 获取author stylesheet
 
-        style(self.nodes, rules)
+        style(self.nodes, sorted(rules, key=cascade_priority))
 
         self.document = DocumentLayout(self.nodes)
         self.document.layout()
@@ -166,6 +166,9 @@ def tree_to_list(tree, list):
         tree_to_list(child, list)
     return list
 
+def cascade_priority(rule):
+    selector, rule = rule
+    return selector.priority
 
 # keep this being the last statement
 main()

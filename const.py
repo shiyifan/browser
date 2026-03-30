@@ -79,3 +79,11 @@ BLOCK_ELEMENTS = [
     "details",
     "summary",
 ]
+
+# css中inherited properties
+INHERITED_PROPERTIES = {
+    "font-size": "16px",
+    "font-style": "normal",
+    "font-weight": "normal",
+    "color": "black",
+}
