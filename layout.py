@@ -11,7 +11,7 @@ FONTS = {}
 # 对应于DOM tree node, 该类表示用于布局的layout tree中的节点。
 # DOM tree中大部分可绘制的节点(block html element或者inline html element)对应于layout tree中的节点。
 # layout过程中为DOM节点计算屏幕所在坐标、宽高、以及要绘制内容，并将要绘制的
-# 内容保存在"display list"中等待下一步实际的渲染操作
+# 内容保存在"display list"中等待下一步实际的渲染流程
 #
 # 子结点左上角的x、y坐标以及宽度继承自父结点，仅包含inline元素和text的子结点的高度由字体决定
 # 父结点的高度是所有子结点的高度之和
