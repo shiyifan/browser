@@ -80,7 +80,8 @@ BLOCK_ELEMENTS = [
     "summary",
 ]
 
-# css中inherited properties
+# css中inherited properties以及默认值
+# （注意：inherited properties的默认值仅应用于DOM根结点）
 INHERITED_PROPERTIES = {
     "font-size": "16px",
     "font-style": "normal",

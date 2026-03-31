@@ -22,7 +22,10 @@ class Browser:
     def __init__(self):
         self.window = tkinter.Tk()
         self.canvas = tkinter.Canvas(
-            self.window, width=const.WIDTH, height=const.HEIGHT
+            self.window,
+            width=const.WIDTH,
+            height=const.HEIGHT,
+            bg="white",
         )
         self.canvas.pack(fill=tkinter.BOTH, expand=1)  # 让canvas填充window的空间
 
@@ -137,11 +140,18 @@ def paint_tree(layout_object, display_list):
         paint_tree(child, display_list)
 
 
-# 根据DOM结点上"style"属性、css文件、<style>中的代码创建CSS对象并赋值为"style"属性
+# 根据DOM结点上"style"属性、css文件的代码创建CSS对象并赋值为"style"属性
 def style(node, rules):
     node.style = {}  # CSS解析后的对象
 
-    # 解析css代码中的样式
+    # 先解析当前节点的inherited property的值
+    for property, default_value in const.INHERITED_PROPERTIES.items():
+        if node.parent:
+            node.style[property] = node.parent.style[property]
+        else:
+            node.style[property] = default_value
+
+    # 解析css代码中与当前节点匹配的rule并应用至当前节点
     for selector, body in rules:
         if not selector.matches(node):
             continue
@@ -153,6 +163,16 @@ def style(node, rules):
         pairs = CSSParser(node.attributes["style"]).body()
         for property, value in pairs.items():
             node.style[property] = value
+
+    # 如果DOM节点的"font-size"值为百分比数值，则根据父结点的值或者默认值计算具体"px"单位的数值
+    if node.style["font-size"].endswith("%"):
+        if node.parent:
+            parent_font_size = node.parent.style["font-size"]
+        else:
+            parent_font_size = INHERITED_PROPERTIES["font-size"]
+        node_pct = float(node.style["font-size"][:-1]) / 100
+        parent_px = float(parent_font_size[:-2])
+        node.style["font-size"] = str(node_pct * parent_px) + "px"
 
     # 解析并创建子结点的CSS对象
     for child in node.children:
@@ -166,9 +186,11 @@ def tree_to_list(tree, list):
         tree_to_list(child, list)
     return list
 
+
 def cascade_priority(rule):
     selector, rule = rule
     return selector.priority
+
 
 # keep this being the last statement
 main()

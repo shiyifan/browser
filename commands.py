@@ -4,11 +4,12 @@
 
 class DrawText:
     # (x1, y1)为相对于canvas的坐标
-    def __init__(self, x1, y1, text, font):
+    def __init__(self, x1, y1, text, font, color):
         self.left = x1
         self.top = y1
         self.text = text
         self.font = font
+        self.color = color
 
         # 表示当前行的底部纵坐标，用于判断绘制位置是否位于canvas的可见区域外
         self.bottom = y1 + font.metrics("linespace")
@@ -16,7 +17,12 @@ class DrawText:
     # scroll: 已向上滚动的距离
     def execute(self, scroll, canvas):
         canvas.create_text(
-            self.left, self.top - scroll, text=self.text, font=self.font, anchor="nw"
+            self.left,
+            self.top - scroll,
+            text=self.text,
+            font=self.font,
+            anchor="nw",
+            fill=self.color,
         )
 
 

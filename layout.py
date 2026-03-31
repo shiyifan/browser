@@ -101,15 +101,15 @@ class BlockLayout:
         else:
             return "block"
 
-    def recurse(self, tree):
-        if isinstance(tree, Text):
-            for word in tree.text.split():
-                self.word(word)
+    def recurse(self, node):
+        if isinstance(node, Text):
+            for word in node.text.split():
+                self.word(node, word)
         else:
-            self.open_tag(tree.tag)
-            for child in tree.children:
+            self.open_tag(node.tag)
+            for child in node.children:
                 self.recurse(child)
-            self.close_tag(tree.tag)
+            self.close_tag(node.tag)
 
     def open_tag(self, tag):
         if tag == "i":
@@ -135,14 +135,22 @@ class BlockLayout:
         elif tag == "big":
             self.size -= 4
 
-    def word(self, word):
-        font = get_font(self.size, self.weight, self.style)
+    def word(self, node, word):
+        weight = node.style["font-weight"]
+        style = node.style["font-style"]
+        color = node.style["color"]
+        if style == "normal":
+            style = "roman"
+        size = int(
+            float(node.style["font-size"][:-2]) * 0.75
+        )  # 将字体大小的"px"单位转换为"pt"单位
+        font = get_font(size, weight, style)
         w = font.measure(word)
 
         if self.cursor_x + w > self.width:
             # 根据BlockLayout宽度，字符已占满一行，计算该行的baseline位置并更新word的y轴绘制坐标
             self.flush()
-        self.line.append((self.cursor_x, word, font))
+        self.line.append((self.cursor_x, word, font, color))
         self.cursor_x += w + font.measure(" ")
 
     # 计算一行字符的baseline位置，并确定绘制每个字符时的y坐标
@@ -151,7 +159,7 @@ class BlockLayout:
             return
 
         # 根据每个字符的font,计算一行中最大的ascent
-        metrics = [font.metrics() for x, word, font in self.line]
+        metrics = [font.metrics() for x, word, font, color in self.line]
         max_ascent = max([metric["ascent"] for metric in metrics])
 
         # 可以直接以"max_ascent"作为baseline的位置，或者在这个基础上、在最大字符的ascent与descent之外再
@@ -162,10 +170,10 @@ class BlockLayout:
             self.cursor_y + 1.25 * max_ascent
         )  # 根据上一行的"cursor_y"坐标计算baseline坐标
 
-        for rel_x, word, font in self.line:
+        for rel_x, word, font, color in self.line:
             x = self.x + rel_x  # 此时应该计算相对于canvas的绝对坐标
             y = self.y + baseline - font.metrics("ascent")
-            self.display_list.append((x, y, word, font))
+            self.display_list.append((x, y, word, font, color))
 
         max_descent = max([metric["descent"] for metric in metrics])
         self.cursor_y = baseline + max_descent * 1.25
@@ -183,8 +191,8 @@ class BlockLayout:
             cmds.append(rect)
 
         if self.layout_mode() == "inline":
-            for x, y, word, font in self.display_list:
-                cmds.append(DrawText(x, y, word, font))
+            for x, y, word, font, color in self.display_list:
+                cmds.append(DrawText(x, y, word, font, color))
 
         return cmds
 
