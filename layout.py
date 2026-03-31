@@ -32,11 +32,6 @@ class BlockLayout:
 
         self.display_list = []
 
-        # 字体的默认值
-        self.weight = None
-        self.style = None
-        self.size = None
-
         # 作为buffer,临时保存一行字符，用于计算该行baseline的位置
         # line中的字符仅计算了x轴的绘制坐标，需要根据baseline的位置计算每个字符的y轴坐标
         self.line = []
@@ -69,9 +64,6 @@ class BlockLayout:
             # 计算inline元素的绘制信息，并将信息保存至"display list"中
             self.cursor_x = 0
             self.cursor_y = 0
-            self.weight = "normal"
-            self.style = "roman"
-            self.size = 20
             self.line = []
             self.recurse(self.node)
             self.flush()
@@ -106,34 +98,10 @@ class BlockLayout:
             for word in node.text.split():
                 self.word(node, word)
         else:
-            self.open_tag(node.tag)
+            if node.tag == "br":
+                self.flush()
             for child in node.children:
                 self.recurse(child)
-            self.close_tag(node.tag)
-
-    def open_tag(self, tag):
-        if tag == "i":
-            self.style = "italic"
-        elif tag == "b":
-            self.weight = "bold"
-        elif tag == "small":
-            self.size -= 4
-        elif tag == "big":
-            self.size += 4
-        elif tag == "br":
-            self.flush()
-        elif tag == "p":
-            self.flush()
-
-    def close_tag(self, tag):
-        if tag == "i":
-            self.style = "roman"
-        elif tag == "b":
-            self.weight = "normal"
-        elif tag == "small":
-            self.size += 4
-        elif tag == "big":
-            self.size -= 4
 
     def word(self, node, word):
         weight = node.style["font-weight"]
