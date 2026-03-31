@@ -184,6 +184,13 @@ class BlockLayout:
     def paint(self):
         cmds = []
 
+        # 绘制当前layout对象的背景色
+        # 创建layout tree时，如果某个Block Element下仅有inline element,那么
+        # 由block element对应的block layout负责绘制inline element的text,
+        # 而且这个block layout的children为空。这样，如果inline element有背景色，
+        # 则无法由block layout绘制出来
+        #
+        # 目前背景色仅能由DOM节点本身对应的layout tree节点绘制
         bgcolor = self.node.style.get("background-color", "transparent")
         if bgcolor != "transparent":
             x2, y2 = self.x + self.width, self.y + self.height
