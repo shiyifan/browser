@@ -8,9 +8,10 @@ import const
 FONTS = {}
 
 
-# 对应于DOM tree,创建一个用于布局的layout tree。并且DOM tree中每个
-# 可绘制的结点对应于layout tree中的结点
-# Layout Tree上的结点，对应于每个DOM结点
+# 对应于DOM tree,创建一个用于布局的layout tree。
+# DOM tree中大部分可绘制的节点对应于layout tree中的节点。
+# layout过程中为DOM节点计算屏幕所在坐标、宽高、以及要绘制内容，并将要绘制的
+# 内容保存在"display list"中等待下一步实际的渲染操作
 class BlockLayout:
     def __init__(self, node, parent, previous):
         self.node = node  # DOM结点
