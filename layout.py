@@ -137,7 +137,7 @@ class BlockLayout:
         # 可以直接以"max_ascent"作为baseline的位置，或者在这个基础上、在最大字符的ascent与descent之外再
         # 添加一些leading（空白区域），ascent上面添加一半leading, descent下面添加一半leading,
         # 这样，lineheight = (ascent + descent) + ascent_leading + descent_leading
-        # 这里选择额外添加总共25%的leading,其中ascent上面与descent下面各占一半leading
+        # 这里在最大ascent上面与最大descent下面各添加25%的leading
         baseline = (
             self.cursor_y + 1.25 * max_ascent
         )  # 根据上一行的"cursor_y"坐标计算baseline坐标
