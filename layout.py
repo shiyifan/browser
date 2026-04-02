@@ -32,13 +32,6 @@ class BlockLayout:
         # layout内的子结点相对于layout左上角的相对坐标
         # 所以子结点的绝对坐标等于"self.x + self.cursor_x"
         self.cursor_x = None
-        self.cursor_y = None
-
-        self.display_list = []
-
-        # 作为buffer,临时保存一行字符，用于计算该行baseline的位置
-        # line中的字符仅计算了x轴的绘制坐标，需要根据baseline的位置计算每个字符的y轴坐标
-        self.line = []
 
     # 根据绘制方式创建layout tree
     def layout(self):
@@ -52,26 +45,25 @@ class BlockLayout:
 
         mode = self.layout_mode()
         if mode == "block":
+            # 以"block"方式绘制
+
             previous = None
             for child in self.node.children:
                 next = BlockLayout(child, self, previous)
                 self.children.append(next)
                 previous = next
-
-            for child in self.children:
-                child.layout()
-
-            # block html element的高度等于所有子结点的高度之和
-            # 在所有子结点计算得到height之后再计算当前结点的高度
-            self.height = sum([child.height for child in self.children])
         else:
-            # 计算inline元素的绘制信息，并将信息保存至"display list"中
-            self.cursor_x = 0
-            self.cursor_y = 0
-            self.line = []
+            # 计算inline元素的绘制信息，并创建LineLayout以及TextLayout作为当前BlockLayout的子节点.
+            # 由LineLayout以及TextLayout负责绘制与计算
+
+            self.new_line()
             self.recurse(self.node)
-            self.flush()
-            self.height = self.cursor_y  # inline html element的高度等于文本的高度
+
+        for child in self.children:
+            child.layout()
+        # block html element的高度等于所有子结点的高度之和
+        # 在所有子结点计算得到height之后再计算当前结点的高度
+        self.height = sum([child.height for child in self.children])
 
     # 根据当前DOM结点以及所包含子结点的类型，确定当前节点的绘制方式
     #
@@ -103,55 +95,42 @@ class BlockLayout:
                 self.word(node, word)
         else:
             if node.tag == "br":
-                self.flush()
+                self.new_line()
             for child in node.children:
                 self.recurse(child)
 
+    # 对以"inline"方式绘制的DOM节点在layout tree上创建LineLayout与TextLayout节点。
+    # 计算每个word的宽度，并根据宽度判断是否超出一行。
+    # 这里仅用于创建layout tree结构，计算baseline、确定行高的流程由LineLayout负责完成
     def word(self, node, word):
         weight = node.style["font-weight"]
         style = node.style["font-style"]
         color = node.style["color"]
         if style == "normal":
             style = "roman"
-        size = int(
-            float(node.style["font-size"][:-2]) * 0.75
-        )  # 将字体大小的"px"单位转换为"pt"单位
+
+        # 将字体大小的"px"单位转换为"pt"单位
+        size = int(float(node.style["font-size"][:-2]) * 0.75)
+
         font = get_font(size, weight, style)
         w = font.measure(word)
 
         if self.cursor_x + w > self.width:
-            # 根据BlockLayout宽度，字符已占满一行，计算该行的baseline位置并更新word的y轴绘制坐标
-            self.flush()
-        self.line.append((self.cursor_x, word, font, color))
+            # 根据BlockLayout宽度，已超出一行时，新建一行
+            self.new_line()
         self.cursor_x += w + font.measure(" ")
 
-    # 计算一行字符的baseline位置，并确定绘制每个字符时的y坐标
-    def flush(self):
-        if not self.line:
-            return
+        # 将未超出一行的word添加至当前行中
+        line = self.children[-1]
+        previous_word = line.children[-1] if line.children else None
+        text = TextLayout(node, word, line, previous_word)
+        line.children.append(text)
 
-        # 根据每个字符的font,计算一行中最大的ascent
-        metrics = [font.metrics() for x, word, font, color in self.line]
-        max_ascent = max([metric["ascent"] for metric in metrics])
-
-        # 可以直接以"max_ascent"作为baseline的位置，或者在这个基础上、在最大字符的ascent与descent之外再
-        # 添加一些leading（空白区域），ascent上面添加一半leading, descent下面添加一半leading,
-        # 这样，lineheight = (ascent + descent) + ascent_leading + descent_leading
-        # 这里在最大ascent上面与最大descent下面各添加25%的leading
-        baseline = (
-            self.cursor_y + 1.25 * max_ascent
-        )  # 根据上一行的"cursor_y"坐标计算baseline坐标
-
-        for rel_x, word, font, color in self.line:
-            x = self.x + rel_x  # 此时应该计算相对于canvas的绝对坐标
-            y = self.y + baseline - font.metrics("ascent")
-            self.display_list.append((x, y, word, font, color))
-
-        max_descent = max([metric["descent"] for metric in metrics])
-        self.cursor_y = baseline + max_descent * 1.25
-
+    def new_line(self):
         self.cursor_x = 0
-        self.line = []
+        last_line = self.children[-1] if self.children else None
+        new_line = LineLayout(self.node, self, last_line)
+        self.children.append(new_line)
 
     def paint(self):
         cmds = []
@@ -168,10 +147,6 @@ class BlockLayout:
             x2, y2 = self.x + self.width, self.y + self.height
             rect = DrawRect(self.x, self.y, x2, y2, bgcolor)
             cmds.append(rect)
-
-        if self.layout_mode() == "inline":
-            for x, y, word, font, color in self.display_list:
-                cmds.append(DrawText(x, y, word, font, color))
 
         return cmds
 
@@ -201,6 +176,105 @@ class DocumentLayout:
 
     def paint(self):
         return []
+
+
+# 表示以"inline"方式绘制的BlockLayout中的每一行text
+# 如下所示
+#
+# BlockLayout(inline)
+#      |
+#      +------> LineLayout
+#      |            |
+#      |            +------> TextLayout
+#      |            |
+#      |            +------> TextLayout
+#      |            |
+#      |            +------> TextLayout
+#      |
+#      +------> LineLayout
+#                   |
+#                   +------> TextLayout
+#                   |
+#                   +------> TextLayout
+class LineLayout:
+    def __init__(self, node, parent, previous):
+        # 与layout tree中父节点的node相同，即以"inline"方式绘制的DOM节点
+        self.node = node
+
+        self.parent = parent
+        self.previous = previous  # 上一行
+        self.children = []
+
+    # 计算baseline位置、确定行高
+    def layout(self):
+        self.width = self.parent.width
+        self.x = self.parent.x
+
+        if self.previous:
+            self.y = self.previous.y + self.previous.height
+        else:
+            self.y = self.parent.y
+
+        if not self.children:
+            # 如果LineLayout没有TextLayout子节点，那么高度为0
+            self.height = 0
+            return
+
+        # 让每个TextLayout自己计算x绘制坐标、宽度、高度以及字体
+        for word in self.children:
+            word.layout()
+
+        # 行内的所有TextLayout均以计算完成，然后确定baseline的位置以及每个TextLayout的y绘制坐标
+
+        # 计算一行中最大的ascent
+        max_ascent = max([word.font.metrics("ascent") for word in self.children])
+
+        # 可以直接以"max_ascent"作为baseline的位置，或者在这个基础上、在最大字符的ascent与descent之外再
+        # 添加一些leading（空白区域），ascent上面添加一半leading, descent下面添加一半leading,
+        # 这样，lineheight = (ascent + descent) + ascent_leading + descent_leading
+        # 这里在最大ascent上面与最大descent下面各添加25%的leading
+        baseline = self.y + max_ascent * 1.25
+
+        # 确定y绘制坐标
+        for word in self.children:
+            word.y = baseline - word.font.metrics("ascent")
+
+        max_descent = max([word.font.metrics("descent") for word in self.children])
+        self.height = 1.25 * (max_ascent + max_descent)
+
+    def paint(self):
+        # 由TextLayout负责绘制字符
+        return []
+
+
+# 表示LineLayout中的每一个word
+class TextLayout:
+    def __init__(self, node, word, parent, previous):
+        self.node = node  # 与所在的LineLayout的node相同
+        self.word = word
+        self.parent = parent
+        self.previous = previous  # 上一个word
+        self.children = []
+
+    def layout(self):
+        weight = self.node.style["font-weight"]
+        style = self.node.style["font-style"]
+        if style == "normal":
+            style = "roman"
+        size = int(float(self.node.style["font-size"][:-2]) * 0.75)
+        self.font = get_font(size, weight, style)
+
+        self.width = self.font.measure(self.word)
+        if self.previous:
+            space = self.previous.font.measure(" ")
+            self.x = self.previous.x + self.previous.width + space
+        else:
+            self.x = self.parent.x
+        self.height = self.font.metrics("linespace")
+
+    def paint(self):
+        color = self.node.style["color"]
+        return [DrawText(self.x, self.y, self.word, self.font, color)]
 
 
 # 从"FONTS"缓存中获取字体
