@@ -4,7 +4,7 @@ from url import URL
 from html_parser import HTMLParser
 import const
 from layout import DocumentLayout, BlockLayout
-from tags import Element
+from tags import Element, Text
 from css_parser import CSSParser
 
 # 浏览器默认样式，user agent style
@@ -32,14 +32,19 @@ class Browser:
         self.window.bind("<Down>", self.scrolldown)
         self.window.bind("<Up>", self.scrollup)
         self.window.bind("<Configure>", self.reconfigure)  # 当窗口大小更新时，重新布局
+        self.window.bind("<Button-1>", self.click)
 
         self.scroll = 0  # 当前已向上滑动的距离
         self.loaded = False
+
+        self.url = None
 
         # 将初始窗口在屏幕上居中
         center(self.window)
 
     def load(self, url):
+        self.url = url
+
         body = url.request()
         self.nodes = HTMLParser(body).parse()  # 将HTML代码解析为DOM tree
 
@@ -98,6 +103,34 @@ class Browser:
         self.scroll = min(self.scroll + const.SCROLL_STEP, max_y)
 
         self.draw()
+
+    def click(self, e):
+        x, y = e.x, e.y
+        y += self.scroll  # 使纵坐标y为相对于网页绘制内容的坐标
+
+        # 根据绘制区域与点击坐标，在"layout tree"中找到所有被点击的layout object
+        #
+        # 可能会找到多个被点击的layout object,这些object位于tree中的不同层级
+        # 在实际情况下，也可能出现相同层级的HTML元素被同时点击（例如"margin"为负值时），此时browser还需要
+        # 根据"stacking context"机制判断最上层的被点击元素
+        objs = [
+            obj
+            for obj in tree_to_list(self.document, [])
+            if obj.x <= x < obj.x + obj.width and obj.y <= y < obj.y + obj.height
+        ]
+        if not objs:
+            return
+        elt = objs[-1].node  # 获取最上层被点击的layout object
+
+        # 根据最上层的object,依次向上查找第一个"<a>"
+        while elt:
+            if isinstance(elt, Text):
+                pass
+            elif elt.tag == "a" and "href" in elt.attributes:
+                # 找到最上层的"<a>"，加载"href"指向的链接
+                url = self.url.resolve(elt.attributes["href"])
+                return self.load(url)
+            elt = elt.parent
 
     def reconfigure(self, e):
         if const.WIDTH == e.width and const.HEIGHT == e.height:

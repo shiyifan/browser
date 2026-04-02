@@ -22,8 +22,6 @@ class URL:
                 self.port = int(port)
         self.path = "/" + url
 
-        print(f"host: {self.host}, scheme: {self.scheme}, path: {self.path}")
-
     # 请求url并获取HTTP报文
     def request(self):
 
@@ -35,6 +33,8 @@ class URL:
         if self.scheme == "https":
             ctx = ssl.create_default_context()
             s = ctx.wrap_socket(s, server_hostname=self.host)
+
+        print(f"request: {self.host}:{self.port}{self.path}")
 
         s.connect((self.host, self.port))
 
@@ -48,6 +48,8 @@ class URL:
         statusline = response.readline()
         version, status, explanation = statusline.split(" ", 2)
 
+        print(f"{self.path}: {status}")
+
         # 读取响应报文中所有的Response Header
         response_headers = {}
         while True:
@@ -57,8 +59,6 @@ class URL:
 
             header, value = line.split(":", 1)
             response_headers[header.casefold()] = value.strip()
-
-        print(f"headers: {response_headers}")
 
         # 读取Response Body
         content = response.read()
