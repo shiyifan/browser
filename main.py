@@ -12,35 +12,18 @@ DEFAULT_STYLE_SHEET = CSSParser(open("browser.css").read()).parse()
 
 
 def main():
-    Browser().load(URL(const.HTTP_URL))
+    Browser().new_tab(URL(const.HTTP_URL))
 
     tkinter.mainloop()
 
 
-# 浏览器
-class Browser:
+# 浏览器标签页
+class Tab:
     def __init__(self):
-        self.window = tkinter.Tk()
-        self.canvas = tkinter.Canvas(
-            self.window,
-            width=const.WIDTH,
-            height=const.HEIGHT,
-            bg="white",
-        )
-        self.canvas.pack(fill=tkinter.BOTH, expand=1)  # 让canvas填充window的空间
-
-        self.window.bind("<Down>", self.scrolldown)
-        self.window.bind("<Up>", self.scrollup)
-        self.window.bind("<Configure>", self.reconfigure)  # 当窗口大小更新时，重新布局
-        self.window.bind("<Button-1>", self.click)
-
         self.scroll = 0  # 当前已向上滑动的距离
         self.loaded = False
 
         self.url = None
-
-        # 将初始窗口在屏幕上居中
-        center(self.window)
 
     def load(self, url):
         self.url = url
@@ -72,14 +55,11 @@ class Browser:
         self.document.layout()
         self.display_list = []
         paint_tree(self.document, self.display_list)
-        self.draw()
 
         self.loaded = True
 
-    # 在canvas上绘制
-    def draw(self):
-        self.canvas.delete("all")
-
+    # 在canvas上绘制tab内容，由Browser调用
+    def draw(self, canvas):
         # 根据计算后页面元素的坐标、样式开始绘制
         for cmd in self.display_list:
             # 不绘制位于窗口可见区域之外的内容
@@ -88,24 +68,20 @@ class Browser:
             if cmd.bottom < self.scroll:
                 continue
 
-            cmd.execute(self.scroll, self.canvas)
+            cmd.execute(self.scroll, canvas)
 
-    def scrollup(self, e):
+    def scrollup(self):
         if self.scroll <= 0:
             return
 
         self.scroll -= const.SCROLL_STEP
-        self.draw()
 
-    def scrolldown(self, e):
+    def scrolldown(self):
         # 已显示最后一行内容后，不再继续向下滚动
         max_y = max(self.document.height + 2 * const.VSTEP - const.HEIGHT, 0)
         self.scroll = min(self.scroll + const.SCROLL_STEP, max_y)
 
-        self.draw()
-
-    def click(self, e):
-        x, y = e.x, e.y
+    def click(self, x, y):
         y += self.scroll  # 使纵坐标y为相对于网页绘制内容的坐标
 
         # 根据绘制区域与点击坐标，在"layout tree"中找到所有被点击的layout object
@@ -132,12 +108,7 @@ class Browser:
                 return self.load(url)
             elt = elt.parent
 
-    def reconfigure(self, e):
-        if const.WIDTH == e.width and const.HEIGHT == e.height:
-            return
-        const.WIDTH = e.width
-        const.HEIGHT = e.height
-
+    def reconfigure(self):
         if self.loaded:
             if not self.nodes:
                 return
@@ -145,7 +116,62 @@ class Browser:
             self.document.layout()
             self.display_list = []
             paint_tree(self.document, self.display_list)
-            self.draw()
+
+
+class Browser:
+    def __init__(self):
+        self.tabs = []
+        self.active_tab = None
+
+        self.window = tkinter.Tk()
+        self.canvas = tkinter.Canvas(
+            self.window,
+            width=const.WIDTH,
+            height=const.HEIGHT,
+            bg="white",
+        )
+        self.canvas.pack(fill=tkinter.BOTH, expand=1)  # 让canvas填充window的空间
+
+        self.window.bind("<Down>", self.handle_down)
+        self.window.bind("<Up>", self.handle_up)
+        self.window.bind("<Configure>", self.recfg)  # 当窗口大小更新时，重新布局
+        self.window.bind("<Button-1>", self.handle_click)
+
+        # 将初始窗口在屏幕上居中
+        center(self.window)
+
+    # 新建一个tab并设置为当前显示的tab
+    def new_tab(self, url):
+        new_tab = Tab()
+        new_tab.load(url)
+        self.active_tab = new_tab
+        self.tabs.append(new_tab)
+        self.draw()
+
+    def draw(self):
+        self.canvas.delete("all")
+        self.active_tab.draw(self.canvas)
+
+    def handle_down(self, e):
+        self.active_tab.scrolldown()
+        self.draw()
+
+    def handle_up(self, e):
+        self.active_tab.scrollup()
+        self.draw()
+
+    def handle_click(self, e):
+        self.active_tab.click(e.x, e.y)
+        self.draw()
+
+    def recfg(self, e):
+        if const.WIDTH == e.width and const.HEIGHT == e.height:
+            return
+        const.WIDTH = e.width
+        const.HEIGHT = e.height
+
+        self.active_tab.reconfigure()
+        self.draw()
 
 
 # 居中初始窗口
