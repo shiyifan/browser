@@ -24,7 +24,7 @@ class Chrome:
             self.padding + self.font_height,
         )
 
-    # 计算第i个tab标签的矩形绘制区域
+    # 计算"self.tabs"中，第i个tab标签的矩形绘制区域
     def tab_rect(self, i):
         # "+"按钮的右侧x坐标，作为绘制tab标签的起点
         tabs_start = self.newtab_rect.right + self.padding
@@ -39,6 +39,8 @@ class Chrome:
 
     def paint(self):
         cmds = []
+
+        # 绘制"+"按钮
         cmds.append(DrawOutline(self.newtab_rect, "black", 1))
         cmds.append(
             DrawText(
@@ -49,4 +51,9 @@ class Chrome:
                 "black",
             )
         )
+
+        for i, tab in enumerate(self.browser.tags):
+            bounds = self.tab_rect(i)
+            cmds.append()
+
         return cmds

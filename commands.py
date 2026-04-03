@@ -1,5 +1,9 @@
-# 绘制命令
-# 将display list中各个绘制信息转换为绘制命令
+"""
+绘制命令
+将display list中各个绘制信息转换为绘制命令
+"""
+
+from rect import Rect
 
 
 class DrawText:
@@ -27,6 +31,8 @@ class DrawText:
 
 
 class DrawRect:
+    """绘制矩形区域，仅有内部填充颜色，没有边框"""
+
     # (x1, y1), (x2, y2)为相对于canvas的坐标
     def __init__(self, x1, y1, x2, y2, color):
         self.top = y1
@@ -47,8 +53,9 @@ class DrawRect:
         )
 
 
-# 绘制轮廓
 class DrawOutline:
+    """绘制矩形区域，仅有边框，没有内部填充颜色"""
+
     def __init__(self, rect, color, thickness):
         self.rect = rect
         self.color = color
@@ -62,4 +69,23 @@ class DrawOutline:
             self.rect.bottom - scroll,
             width=self.thickness,
             outline=self.color,
+        )
+
+
+class DrawLine:
+    """绘制直线"""
+
+    def __init__(self, x1, y1, x2, y2, color, thickness):
+        self.rect = Rect(x1, y1, x2, y2)
+        self.color = color
+        self.thickness = thickness
+
+    def execute(self, scroll, canvas):
+        canvas.create_line(
+            self.rect.left,
+            self.rect.top - scroll,
+            self.rect.right,
+            self.rect.bottom - scroll,
+            fill=self.color,
+            width=self.thickness,
         )
