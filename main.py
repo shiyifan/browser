@@ -1,5 +1,6 @@
 import tkinter
 import const
+from chrome import Chrome
 from tab import Tab
 from url import URL
 
@@ -29,6 +30,8 @@ class Browser:
         self.window.bind("<Up>", self.handle_up)
         self.window.bind("<Configure>", self.recfg)  # 当窗口大小更新时，重新布局
         self.window.bind("<Button-1>", self.handle_click)
+
+        self.chrome = Chrome(self)
 
         # 将初始窗口在屏幕上居中
         center(self.window)
