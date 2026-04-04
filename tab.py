@@ -19,8 +19,10 @@ class Tab:
         self.tab_height = tab_height
 
         self.url = None
+        self.history = []  # 保存访问过的url，并且当前tab页显示的网页url位于数组末尾
 
     def load(self, url):
+        self.history.append(url)
         self.url = url
 
         body = url.request()
@@ -111,6 +113,14 @@ class Tab:
             self.document.layout()
             self.display_list = []
             paint_tree(self.document, self.display_list)
+
+    def go_back(self):
+        """返回至上一个访问的url"""
+
+        if len(self.history) > 1:
+            self.history.pop()
+            back = self.history.pop()
+            self.load(back)
 
 
 # 根据DOM结点上"style"属性、css文件的代码创建CSS对象并赋值为"style"属性

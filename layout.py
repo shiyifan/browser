@@ -105,6 +105,9 @@ class BlockLayout:
         color = node.style["color"]
         if style == "normal":
             style = "roman"
+        elif style == "oblique":
+            # 通过"tkinter.font.Font()"获取"oblique"字体时抛出异常，所以改用"italic"替代
+            style = "italic"
 
         # 将字体大小的"px"单位转换为"pt"单位
         size = int(float(node.style["font-size"][:-2]) * 0.75)

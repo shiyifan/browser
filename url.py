@@ -89,3 +89,12 @@ class URL:
         else:
             # 以"/"开头的url,默认与当前scheme, host, port相同
             return URL(self.scheme + "://" + self.host + ":" + str(self.port) + url)
+
+    # 转换为字符串的表示
+    def __str__(self):
+        port_part = ":" + str(self.port)
+        if self.scheme == "https" and self.port == 443:
+            port_part = ""
+        if self.scheme == "http" and self.port == 80:
+            port_part = ""
+        return self.scheme + "://" + self.host + port_part + self.path
