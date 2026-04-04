@@ -15,6 +15,10 @@ class DrawText:
         self.font = font
         self.color = color
 
+        height = font.metrics("linespace")
+        width = font.measure(self.text)
+        self.rect = Rect(self.left, self.top, self.left + width, self.top + height)
+
         # 表示当前行的底部纵坐标，用于判断绘制位置是否位于canvas的可见区域外
         self.bottom = y1 + font.metrics("linespace")
 
@@ -34,20 +38,32 @@ class DrawRect:
     """绘制矩形区域，仅有内部填充颜色，没有边框"""
 
     # (x1, y1), (x2, y2)为相对于canvas的坐标
-    def __init__(self, x1, y1, x2, y2, color):
-        self.top = y1
-        self.left = x1
-        self.bottom = y2
-        self.right = x2
+    # def __init__(self, x1, y1, x2, y2, color):
+    #     self.top = y1
+    #     self.left = x1
+    #     self.bottom = y2
+    #     self.right = x2
+    #     self.color = color
+
+    def __init__(self, rect, color):
+        """
+        根据rect绘制矩形背景
+
+        Parameters:
+            rect: 矩形区域Rect
+            color: 背景颜色
+        """
+
+        self.rect = rect
         self.color = color
 
     # scroll: 已向上滚动的距离
     def execute(self, scroll, canvas):
         canvas.create_rectangle(
-            self.left,
-            self.top - scroll,
-            self.right,
-            self.bottom - scroll,
+            self.rect.left,
+            self.rect.top - scroll,
+            self.rect.right,
+            self.rect.bottom - scroll,
             width=0,  # no default border
             fill=self.color,
         )

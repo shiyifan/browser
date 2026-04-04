@@ -11,9 +11,12 @@ DEFAULT_STYLE_SHEET = CSSParser(open("browser.css").read()).parse()
 # 浏览器标签页
 # 负责url请求、DOM解析、layout tree解析
 class Tab:
-    def __init__(self):
+    def __init__(self, tab_height):
         self.scroll = 0  # 当前已向上滑动的距离
         self.loaded = False
+
+        # tab页的高度，即"canvas高度" - "canvas顶部chrome所占据的高度"
+        self.tab_height = tab_height
 
         self.url = None
 
@@ -51,16 +54,16 @@ class Tab:
         self.loaded = True
 
     # 在canvas上绘制tab内容，由Browser调用
-    def draw(self, canvas):
+    def draw(self, canvas, offset):
         # 根据计算后页面元素的坐标、样式开始绘制
         for cmd in self.display_list:
             # 不绘制位于窗口可见区域之外的内容
-            if cmd.top > self.scroll + const.HEIGHT:
+            if cmd.rect.top > self.scroll + self.tab_height:
                 continue
-            if cmd.bottom < self.scroll:
+            if cmd.rect.bottom < self.scroll:
                 continue
 
-            cmd.execute(self.scroll, canvas)
+            cmd.execute(self.scroll - offset, canvas)
 
     def scrollup(self):
         if self.scroll <= 0:
@@ -70,7 +73,7 @@ class Tab:
 
     def scrolldown(self):
         # 已显示最后一行内容后，不再继续向下滚动
-        max_y = max(self.document.height + 2 * const.VSTEP - const.HEIGHT, 0)
+        max_y = max(self.document.height + 2 * const.VSTEP - self.tab_height, 0)
         self.scroll = min(self.scroll + const.SCROLL_STEP, max_y)
 
     def click(self, x, y):

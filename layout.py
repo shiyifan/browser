@@ -2,6 +2,7 @@ from font import *
 from tags import Text, Element
 from commands import DrawText, DrawRect
 import const
+from rect import Rect
 
 
 # 对应于DOM tree node, 该类表示用于布局的layout tree中的节点。
@@ -140,11 +141,13 @@ class BlockLayout:
         # 目前背景色仅能由DOM节点本身对应的layout tree节点绘制
         bgcolor = self.node.style.get("background-color", "transparent")
         if bgcolor != "transparent":
-            x2, y2 = self.x + self.width, self.y + self.height
-            rect = DrawRect(self.x, self.y, x2, y2, bgcolor)
+            rect = DrawRect(self.self_rect(), bgcolor)
             cmds.append(rect)
 
         return cmds
+
+    def self_rect(self):
+        return Rect(self.x, self.y, self.x + self.width, self.y + self.height)
 
 
 # 对应于DOM根结点的layout object。

@@ -38,7 +38,7 @@ class Browser:
 
     # 新建一个tab并设置为当前显示的tab
     def new_tab(self, url):
-        new_tab = Tab()
+        new_tab = Tab(const.HEIGHT - self.chrome.bottom)
         new_tab.load(url)
         self.active_tab = new_tab
         self.tabs.append(new_tab)
@@ -46,7 +46,12 @@ class Browser:
 
     def draw(self):
         self.canvas.delete("all")
-        self.active_tab.draw(self.canvas)
+        self.active_tab.draw(self.canvas, self.chrome.bottom)
+
+        # 绘制browser chrome
+        for cmd in self.chrome.paint():
+            # 绘制时滚动距离scroll=0，确保chrome始终位于canvas上方
+            cmd.execute(0, self.canvas)
 
     def handle_down(self, e):
         self.active_tab.scrolldown()
@@ -57,7 +62,13 @@ class Browser:
         self.draw()
 
     def handle_click(self, e):
-        self.active_tab.click(e.x, e.y)
+        if e.y < self.chrome.bottom:
+            # 点击位置位于chrome中
+            self.chrome.click(e.x, e.y)
+        else:
+            # 点击位置位于chrome下面的网页
+            tab_y = e.y - self.chrome.bottom
+            self.active_tab.click(e.x, tab_y)
         self.draw()
 
     def recfg(self, e):
