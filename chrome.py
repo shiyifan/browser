@@ -48,13 +48,16 @@ class Chrome:
         # 底部边缘
         self.bottom = self.urlbar_bottom
 
+        self.focus = None
+        self.address_bar = ""  # 地址栏获取焦点后显示的url
+
     def tab_rect(self, i):
         """计算"self.tabs"中，第i个tab标签的矩形绘制区域"""
 
         # "+"按钮的右侧x坐标，作为绘制tab标签的起点
         tabs_start = self.newtab_rect.right + self.padding
 
-        tab_width = self.font.measure("Tab X") + 2 * self.padding
+        tab_width = self.font.measure("Tab X") + 3 * self.padding
         return Rect(
             tabs_start + tab_width * i,
             self.tabbar_top,
@@ -63,12 +66,16 @@ class Chrome:
         )
 
     def click(self, x, y):
+        self.focus = None
         if self.newtab_rect.contains_point(x, y):
             # 当点击在"+"按钮时
             self.browser.new_tab(URL(const.HTTP_URL))
         elif self.back_rect.contains_point(x, y):
             # 当点击在"<"按钮时
             self.browser.active_tab.go_back()
+        elif self.address_rect.contains_point(x, y):
+            self.focus = "address bar"
+            self.address_bar = ""
         else:
             # 当点击在tab标签时
             for i, tab in enumerate(self.browser.tabs):
@@ -158,5 +165,31 @@ class Chrome:
                 "black",
             )
         )
+
+        if self.focus == "address bar":
+            # 地址栏获取了焦点，绘制待输入的url
+
+            cmds.append(
+                DrawText(
+                    self.address_rect.left + self.padding,
+                    self.address_rect.top,
+                    self.address_bar,
+                    self.font,
+                    "black",
+                )
+            )
+        else:
+            # 地址栏失去了焦点，绘制当前显示的tab页的url
+
+            url = str(self.browser.active_tab.url)
+            cmds.append(
+                DrawText(
+                    self.address_rect.left + self.padding,
+                    self.address_rect.top,
+                    url,
+                    self.font,
+                    "black",
+                )
+            )
 
         return cmds
