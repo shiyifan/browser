@@ -66,7 +66,8 @@ class Chrome:
         )
 
     def click(self, x, y):
-        self.focus = None
+        self.focus = None  # 判断点击位置前先重置"focus"
+
         if self.newtab_rect.contains_point(x, y):
             # 当点击在"+"按钮时
             self.browser.new_tab(URL(const.HTTP_URL))
@@ -74,6 +75,7 @@ class Chrome:
             # 当点击在"<"按钮时
             self.browser.active_tab.go_back()
         elif self.address_rect.contains_point(x, y):
+            # 当点击在地址栏内时
             self.focus = "address bar"
             self.address_bar = ""
         else:
@@ -156,16 +158,6 @@ class Chrome:
         # 绘制地址栏
         cmds.append(DrawOutline(self.address_rect, "black", 1))
         url = str(self.browser.active_tab.url)
-        cmds.append(
-            DrawText(
-                self.address_rect.left + self.padding,
-                self.address_rect.top,
-                url,
-                self.font,
-                "black",
-            )
-        )
-
         if self.focus == "address bar":
             # 地址栏获取了焦点，绘制待输入的url
 
@@ -176,6 +168,18 @@ class Chrome:
                     self.address_bar,
                     self.font,
                     "black",
+                )
+            )
+            # 绘制光标
+            w = self.font.measure(self.address_bar)
+            cmds.append(
+                DrawLine(
+                    self.address_rect.left + self.padding + w,
+                    self.address_rect.top,
+                    self.address_rect.left + self.padding + w,
+                    self.address_rect.bottom,
+                    "red",
+                    1,
                 )
             )
         else:
@@ -193,3 +197,12 @@ class Chrome:
             )
 
         return cmds
+
+    def keypress(self, char):
+        if self.focus == "address bar":
+            self.address_bar += char
+
+    def enter(self):
+        if self.focus == "address bar":
+            self.browser.active_tab.load(URL(self.address_bar))
+            self.focus = None

@@ -30,6 +30,8 @@ class Browser:
         self.window.bind("<Up>", self.handle_up)
         self.window.bind("<Configure>", self.recfg)  # 当窗口大小更新时，重新布局
         self.window.bind("<Button-1>", self.handle_click)
+        self.window.bind("<Key>", self.handle_key)  # 地址栏内输入url
+        self.window.bind("<Return>", self.handle_enter)  # 地址栏内按下回车后加载新url
 
         self.chrome = Chrome(self)
 
@@ -69,6 +71,18 @@ class Browser:
             # 点击位置位于chrome下面的网页
             tab_y = e.y - self.chrome.bottom
             self.active_tab.click(e.x, tab_y)
+        self.draw()
+
+    def handle_key(self, e):
+        if len(e.char) == 0:
+            return
+        if not (0x20 <= ord(e.char) <= 0x7F):
+            return
+        self.chrome.keypress(e.char)
+        self.draw()
+
+    def handle_enter(self, e):
+        self.chrome.enter()
         self.draw()
 
     def recfg(self, e):
