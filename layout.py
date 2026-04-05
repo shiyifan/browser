@@ -4,6 +4,9 @@ from commands import DrawText, DrawRect
 import const
 from rect import Rect
 
+# <input>的固定宽度
+INPUT_WIDTH_PX = 200
+
 
 # 对应于DOM tree node, 该类表示用于布局的layout tree中的节点。
 # DOM tree中大部分可绘制的节点(block html element或者inline html element)对应于layout tree中的节点。
@@ -93,6 +96,8 @@ class BlockLayout:
         else:
             if node.tag == "br":
                 self.new_line()
+            elif node.tag == "input" or node.tag == "button":
+                self.input(node)
             for child in node.children:
                 self.recurse(child)
 
@@ -151,6 +156,24 @@ class BlockLayout:
 
     def self_rect(self):
         return Rect(self.x, self.y, self.x + self.width, self.y + self.height)
+
+    def input(self, node):
+        w = INPUT_WIDTH_PX
+        if self.cursor_x + w > self.width:
+            self.new_line()
+        line = self.children[-1]
+        previous_word = line.children[-1] if line.children else None
+        input = InputLayout(node, line, previous_word)
+        line.children.append(input)
+
+        weight = node.style["font-weight"]
+        style = node.style["font-style"]
+        if style == "normal":
+            style = "roman"
+        size = int(float(node.style["font-size"][:-2]) * 0.75)
+        font = get_font(size, weight, style)
+
+        self.cursor_x += w + font.measure(" ")
 
 
 # 对应于DOM根结点的layout object。
@@ -258,6 +281,12 @@ class TextLayout:
         self.previous = previous  # 上一个word
         self.children = []
 
+        # 绘制所需的绝对坐标
+        self.x = None
+        self.y = None  # 由"LineLayout.layout()"在计算最大的ascent后赋值
+        self.height = None
+        self.width = None
+
     def layout(self):
         weight = self.node.style["font-weight"]
         style = self.node.style["font-style"]
@@ -277,3 +306,61 @@ class TextLayout:
     def paint(self):
         color = self.node.style["color"]
         return [DrawText(self.x, self.y, self.word, self.font, color)]
+
+
+# <input>对应的layout object
+class InputLayout:
+    def __init__(self, node, parent, previous):
+        self.node = node  # 与所在的LineLayout的node相同
+        self.parent = parent
+        self.previous = previous  # 上一个word
+        self.children = []
+
+        # 绘制所需的绝对坐标
+        self.x = None
+        self.y = None
+        self.height = None
+        self.width = None
+
+    def layout(self):
+        weight = self.node.style["font-weight"]
+        style = self.node.style["font-style"]
+        if style == "normal":
+            style = "roman"
+        size = int(float(self.node.style["font-size"][:-2]) * 0.75)
+        self.font = get_font(size, weight, style)
+
+        self.width = INPUT_WIDTH_PX
+        if self.previous:
+            space = self.previous.font.measure(" ")
+            self.x = self.previous.x + self.previous.width + space
+        else:
+            self.x = self.parent.x
+        self.height = self.font.metrics("linespace")
+
+    def paint(self):
+        cmds = []
+
+        # 绘制背景色
+        bgcolor = self.node.style.get["background-color", "transparent"]
+        if bgcolor != "transparent":
+            rect = DrawRect(self.self_rect(), bgcolor)
+            cmds.append(rect)
+
+        # 绘制文字
+        if self.node.tag == "input":
+            text = self.node.attributes.get("value", "")
+        elif self.node.tag == "button":
+            if len(self.node.children) == 1 and isinstance(self.node.children[0], Text):
+                text = self.node.children[0].text
+            else:
+                # 如果<button>内包含非纯文本内容则不绘制
+                print("Ignoring HTML contents inside the button")
+                text = ""
+        color = self.node.style["color"]
+        cmds.append(DrawText(self.x, self.y, text, self.font, color))
+
+        return cmds
+
+    def self_rect(self):
+        return Rect(self.x, self.y, self.x + self.width, self.y + self.height)

@@ -20,3 +20,17 @@ small {
 big {
   font-size: 130%;
 }
+
+input {
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: lightblue;
+}
+
+button {
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: orange;
+}
