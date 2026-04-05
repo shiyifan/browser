@@ -96,8 +96,9 @@ class Browser:
         const.WIDTH = e.width
         const.HEIGHT = e.height
 
-        self.active_tab.reconfigure()
-        self.draw()
+        if self.active_tab: 
+            self.active_tab.reconfigure()
+            self.draw()
 
 
 # 居中初始窗口

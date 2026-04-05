@@ -9,6 +9,14 @@
 
   <!-- prettier-ignore -->
   <body>
-    Hello  <a href="/a">Click Me</a>
+    <span style="color: red;">Hello</span>
+     <a href="/a">Click Me</a>
+
+    <form action="/submit" method="post">
+      <label for="name">name</label>
+      <input id="name" type="text" name="name" autocomplete="additional-name">
+      <label for="comments">comments</label>
+      <input id="comments" type="text" name="comments"><button type="submit">Submit</button>
+    </form>
   </body>
 </html>
