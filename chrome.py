@@ -206,3 +206,7 @@ class Chrome:
         if self.focus == "address bar":
             self.browser.active_tab.load(URL(self.address_bar))
             self.focus = None
+    
+    def backspace(self):
+        if self.focus == "address bar":
+            self.address_bar = self.address_bar[:-1]

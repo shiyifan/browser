@@ -32,6 +32,7 @@ class Browser:
         self.window.bind("<Button-1>", self.handle_click)
         self.window.bind("<Key>", self.handle_key)  # 地址栏内输入url
         self.window.bind("<Return>", self.handle_enter)  # 地址栏内按下回车后加载新url
+        self.window.bind("<BackSpace>", self.handle_backspace)
 
         self.chrome = Chrome(self)
 
@@ -83,6 +84,10 @@ class Browser:
 
     def handle_enter(self, e):
         self.chrome.enter()
+        self.draw()
+    
+    def handle_backspace(self, e):
+        self.chrome.backspace()
         self.draw()
 
     def recfg(self, e):
