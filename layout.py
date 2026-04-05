@@ -82,7 +82,7 @@ class BlockLayout:
             # DOM tree中，如果Element结点的子结点中，至少有一个是block Html Element，
             # 那么在layout tree中，该结点作为非叶子结点，不计算display list,仅将子结点添加至"children"数组中
             return "block"
-        elif self.node.children:
+        elif self.node.children or self.node.tag == "input":
             # 在layout tree中，该结点的子结点中只有inline Html Element,那么将该结点视为叶子结点，
             # 并计算结点的display list
             return "inline"
@@ -131,6 +131,24 @@ class BlockLayout:
         text = TextLayout(node, word, line, previous_word)
         line.children.append(text)
 
+    def input(self, node):
+        w = INPUT_WIDTH_PX
+        if self.cursor_x + w > self.width:
+            self.new_line()
+        line = self.children[-1]
+        previous_word = line.children[-1] if line.children else None
+        input = InputLayout(node, line, previous_word)
+        line.children.append(input)
+
+        weight = node.style["font-weight"]
+        style = node.style["font-style"]
+        if style == "normal":
+            style = "roman"
+        size = int(float(node.style["font-size"][:-2]) * 0.75)
+        font = get_font(size, weight, style)
+
+        self.cursor_x += w + font.measure(" ")
+
     def new_line(self):
         self.cursor_x = 0
         last_line = self.children[-1] if self.children else None
@@ -156,24 +174,6 @@ class BlockLayout:
 
     def self_rect(self):
         return Rect(self.x, self.y, self.x + self.width, self.y + self.height)
-
-    def input(self, node):
-        w = INPUT_WIDTH_PX
-        if self.cursor_x + w > self.width:
-            self.new_line()
-        line = self.children[-1]
-        previous_word = line.children[-1] if line.children else None
-        input = InputLayout(node, line, previous_word)
-        line.children.append(input)
-
-        weight = node.style["font-weight"]
-        style = node.style["font-style"]
-        if style == "normal":
-            style = "roman"
-        size = int(float(node.style["font-size"][:-2]) * 0.75)
-        font = get_font(size, weight, style)
-
-        self.cursor_x += w + font.measure(" ")
 
 
 # 对应于DOM根结点的layout object。
