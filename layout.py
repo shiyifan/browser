@@ -98,8 +98,9 @@ class BlockLayout:
                 self.new_line()
             elif node.tag == "input" or node.tag == "button":
                 self.input(node)
-            for child in node.children:
-                self.recurse(child)
+            else:
+                for child in node.children:
+                    self.recurse(child)
 
     # 对以"inline"方式绘制的DOM节点在layout tree上创建LineLayout与TextLayout节点。
     # 计算每个word的宽度，并根据宽度判断是否超出一行。
@@ -131,6 +132,7 @@ class BlockLayout:
         text = TextLayout(node, word, line, previous_word)
         line.children.append(text)
 
+    # 与"word()"方法相似，将<input>和<button>以与纯文本相似的方式添加至LineLayout中
     def input(self, node):
         w = INPUT_WIDTH_PX
         if self.cursor_x + w > self.width:
@@ -175,6 +177,33 @@ class BlockLayout:
     def self_rect(self):
         return Rect(self.x, self.y, self.x + self.width, self.y + self.height)
 
+    # 避免由<button>创建的BlockLayout重复绘制
+    #
+    # 在这种情况下:
+    # 
+    #    <body>
+    #       hello
+    #       <p></p>
+    #       <button>Click</button>
+    #    </body>
+    # 
+    # 在layout tree中，由于"<p>"这个block html element作为<body>的子结点之一，
+    # <p>, "hello"以及"<button>"都将作为BlockLayout结点。对于<button>的BlockLayout而言，
+    # layout tree中的结构如下：
+    #
+    #   ...
+    #     BlockLayout (self.node == <button>)
+    #         LineLayout
+    #             InputLayout (self.node == <button>)
+    #   ...
+    #
+    # 调用"paint_tree()"绘制时，由于BlockLayout与InputLayout都将绘制<button>的背景色，因此为避免重复绘制，BlockLayout
+    # 不再绘制背景色，由InputLayout绘制
+    def should_paint(self):
+        return isinstance(self.node, Text) or (
+            self.node.tag != "input" and self.node.tag != "button"
+        )
+
 
 # 对应于DOM根结点的layout object。
 # 负责根据viewport大小定义根元素的绘制坐标
@@ -201,6 +230,9 @@ class DocumentLayout:
 
     def paint(self):
         return []
+
+    def should_paint(self):
+        return True
 
 
 # 表示以"inline"方式绘制的BlockLayout中的每一行text
@@ -271,6 +303,9 @@ class LineLayout:
         # 由TextLayout负责绘制字符
         return []
 
+    def should_paint(self):
+        return True
+
 
 # 表示LineLayout中的每一个word
 class TextLayout:
@@ -307,6 +342,9 @@ class TextLayout:
         color = self.node.style["color"]
         return [DrawText(self.x, self.y, self.word, self.font, color)]
 
+    def should_paint(self):
+        return True
+
 
 # <input>对应的layout object
 class InputLayout:
@@ -342,13 +380,14 @@ class InputLayout:
         cmds = []
 
         # 绘制背景色
-        bgcolor = self.node.style.get["background-color", "transparent"]
+        bgcolor = self.node.style.get("background-color", "transparent")
         if bgcolor != "transparent":
             rect = DrawRect(self.self_rect(), bgcolor)
             cmds.append(rect)
 
         # 绘制文字
         if self.node.tag == "input":
+            # <input>标签中，在矩形绘制区域内,绘制HTML的"value"属性值
             text = self.node.attributes.get("value", "")
         elif self.node.tag == "button":
             if len(self.node.children) == 1 and isinstance(self.node.children[0], Text):
@@ -364,3 +403,6 @@ class InputLayout:
 
     def self_rect(self):
         return Rect(self.x, self.y, self.x + self.width, self.y + self.height)
+
+    def should_paint(self):
+        return True
