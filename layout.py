@@ -71,7 +71,7 @@ class BlockLayout:
     # Text节点无子节点，Element的子结点既可以是Text,也可以是Element
     def layout_mode(self):
         if isinstance(self.node, Text):
-            # DOM tree中，Text结点作为叶子结点，所以计算该结点的display list
+            # DOM tree中，Text结点作为纯文本结点，需要计算该结点的绘制信息
             return "inline"
         elif any(
             [
@@ -80,11 +80,12 @@ class BlockLayout:
             ]
         ):
             # DOM tree中，如果Element结点的子结点中，至少有一个是block Html Element，
-            # 那么在layout tree中，该结点作为非叶子结点，不计算display list,仅将子结点添加至"children"数组中
+            # 那么在layout tree中，该结点作为非叶子结点，不计算绘制信息,仅将子结点添加至"children"数组中,
+            # 由子结点继续判断是否负责绘制
             return "block"
         elif self.node.children or self.node.tag == "input":
-            # 在layout tree中，该结点的子结点中只有inline Html Element,那么将该结点视为叶子结点，
-            # 并计算结点的display list
+            # 在DOM tree中，该结点的子结点中只有inline Html Element,那么将该结点视为纯文本结点，
+            # 所有子结点的文本由当前结点负责绘制
             return "inline"
         else:
             return "block"
