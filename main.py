@@ -85,7 +85,7 @@ class Browser:
     def handle_enter(self, e):
         self.chrome.enter()
         self.draw()
-    
+
     def handle_backspace(self, e):
         self.chrome.backspace()
         self.draw()
@@ -96,7 +96,7 @@ class Browser:
         const.WIDTH = e.width
         const.HEIGHT = e.height
 
-        if self.active_tab: 
+        if self.active_tab:
             self.active_tab.reconfigure()
             self.draw()
 
