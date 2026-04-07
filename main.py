@@ -36,6 +36,10 @@ class Browser:
 
         self.chrome = Chrome(self)
 
+        # 点击之后焦点位于chrome中还是tab页中
+        # None表示位于chrome,"content"表示位于tab中
+        self.focus = None
+
         # 将初始窗口在屏幕上居中
         center(self.window)
 
@@ -67,9 +71,12 @@ class Browser:
     def handle_click(self, e):
         if e.y < self.chrome.bottom:
             # 点击位置位于chrome中
+            self.focus = None
             self.chrome.click(e.x, e.y)
         else:
             # 点击位置位于chrome下面的网页
+            self.focus = "content"
+            self.chrome.blur()
             tab_y = e.y - self.chrome.bottom
             self.active_tab.click(e.x, tab_y)
         self.draw()
@@ -79,8 +86,13 @@ class Browser:
             return
         if not (0x20 <= ord(e.char) <= 0x7F):
             return
-        self.chrome.keypress(e.char)
-        self.draw()
+        
+        # 如果chrome处理了<Key>事件，那么tab将不再继续处理,否则将<Key>事件发送至tab页处理
+        if self.chrome.keypress(e.char):
+            self.draw()
+        elif self.focus == "content":
+            self.active_tab.keypress(e.char)
+            self.draw()
 
     def handle_enter(self, e):
         self.chrome.enter()

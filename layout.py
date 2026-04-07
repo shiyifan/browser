@@ -1,6 +1,6 @@
 from font import *
 from tags import Text, Element
-from commands import DrawText, DrawRect
+from commands import DrawText, DrawRect, DrawLine
 import const
 from rect import Rect
 
@@ -180,13 +180,13 @@ class BlockLayout:
     # 避免由<button>创建的BlockLayout重复绘制
     #
     # 在这种情况下:
-    # 
+    #
     #    <body>
     #       hello
     #       <p></p>
     #       <button>Click</button>
     #    </body>
-    # 
+    #
     # 在layout tree中，由于"<p>"这个block html element作为<body>的子结点之一，
     # <p>, "hello"以及"<button>"都将作为BlockLayout结点。对于<button>的BlockLayout而言，
     # layout tree中的结构如下：
@@ -398,6 +398,11 @@ class InputLayout:
                 text = ""
         color = self.node.style["color"]
         cmds.append(DrawText(self.x, self.y, text, self.font, color))
+
+        # 如果当前"<input>"已获取焦点，则绘制光标
+        if self.node.is_focused:
+            cx = self.x + self.font.measure(text)
+            cmds.append(DrawLine(cx, self.y, cx, self.y + self.height, "black", 1))
 
         return cmds
 

@@ -48,7 +48,7 @@ class Chrome:
         # 底部边缘
         self.bottom = self.urlbar_bottom
 
-        self.focus = None
+        self.focus = None  # chrome是否有控件获取到了焦点
         self.address_bar = ""  # 地址栏获取焦点后显示的url
 
     def tab_rect(self, i):
@@ -201,12 +201,18 @@ class Chrome:
     def keypress(self, char):
         if self.focus == "address bar":
             self.address_bar += char
+            return True
+        return False
 
     def enter(self):
         if self.focus == "address bar":
             self.browser.active_tab.load(URL(self.address_bar))
             self.focus = None
-    
+
     def backspace(self):
         if self.focus == "address bar":
             self.address_bar = self.address_bar[:-1]
+
+    def blur(self):
+        """取消焦点"""
+        self.focus = None

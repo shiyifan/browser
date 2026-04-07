@@ -21,7 +21,12 @@ class Tab:
         self.url = None
         self.history = []  # 保存访问过的url，并且当前tab页显示的网页url位于数组末尾
 
-    def load(self, url):
+        self.nodes = None  # HTML解析后的DOM Tree
+        self.rules = None  # css解析后的rules
+
+        self.focus = None  # 点击后，获取到焦点的'<input>'DOM对象
+
+    def load(self, url, payload=None):
         self.history.append(url)
         self.url = url
 
@@ -45,18 +50,27 @@ class Tab:
             except:
                 continue
             rules.extend(CSSParser(body).parse())  # 获取author stylesheet
-
-        style(self.nodes, sorted(rules, key=cascade_priority))
-
-        self.document = DocumentLayout(self.nodes)
-        self.document.layout()
-        self.display_list = []
-        paint_tree(self.document, self.display_list)
+        self.rules = rules
+        self.render()
 
         self.loaded = True
 
-    # 在canvas上绘制tab内容，由Browser调用
+    def render(self):
+        """根据DOM Tree构建layout tree,然后收集layout tree上每个结点的绘制command"""
+
+        style(
+            self.nodes, sorted(self.rules, key=cascade_priority)
+        )  # 将css rules全部赋值至DOM结点的"style"属性上
+        self.document = DocumentLayout(self.nodes)
+        self.document.layout()  # 构建layout tree
+        self.display_list = []
+        paint_tree(
+            self.document, self.display_list
+        )  # 收集layout tree上每个layout object生成的绘制command
+
     def draw(self, canvas, offset):
+        """根据已生成的绘制command,在canvas上绘制tab内容，由Browser调用"""
+
         # 根据计算后页面元素的坐标、样式开始绘制
         for cmd in self.display_list:
             # 不绘制位于窗口可见区域之外的内容
@@ -78,7 +92,21 @@ class Tab:
         max_y = max(self.document.height + 2 * const.VSTEP - self.tab_height, 0)
         self.scroll = min(self.scroll + const.SCROLL_STEP, max_y)
 
+    def keypress(self, char):
+        if self.focus:
+            self.focus.attributes["value"] += char
+            self.render()
+
     def click(self, x, y):
+        # 如果未找到被点击的layout object, 返回前是否需要重绘
+        focus_lost = False
+
+        # 判断点击位置之前先重置焦点
+        if self.focus:
+            self.focus.is_focused = False
+            self.focus = None
+            focus_lost = True
+
         y += self.scroll  # 使纵坐标y为相对于网页绘制内容的坐标
 
         # 根据绘制区域与点击坐标，在"layout tree"中找到所有被点击的layout object
@@ -92,8 +120,10 @@ class Tab:
             if obj.x <= x < obj.x + obj.width and obj.y <= y < obj.y + obj.height
         ]
         if not objs:
+            if focus_lost:
+                self.render()
             return
-        elt = objs[-1].node  # 获取最上层被点击的layout object
+        elt = objs[-1].node  # 获取最上层被点击的layout object对应的DOM node
 
         # 根据最上层的object,依次向上查找第一个"<a>"
         while elt:
@@ -103,7 +133,13 @@ class Tab:
                 # 找到最上层的"<a>"，加载"href"指向的链接
                 url = self.url.resolve(elt.attributes["href"])
                 return self.load(url)
+            elif elt.tag == "input":
+                self.focus = elt
+                elt.attributes["value"] = ""
+                elt.is_focused = True
+                return self.render()
             elt = elt.parent
+        self.render()
 
     def reconfigure(self):
         if self.loaded:
