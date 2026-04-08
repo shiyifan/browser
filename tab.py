@@ -1,6 +1,6 @@
 from html_parser import HTMLParser
 import const
-import urllib
+import urllib.parse
 from layout import DocumentLayout
 from tags import Element, Text
 from css_parser import CSSParser
