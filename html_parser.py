@@ -99,8 +99,13 @@ class HTMLParser:
             if "=" in attrpair:
                 # 形如"id=button"的属性声明
                 key, value = attrpair.split("=", 1)
-                # 如果属性值两侧有引号
+
+                if value == '""' or value == "''":
+                    # 如果属性值未空字符串，则不创建该属性
+                    continue
+
                 if len(value) > 2 and value[0] in ["'", '"']:
+                    # 如果属性值非空且两侧有引号,则去掉引号
                     value = value[1:-1]
 
                 attributes[key.casefold()] = value
