@@ -23,11 +23,13 @@ class URL:
         self.path = "/" + url
 
     # 请求url并获取HTTP报文
-    def request(self):
+    def request(self, payload=None):
 
         s = socket.socket(
             family=socket.AF_INET, type=socket.SOCK_STREAM, proto=socket.IPPROTO_TCP
         )
+
+        method = "POST" if payload else "GET"
 
         # 如果请求"https"，那么额外需要tls
         if self.scheme == "https":
@@ -38,8 +40,14 @@ class URL:
 
         s.connect((self.host, self.port))
 
-        request = f"GET {self.path} HTTP/1.0\r\n"  # 组建HTTP请求报文
+        request = f"{method} {self.path} HTTP/1.0\r\n"  # 组建HTTP请求报文
+        if payload:
+            length = len(payload.encode("utf8"))
+            request += f"Content-Length: {length}\r\n"
         request += "\r\n"
+        if payload:
+            request += payload
+
         s.send(request.encode("utf8"))
 
         response = s.makefile("r", encoding="utf8", newline="\r\n")  # 获取HTTP响应报文

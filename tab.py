@@ -1,5 +1,6 @@
 from html_parser import HTMLParser
 import const
+import urllib
 from layout import DocumentLayout
 from tags import Element, Text
 from css_parser import CSSParser
@@ -30,7 +31,7 @@ class Tab:
         self.history.append(url)
         self.url = url
 
-        body = url.request()
+        body = url.request(payload)
         self.nodes = HTMLParser(body).parse()  # 将HTML代码解析为DOM tree
 
         rules = DEFAULT_STYLE_SHEET.copy()  # 解析user agent stylesheet
@@ -138,6 +139,13 @@ class Tab:
                 elt.attributes["value"] = ""
                 elt.is_focused = True
                 return self.render()
+            elif elt.tag == "button":
+                # 被点击的是"<button>"，准备提交表单
+                while elt:
+                    # 寻找上层的"<form>"
+                    if elt.tag == "form" and "action" in elt.attributes:
+                        return self.submit_form(elt)
+                    elt = elt.parent
             elt = elt.parent
         self.render()
 
@@ -157,6 +165,27 @@ class Tab:
             self.history.pop()
             back = self.history.pop()
             self.load(back)
+
+    def submit_form(self, elt):
+        inputs = [
+            node
+            for node in tree_to_list(elt, [])
+            if isinstance(node, Element)
+            and node.tag == "input"
+            and "name" in node.attributes
+        ]
+
+        # encode the "name-value" pairs
+        # 采用url的"%"编码方式
+
+        body = ""
+        for input in inputs:
+            name = urllib.parse.quote(input.attributes["name"])
+            value = urllib.parse.quote(input.attributes.get("value", ""))
+            body += f"&{name}={value}"
+        body = body[1:]
+        url = self.url.resolve(elt.attributes["action"])
+        self.load(url, body)
 
 
 # 根据DOM结点上"style"属性、css文件的代码创建CSS对象并赋值为"style"属性
