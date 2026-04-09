@@ -4,6 +4,7 @@ import urllib.parse
 from layout import DocumentLayout
 from tags import Element, Text
 from css_parser import CSSParser
+import dukpy
 
 # 浏览器默认样式，user agent style
 DEFAULT_STYLE_SHEET = CSSParser(open("browser.css").read()).parse()
@@ -33,6 +34,22 @@ class Tab:
 
         body = url.request(payload)
         self.nodes = HTMLParser(body).parse()  # 将HTML代码解析为DOM tree
+
+        # HTML代码中，所有"<script src=''>"的标签
+        scripts = [
+            node.attributes["src"]
+            for node in tree_to_list(self.nodes, [])
+            if isinstance(node, Element)
+            and node.tag == "script"
+            and "src" in node.attributes
+        ]
+        for script in scripts:
+            script_url = url.resolve(script)
+            try:
+                body = script_url.request()
+            except:
+                continue
+            print("script returned", dukpy.evaljs(body))
 
         rules = DEFAULT_STYLE_SHEET.copy()  # 解析user agent stylesheet
         # HTML代码中，所有的"<link rel=stylesheet>"标签中的css url
