@@ -51,6 +51,7 @@ class Tab:
             script_url = url.resolve(script)
             try:
                 body = script_url.request()
+                self.js.run(body)
             except:
                 continue
 
