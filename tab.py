@@ -36,6 +36,9 @@ class Tab:
         self.nodes = HTMLParser(body).parse()  # 将HTML代码解析为DOM tree
 
         # HTML代码中，所有"<script src=''>"的标签
+        #
+        # 注意：该浏览器不实现类似于"<script>...js code...</script>"的内嵌功能，因为
+        # 解析时区分HTML与js中的"<"以及">"符号较为复杂
         scripts = [
             node.attributes["src"]
             for node in tree_to_list(self.nodes, [])
