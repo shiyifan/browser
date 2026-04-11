@@ -1,6 +1,6 @@
 import dukpy
 from css_parser import CSSParser
-from utils import tree_to_list
+from utils import tree_to_list, print_err
 
 RUNTIME_JS = open("runtime.js").read()
 
@@ -23,7 +23,7 @@ class JSContext:
         try:
             return self.interp.evaljs(code)
         except dukpy.JSRuntimeError as e:
-            print(f"@@@ JS crashed! @@@\n{e}")
+            print_err(f"@@@ JS crashed! @@@\n{e}")
 
     def querySelectorAll(self, selector_text):
         selector = CSSParser(selector_text).selector()
