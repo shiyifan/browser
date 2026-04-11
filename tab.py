@@ -46,7 +46,7 @@ class Tab:
             and node.tag == "script"
             and "src" in node.attributes
         ]
-        self.js = JSContext()
+        self.js = JSContext(self)
         for script in scripts:
             script_url = url.resolve(script)
             try:
