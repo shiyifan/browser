@@ -5,14 +5,17 @@ WIDTH, HEIGHT = 800, 600
 
 
 def main():
-    canvas = prepare()
+    print('a', end="")
+    print('b', end="")
+    print('c')
+    # canvas = prepare()
 
-    f0 = tkinter.font.Font(size=20)
-    f1 = tkinter.font.Font(size=15)
-    canvas.create_text(20, 20, text="H", anchor="nw", font=f0)
-    canvas.create_text(20 + f0.measure("H"), 20, text="Hello", anchor="nw", font=f1)
+    # f0 = tkinter.font.Font(size=20)
+    # f1 = tkinter.font.Font(size=15)
+    # canvas.create_text(20, 20, text="H", anchor="nw", font=f0)
+    # canvas.create_text(20 + f0.measure("H"), 20, text="Hello", anchor="nw", font=f1)
 
-    tkinter.mainloop()
+    # tkinter.mainloop()
 
 
 def prepare():

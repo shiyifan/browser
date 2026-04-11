@@ -9,9 +9,18 @@ def tree_to_list(tree, list):
     return list
 
 
-def print_err(msg):
-    print(f"\033[31m{msg}\033[0m")
+def print_err(*msg):
+    print(f"\033[31m", end="")
+    print(*msg, end="")
+    print("\033[0m")
 
 
-def print_warn(msg):
-    print(f"\033[33m{msg}\033[0m")
+def print_warn(*msg):
+    print(f"\033[33m", end="")
+    print(*msg, end="")
+    print("\033[0m")
+
+def print_js(*msg):
+    print(f"\033[34m", end="")
+    print(*msg, end="")
+    print("\033[0m")
