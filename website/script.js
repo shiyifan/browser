@@ -1,2 +1,3 @@
-var x = 2
-x + x
+var x = 3;
+
+console.log('hello js!');
