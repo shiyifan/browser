@@ -5,6 +5,7 @@ from layout import DocumentLayout
 from tags import Element, Text
 from css_parser import CSSParser
 from jscontext import JSContext
+from utils import tree_to_list
 
 # 浏览器默认样式，user agent style
 DEFAULT_STYLE_SHEET = CSSParser(open("browser.css").read()).parse()
@@ -253,14 +254,6 @@ def paint_tree(layout_object, display_list):
         display_list.extend(layout_object.paint())
     for child in layout_object.children:
         paint_tree(child, display_list)
-
-
-# 树状结构转为扁平的list结构
-def tree_to_list(tree, list):
-    list.append(tree)
-    for child in tree.children:
-        tree_to_list(child, list)
-    return list
 
 
 def cascade_priority(rule):

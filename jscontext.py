@@ -1,5 +1,6 @@
 import dukpy
 from css_parser import CSSParser
+from utils import tree_to_list
 
 RUNTIME_JS = open("runtime.js").read()
 
