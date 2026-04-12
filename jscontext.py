@@ -23,11 +23,11 @@ class JSContext:
         # python的DOM node与Javascript DOM node间的映射
         #
         # 由于Python的对象无法直接转换为Javascript的Object,所以采用下面的方法：
-        # 用一个唯一的整数(handle)表示Python的DOM node,当Javascript读取python DOM node时，
-        # 返回这个整数，当Javascript修改某个DOM node时，也需要提供这个整数
+        # 用一个唯一的整数(handle)表示Python的DOM node,这个整数可在Python与Javascript中传递,
+        # 当Javascript读取python DOM node时，返回这个整数，当Javascript修改某个DOM node时，也需要提供这个整数
         # 这个方式有点像file descriptor
-        self.node_to_handle = {}
-        self.handle_to_node = {}
+        self.node_to_handle = {}  # python DOM node -> handle
+        self.handle_to_node = {}  # handle -> python DOM node
 
     def run(self, code):
         try:
