@@ -215,6 +215,16 @@ class Tab:
         url = self.url.resolve(elt.attributes["action"])
         self.load(url, body)
 
+    def backspace(self):
+        if not self.focus:
+            return
+        value = self.focus.attributes["value"]
+        if not value or len(value) == 0:
+            return
+        self.focus.attributes["value"] = value[:-1]
+        self.js.dispatch_event("keydown", self.focus)
+        self.render()
+
 
 # 根据DOM结点上"style"属性、css文件的代码创建CSS对象并赋值为"style"属性
 def style(node, rules):

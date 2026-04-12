@@ -212,6 +212,9 @@ class Chrome:
     def backspace(self):
         if self.focus == "address bar":
             self.address_bar = self.address_bar[:-1]
+            return True
+        else:
+            return False # 当前焦点不在chrome中，由其他地方负责处理
 
     def blur(self):
         """取消焦点"""

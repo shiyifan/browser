@@ -99,8 +99,12 @@ class Browser:
         self.draw()
 
     def handle_backspace(self, e):
-        self.chrome.backspace()
-        self.draw()
+        if self.chrome.backspace():
+            self.draw()
+        elif self.focus == "content":
+            self.active_tab.backspace()
+            self.draw()
+
 
     def recfg(self, e):
         if const.WIDTH == e.width and const.HEIGHT == e.height:
