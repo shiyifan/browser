@@ -9,18 +9,26 @@ def tree_to_list(tree, list):
     return list
 
 
-def print_err(*msg):
-    print(f"\033[31m", end="")
-    print(*msg, end="")
-    print("\033[0m")
+class Log:
+    def i(self, *msg):
+        print(f"\033[32m", end="")
+        print(*msg, end="")
+        print("\033[0m")
+
+    def w(self, *msg):
+        print(f"\033[33m", end="")
+        print(*msg, end="")
+        print("\033[0m")
+
+    def e(self, *msg):
+        print(f"\033[31m", end="")
+        print(*msg, end="")
+        print("\033[0m")
+
+    def js(self, *msg):
+        print(f"\033[34m", end="")
+        print(*msg, end="")
+        print("\033[0m")
 
 
-def print_warn(*msg):
-    print(f"\033[33m", end="")
-    print(*msg, end="")
-    print("\033[0m")
-
-def print_js(*msg):
-    print(f"\033[34m", end="")
-    print(*msg, end="")
-    print("\033[0m")
+log = Log()
