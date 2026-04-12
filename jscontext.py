@@ -1,6 +1,7 @@
 import dukpy
 from css_parser import CSSParser
 from utils import tree_to_list, print_err, print_js
+from html_parser import HTMLParser
 
 RUNTIME_JS = open("runtime.js").read()
 
@@ -24,6 +25,7 @@ class JSContext:
         self.interp.export_function("log", print_js)
         self.interp.export_function("querySelectorAll", self.querySelectorAll)
         self.interp.export_function("getAttribute", self.getAttribute)
+        self.interp.export_function("innerHTML_set", self.innerHTML_set)
 
         # python的DOM node与Javascript DOM node间的映射
         #
@@ -64,3 +66,12 @@ class JSContext:
     def dispatch_event(self, type, elt):
         handle = self.node_to_handle.get(elt, -1)
         self.interp.evaljs(EVENT_DISPATCH_JS, type=type, handle=handle)
+
+    def innerHTML_set(self, handle, s):
+        doc = HTMLParser(f"<html><body>{s}</body></html>").parse()
+        new_nodes = doc.children[0].children
+        elt = self.handle_to_node[handle]
+        elt.children = new_nodes
+        for node in new_nodes:
+            node.parent = elt
+        self.tab.render()

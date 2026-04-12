@@ -82,7 +82,7 @@ class Tab:
         """根据DOM Tree构建layout tree,然后收集layout tree上每个结点的绘制command"""
 
         style(
-            self.nodes, sorted(self.rules, key=cascade_priority)
+            self.nodes, sorted(self.rules if self.rules else [], key=cascade_priority)
         )  # 将css rules全部赋值至DOM结点的"style"属性上
         self.document = DocumentLayout(self.nodes)
         self.document.layout()  # 构建layout tree
@@ -172,6 +172,7 @@ class Tab:
                     if elt.tag == "form" and "action" in elt.attributes:
                         return self.submit_form(elt)
                     elt = elt.parent
+                break  # 如果是一个独立的"<button>",不在任何"<form>"中，则仅触发"click"事件
             elt = elt.parent
         self.render()
 

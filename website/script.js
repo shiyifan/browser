@@ -1,13 +1,10 @@
-var x = 3;
+console.log('before innerHTML');
 
-console.log('hello js!', 'hello second');
+var div = document.querySelectorAll('div')[0];
 
-var input = document.querySelectorAll('input')[0];
-
-input.addEventListener('keydown', function () {
-  console.log('input event!');
+var button = document.querySelectorAll('button')[0];
+button.addEventListener('click', function () {
+  div.innerHTML = '<span>Hello InnerHTML</span>';
 });
 
-input.addEventListener('click', function () {
-  console.log('input clicked!');
-});
+console.log('after innerHTML');
