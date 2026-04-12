@@ -117,6 +117,7 @@ class Tab:
 
     def keypress(self, char):
         if self.focus:
+            self.js.dispatch_event("keydown", self.focus)
             self.focus.attributes["value"] += char
             self.render()
 
@@ -153,15 +154,18 @@ class Tab:
             if isinstance(elt, Text):
                 pass
             elif elt.tag == "a" and "href" in elt.attributes:
+                self.js.dispatch_event("click", elt)
                 # 找到最上层的"<a>"，加载"href"指向的链接
                 url = self.url.resolve(elt.attributes["href"])
                 return self.load(url)
             elif elt.tag == "input":
+                self.js.dispatch_event("click", elt)
                 self.focus = elt
                 elt.attributes["value"] = ""
                 elt.is_focused = True
                 return self.render()
             elif elt.tag == "button":
+                self.js.dispatch_event("click", elt)
                 # 被点击的是"<button>"，准备提交表单
                 while elt:
                     # 寻找上层的"<form>"
@@ -189,6 +193,7 @@ class Tab:
             self.load(back)
 
     def submit_form(self, elt):
+        self.js.dispatch_event("submit", elt)
         inputs = [
             node
             for node in tree_to_list(elt, [])

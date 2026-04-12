@@ -4,6 +4,11 @@ from utils import tree_to_list, print_err, print_js
 
 RUNTIME_JS = open("runtime.js").read()
 
+# 触发Javascript中的event handler
+# 新建一个包含handle的Javascript DOM Node对象，然后在这个对象上触发事件
+# 注意，javascript中的event handler中的"this"指向的是一个临时新建的Node对象，而非实际被点击的Python中DOM Tree中的Node对象
+EVENT_DISPATCH_JS = "new Node(dukpy.handle).dispatchEvent(dukpy.type)"
+
 
 class JSContext:
     """Javascript运行时"""
@@ -55,3 +60,7 @@ class JSContext:
         elt = self.handle_to_node[handle]
         attr = elt.attributes.get(attr, None)
         return attr if attr else ""
+
+    def dispatch_event(self, type, elt):
+        handle = self.node_to_handle.get(elt, -1)
+        self.interp.evaljs(EVENT_DISPATCH_JS, type=type, handle=handle)
