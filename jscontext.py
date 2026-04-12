@@ -33,6 +33,8 @@ class JSContext:
         # 用一个唯一的整数(handle)表示Python的DOM node,这个整数可在Python与Javascript中传递,
         # 当Javascript读取python DOM node时，返回这个整数，当Javascript修改某个DOM node时，也需要提供这个整数
         # 这个方式有点像file descriptor
+        # 另外，目前这个映射存在内存泄漏的问题：当Javascript中通过"innerHTML"删除一个DOM节点后，
+        # 这里仍然保存这个Python DOM node。解决这个问题可能需要Python与Javascript虚拟机间的协同
         self.node_to_handle = {}  # python DOM node -> handle
         self.handle_to_node = {}  # handle -> python DOM node
 
