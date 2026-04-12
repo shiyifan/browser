@@ -8,7 +8,7 @@ RUNTIME_JS = open("runtime.js").read()
 # 触发Javascript中的event handler
 # 新建一个包含handle的Javascript DOM Node对象，然后在这个对象上触发事件
 # 注意，javascript中的event handler中的"this"指向的是一个临时新建的Node对象，而非实际被点击的Python中DOM Tree中的Node对象
-EVENT_DISPATCH_JS = "new Node(dukpy.handle).dispatchEvent(dukpy.type)"
+EVENT_DISPATCH_JS = "new Node(dukpy.handle).dispatchEvent(new Event(dukpy.type))"
 
 
 class JSContext:
@@ -67,7 +67,8 @@ class JSContext:
 
     def dispatch_event(self, type, elt):
         handle = self.node_to_handle.get(elt, -1)
-        self.interp.evaljs(EVENT_DISPATCH_JS, type=type, handle=handle)
+        do_default = self.interp.evaljs(EVENT_DISPATCH_JS, type=type, handle=handle)
+        return not do_default  # 如果返回True，则表示不执行后续default操作，否则执行
 
     def innerHTML_set(self, handle, s):
         doc = HTMLParser(f"<html><body>{s}</body></html>").parse()

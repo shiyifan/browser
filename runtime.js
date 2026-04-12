@@ -40,12 +40,17 @@ Node.prototype.addEventListener = function (type, listener) {
 };
 
 // 触发Node对象的某一类型事件
-Node.prototype.dispatchEvent = function (type) {
+Node.prototype.dispatchEvent = function (evt) {
+  var type = evt.type;
   var handle = this.handle;
   var list = (LISTENERS[handle] && LISTENERS[handle][type]) || [];
   for (var i = 0; i < list.length; i++) {
-    list[i].call(this);
+    list[i].call(this, evt);
   }
+
+  /* 事件处理完成后，是否继续执行default后续流程
+  只要有一个event handler调用了"preventDefault()"，那么后续流程将不会执行 */
+  return evt.do_default;
 };
 
 Object.defineProperty(Node.prototype, 'innerHTML', {
@@ -53,3 +58,12 @@ Object.defineProperty(Node.prototype, 'innerHTML', {
     call_python('innerHTML_set', this.handle, s.toString());
   },
 });
+
+function Event(type) {
+  this.type = type;
+  this.do_default = true;
+}
+
+Event.prototype.preventDefault = function () {
+  this.do_default = false;
+};

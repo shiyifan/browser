@@ -1,16 +1,6 @@
-console.log('before innerHTML');
+var a = document.querySelectorAll('a')[0];
 
-var input = document.querySelectorAll('input')[0];
-
-var span = document.querySelectorAll('span')[0];
-
-input.addEventListener('keydown', function () {
-  var v = this.getAttribute('value');
-  if (v && v.length > 10) {
-    span.innerHTML = 'Too Long!';
-  } else {
-    span.innerHTML = '';
-  }
+a.addEventListener('click', function (e) {
+  console.log('href clicked!');
+  e.preventDefault()
 });
-
-console.log('after innerHTML');
