@@ -1,10 +1,16 @@
 console.log('before innerHTML');
 
-var div = document.querySelectorAll('div')[0];
+var input = document.querySelectorAll('input')[0];
 
-var button = document.querySelectorAll('button')[0];
-button.addEventListener('click', function () {
-  div.innerHTML = '<span>Hello InnerHTML</span>';
+var span = document.querySelectorAll('span')[0];
+
+input.addEventListener('keydown', function () {
+  var v = this.getAttribute('value');
+  if (v && v.length > 10) {
+    span.innerHTML = 'Too Long!';
+  } else {
+    span.innerHTML = '';
+  }
 });
 
 console.log('after innerHTML');
