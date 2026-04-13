@@ -1,4 +1,5 @@
 // 浏览器Javascript Runtime所需的变量
+// 定义一些全局变量和函数，例如console、document、Node、Event等
 
 var console = {
   log: function () {
@@ -61,7 +62,7 @@ Object.defineProperty(Node.prototype, 'innerHTML', {
 
 function Event(type) {
   this.type = type;
-  this.do_default = true;
+  this.do_default = true; // 是否执行默认的后续流程
 }
 
 Event.prototype.preventDefault = function () {
