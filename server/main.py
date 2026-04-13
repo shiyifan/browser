@@ -2,8 +2,17 @@
 
 import socket
 import urllib.parse
+import random
+from utils import log
 
-ENTRIES = ["Pavel was here"]
+ENTRIES = [
+    ("No names. We are nameless!", "cerealkiller"),
+    ("HACK THE PLANET!", "crashoverride"),
+]
+
+SESSIONS = {}
+
+LOGINS = {"admin": "1234", "scott": "1234"}
 
 
 def main():
@@ -48,24 +57,51 @@ def handle_connection(conx):
     else:
         body = None
 
+    # 读取Cookie
+    if "cookie" in headers:
+        token = headers["cookie"][len("token=") :]
+    else:
+        token = str(random.random())[2:]
+
+    session = SESSIONS.setdefault(token, {})
     # 生成HTTP Response
-    status, body = do_request(method, url, headers, body)
+    status, body = do_request(session, method, url, headers, body)
     response = f"HTTP/1.0 {status}\r\n"
     response += f"Content-Length: {len(body.encode('utf8'))}\r\n"
+
+    if "cookie" not in headers:
+        # 如果请求中没有cookie,则在响应中设置上面随机生成的token
+        response += f"Set-Cookie: token={token}\r\n"
+        log.i(f"new request: set cookie, token={token}")
+
     response += "\r\n" + body
     conx.send(response.encode("utf8"))
     conx.close()
 
 
-def do_request(method, url, headers, body):
+def do_request(session, method, url, headers, body):
     if method == "GET" and url == "/":
-        return "200 OK", show_comments()
+        # 主页
+        return "200 OK", show_comments(session)
+
     elif method == "POST" and url == "/add":
+        # 添加comments
         params = form_decode(body)
-        return "200 OK", add_entry(params)
+        add_entry(session, params)
+        return "200 OK", show_comments(session)
+
     elif method == "GET" and url == "/comment.js":
+        # serve静态资源
         with open("server/comment.js") as f:
             return "200 OK", f.read()
+
+    elif method == "GET" and url == "/login":
+        return "200 OK", login_form(session)
+
+    elif method == "POST" and url == "/":
+        params = form_decode(body)
+        return do_login(session, params)
+
     else:
         return "404 Not Found", not_found(url, method)
 
@@ -80,33 +116,69 @@ def form_decode(body):
     return params
 
 
-def show_comments():
+def show_comments(session):
     out = "<!doctype html>"
-    for entry in ENTRIES:
-        out += f"<p>{entry}</p>"
-    out += """
-    <form action=add method=post>
-        <p><input name=guest></p>
-        <p><button>Sign the book</button></p>
-        <strong></strong>
-    </form>
-    <script src="/comment.js"></script>
-    """
+
+    if "user" in session:
+        out += f"""
+            <h1>Hello, {session['user']}!</h1>
+            <form action=add method=post>
+                <p><input name=guest></p>
+                <p><button>Sign the book</button></p>
+                <strong></strong>
+            </form>
+            <script src="/comment.js"></script>
+            """
+        for entry, who in ENTRIES:
+            out += f"<p>{entry}, {who}</p>"
+    else:
+        out += f"""
+                <a href=/login>Sign in to write a comment</a>
+                """
     return out
 
 
-def add_entry(params):
+def add_entry(session, params):
+    if "user" not in session:
+        return
+
     if "guest" in params:
-        ENTRIES.append(params["guest"])
+        ENTRIES.append((params["guest"], session["user"]))
     return show_comments()
 
 
 def not_found(url, method):
     out = f"""
-    <!doctype html>
-    <h1>{method} {url} not found!</h1>
-    """
+        <!doctype html>
+        <h1>{method} {url} not found!</h1>
+        """
     return out
+
+
+def login_form(session):
+    body = """
+        <!doctype html>
+        <form action=/ method=post>
+            <p>Username: <input name=username></p>
+            <p>Password: <input name=password type=password></p>
+            <p><button>Login</button></p>
+        </form>
+        """
+    return body
+
+
+def do_login(session, params):
+    username = params.get("username")
+    password = params.get("password")
+    if username in LOGINS and LOGINS[username] == password:
+        session["user"] = username
+        return "200 OK", show_comments(session)
+    else:
+        out = f"""
+            <!doctype html>
+            <h1>Login failed! Invalid password for {username}</h1>
+            """
+        return "401 Unauthorized", out
 
 
 main()
