@@ -1,6 +1,8 @@
 import socket
 import ssl
 
+# 保存所有的Cookie,key为host, value为cookie字符串
+COOKIE_JAR = {}
 
 # URL，根据url发送http请求并返回纯文本的http response body
 class URL:
@@ -44,6 +46,12 @@ class URL:
         if payload:
             length = len(payload.encode("utf8"))
             request += f"Content-Length: {length}\r\n"
+
+        # 如果保存了当前host的cookie,那么添加"Cookie"请求头
+        if self.host in COOKIE_JAR:
+            cookie = COOKIE_JAR[self.host]
+            request += f"Cookie: {cookie}\r\n"
+
         request += "\r\n"
         if payload:
             request += payload
@@ -67,6 +75,11 @@ class URL:
 
             header, value = line.split(":", 1)
             response_headers[header.casefold()] = value.strip()
+        
+        # 保存服务器发送的cookie
+        if "set-cookie" in response_headers:
+            cookie = response_headers["set-cookie"]
+            COOKIE_JAR[self.host] = cookie
 
         # 读取Response Body
         content = response.read()
