@@ -68,3 +68,17 @@ function Event(type) {
 Event.prototype.preventDefault = function () {
   this.do_default = false;
 };
+
+// XMLHttpRequest对象
+function XMLHttpRequest() {}
+
+XMLHttpRequest.prototype.open = function (method, url, is_async) {
+  if (!is_async) throw new Error('async is not supported');
+
+  this.method = method;
+  this.url = url;
+};
+
+XMLHttpRequest.prototype.send = function (body) {
+  this.responseText = call_python('XMLHttpRequest_send', this.method, this.url, body);
+};

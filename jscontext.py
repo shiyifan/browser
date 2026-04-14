@@ -78,3 +78,8 @@ class JSContext:
         for node in new_nodes:
             node.parent = elt
         self.tab.render()
+
+    def XMLHttpRequest_send(self, method, url, body):
+        full_url = self.tab.url.resolve(url)
+        headers, out = full_url.request(body)
+        return out
