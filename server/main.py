@@ -38,6 +38,10 @@ def main():
 def handle_connection(conx):
     req = conx.makefile("b")
     reqline = req.readline().decode("utf8")  # 读取HTTP请求报文第一行
+    if not reqline:
+        log.w("empty request line, close connection")
+        conx.close()
+        return
     method, url, version = reqline.split(" ", 2)
     assert method in ["GET", "POST"]
 
@@ -58,6 +62,7 @@ def handle_connection(conx):
         body = None
 
     # 读取Cookie
+    # 只要请求中没有"Cookie",那么就生成一个随机的token，并在Response中通过"Set-Cookie"设置token
     if "cookie" in headers:
         token = headers["cookie"][len("token=") :]
     else:
@@ -144,7 +149,7 @@ def add_entry(session, params):
 
     if "guest" in params:
         ENTRIES.append((params["guest"], session["user"]))
-    return show_comments()
+    return show_comments(session)
 
 
 def not_found(url, method):
