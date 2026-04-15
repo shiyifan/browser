@@ -1,7 +1,8 @@
 import socket
 import ssl
 
-# 保存所有的Cookie,key为host, value为cookie字符串
+# 保存所有的Cookie
+# key为host, value为cookie字符串
 COOKIE_JAR = {}
 
 # URL，根据url发送http请求并返回纯文本的http response body
