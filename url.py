@@ -5,6 +5,7 @@ import ssl
 # key为host, value为cookie字符串
 COOKIE_JAR = {}
 
+
 # URL，根据url发送http请求并返回纯文本的http response body
 class URL:
     def __init__(self, url):
@@ -76,7 +77,7 @@ class URL:
 
             header, value = line.split(":", 1)
             response_headers[header.casefold()] = value.strip()
-        
+
         # 保存服务器发送的cookie
         if "set-cookie" in response_headers:
             cookie = response_headers["set-cookie"]
@@ -120,3 +121,6 @@ class URL:
         if self.scheme == "http" and self.port == 80:
             port_part = ""
         return self.scheme + "://" + self.host + port_part + self.path
+
+    def origin(self):
+        return f"{self.scheme}://{self.host}:{self.port}"

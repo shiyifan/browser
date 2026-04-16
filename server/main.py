@@ -125,9 +125,12 @@ def show_comments(session):
     out = "<!doctype html>"
 
     if "user" in session:
+        nonce = str(random.random())[2:]
+        session["nonce"] = nonce
         out += f"""
             <h1>Hello, {session['user']}!</h1>
             <form action=add method=post>
+                <input name=nonce type=hidden value={nonce} >
                 <p><input name=guest></p>
                 <p><button>Sign the book</button></p>
                 <strong></strong>
@@ -144,6 +147,16 @@ def show_comments(session):
 
 
 def add_entry(session, params):
+    if "nonce" not in params or "nonce" not in session:
+        # form表单中没有“nonce”，当前session也没有"nonce"
+        log.e("no nonce, rejected")
+        return
+
+    if session["nonce"] != params["nonce"]:
+        # session的nonce必须与请求表单中的值一致
+        log.e(f"session: {session["nonce"]}, form: {params["nonce"]}, rejected")
+        return
+
     if "user" not in session:
         return
 
@@ -176,9 +189,11 @@ def do_login(session, params):
     username = params.get("username")
     password = params.get("password")
     if username in LOGINS and LOGINS[username] == password:
+        # 登录验证通过
         session["user"] = username
         return "200 OK", show_comments(session)
     else:
+        # 登录验证失败
         out = f"""
             <!doctype html>
             <h1>Login failed! Invalid password for {username}</h1>
