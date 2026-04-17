@@ -27,7 +27,8 @@ class URL:
         self.path = "/" + url
 
     # 请求url并获取HTTP报文
-    def request(self, payload=None):
+    # referer: 发起请求的页面所在的URL
+    def request(self, referer, payload=None):
 
         s = socket.socket(
             family=socket.AF_INET, type=socket.SOCK_STREAM, proto=socket.IPPROTO_TCP
@@ -51,8 +52,13 @@ class URL:
 
         # 如果保存了当前host的cookie,那么添加"Cookie"请求头
         if self.host in COOKIE_JAR:
-            cookie = COOKIE_JAR[self.host]
-            request += f"Cookie: {cookie}\r\n"
+            cookie, params = COOKIE_JAR[self.host]
+            allow_cookie = True
+            if referer and params.get("samesite", "none") == "lax":
+                if method != "GET":
+                    allow_cookie = self.host == referer.host
+            if allow_cookie:
+                request += f"Cookie: {cookie}\r\n"
 
         request += "\r\n"
         if payload:
@@ -81,7 +87,19 @@ class URL:
         # 保存服务器发送的cookie
         if "set-cookie" in response_headers:
             cookie = response_headers["set-cookie"]
-            COOKIE_JAR[self.host] = cookie
+            params = {}
+
+            if ";" in cookie:
+                # 解析Cookie中的参数
+
+                cookie, rest = cookie.split(";", 1)
+                for param in rest.split(";"):
+                    if "=" in param:
+                        param, value = param.split("=", 1)
+                    else:
+                        value = "true"
+                    params[param.strip().casefold()] = value.casefold()
+            COOKIE_JAR[self.host] = (cookie, params)
 
         # 读取Response Body
         content = response.read()

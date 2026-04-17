@@ -76,7 +76,8 @@ def handle_connection(conx):
 
     if "cookie" not in headers:
         # 如果请求中没有cookie,则在响应中设置上面随机生成的token
-        response += f"Set-Cookie: token={token}\r\n"
+        response += f"Set-Cookie: token={token}; SameSite=Lax\r\n"
+        # response += f"Set-Cookie: token={token}\r\n"
         log.i(f"new request: set cookie, token={token}")
 
     response += "\r\n" + body

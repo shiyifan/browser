@@ -31,12 +31,12 @@ class Tab:
 
     def load(self, url, payload=None):
         self.history.append(url)
-        self.url = url
 
-        body = url.request(payload)
+        body = url.request(self.url, payload)
+        self.url = url
         self.nodes = HTMLParser(body).parse()  # 将HTML代码解析为DOM tree
 
-        # HTML代码中，所有"<script src=''>"的标签
+        # HTML代码中，加载所有"<script src=''>"的标签
         #
         # 注意：该浏览器不实现类似于"<script>...js code...</script>"的内嵌功能，因为
         # 解析时区分HTML与js中的"<"以及">"符号较为复杂
@@ -51,7 +51,7 @@ class Tab:
         for script in scripts:
             script_url = url.resolve(script)
             try:
-                body = script_url.request()
+                body = script_url.request(url)
                 self.js.run(body)
             except:
                 continue
@@ -69,7 +69,7 @@ class Tab:
         for link in links:
             style_url = url.resolve(link)
             try:
-                body = style_url.request()
+                body = style_url.request(url)
             except:
                 continue
             rules.extend(CSSParser(body).parse())  # 获取author stylesheet
