@@ -125,12 +125,17 @@ def show_comments(session):
     out = "<!doctype html>"
 
     if "user" in session:
+
+        # 为每个<form>附带一个随机值nonce,并将该nonce关联至登陆用户的session中
+        # 合法的<form>提交必须附带有效的"Cookie"与"nonce"
         nonce = str(random.random())[2:]
         session["nonce"] = nonce
+
+        # 以"<input type=hidden>"的方式附带随机值
         out += f"""
             <h1>Hello, {session['user']}!</h1>
             <form action=add method=post>
-                <input name=nonce type=hidden value={nonce} >
+                <input name=nonce type=hidden value={nonce}>
                 <p><input name=guest></p>
                 <p><button>Sign the book</button></p>
                 <strong></strong>
@@ -149,7 +154,8 @@ def show_comments(session):
 def add_entry(session, params):
     if "nonce" not in params or "nonce" not in session:
         # form表单中没有“nonce”，当前session也没有"nonce"
-        log.e("no nonce, rejected")
+        not_in_p = "nonce" not in params
+        log.e(f"no nonce in {'params' if not_in_p else 'session'}, rejected")
         return
 
     if session["nonce"] != params["nonce"]:
