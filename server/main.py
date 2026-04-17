@@ -154,7 +154,7 @@ def add_entry(session, params):
 
     if session["nonce"] != params["nonce"]:
         # session的nonce必须与请求表单中的值一致
-        log.e(f"session: {session["nonce"]}, form: {params["nonce"]}, rejected")
+        log.e(f"session: {session['nonce']}, form: {params['nonce']}, rejected")
         return
 
     if "user" not in session:
