@@ -53,6 +53,10 @@ class URL:
         # 如果保存了当前host的cookie,那么添加"Cookie"请求头
         if self.host in COOKIE_JAR:
             cookie, params = COOKIE_JAR[self.host]
+
+            # 简单实现了"Cookie: SameSite=Lax"机制
+            # 如果Cookie设置了Lax属性值，那么除"GET"请求外的其他请求必须满足same site
+            # 实际上，"SameSite=Lax"的实际行为要复杂一些,另请参阅MDN
             allow_cookie = True
             if referer and params.get("samesite", "none") == "lax":
                 if method != "GET":
