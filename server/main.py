@@ -4,6 +4,7 @@ import socket
 import urllib.parse
 import random
 from utils import log
+import html
 
 ENTRIES = [
     ("No names. We are nameless!", "cerealkiller"),
@@ -144,7 +145,7 @@ def show_comments(session):
             <script src="/comment.js"></script>
             """
         for entry, who in ENTRIES:
-            out += f"<p>{entry}, {who}</p>"
+            out += f"<p>{html.escape(entry)}, {html.escape(who)}</p>"
     else:
         out += f"""
                 <a href=/login>Sign in to write a comment</a>

@@ -56,6 +56,7 @@ class Tab:
             except:
                 continue
 
+        # 加载并解析所有"<link rel=stylesheet>"的css
         rules = DEFAULT_STYLE_SHEET.copy()  # 解析user agent stylesheet
         # HTML代码中，所有的"<link rel=stylesheet>"标签中的css url
         links = [
