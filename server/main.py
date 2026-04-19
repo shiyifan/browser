@@ -74,6 +74,7 @@ def handle_connection(conx):
     status, body = do_request(session, method, url, headers, body)
     response = f"HTTP/1.0 {status}\r\n"
     response += f"Content-Length: {len(body.encode('utf8'))}\r\n"
+    response += "Content-Security-Policy: default-src http://localhost:8000\r\n"
 
     if "cookie" not in headers:
         # 如果请求中没有cookie,则在响应中设置上面随机生成的token
@@ -137,18 +138,20 @@ def show_comments(session):
         out += f"""
             <h1>Hello, {session['user']}!</h1>
             <form action=add method=post>
-                <input name=nonce type=hidden value={nonce}>
-                <p><input name=guest></p>
+                <p>nonce: <input name=nonce type=hidden value={nonce}></p>
+                <p>Comment: <input name=guest></p>
                 <p><button>Sign the book</button></p>
                 <strong></strong>
             </form>
             <script src="/comment.js"></script>
             """
         for entry, who in ENTRIES:
-            out += f"<p>{html.escape(entry)}, {html.escape(who)}</p>"
+            # 对用户输入进行HTML转译,避免执行用户输入中的某些malicious code
+            out += f"<p>{html.escape(entry)}, {html.escape(who)}</p>" 
     else:
         out += f"""
                 <a href=/login>Sign in to write a comment</a>
+                <script src="http://localhost:3000/script.js"></script>
                 """
     return out
 

@@ -108,7 +108,7 @@ class URL:
         # 读取Response Body
         content = response.read()
         s.close()
-        return content
+        return response_headers, content
 
     # 将absolute url或者relative url根据当前URL对象，返回完整的url
     def resolve(self, url):

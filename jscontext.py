@@ -82,6 +82,9 @@ class JSContext:
     def XMLHttpRequest_send(self, method, url, body):
         full_url = self.tab.url.resolve(url)
 
+        if not self.tab.allowed_request(full_url):
+            raise Exception("XHR blocked by CSP")
+
         if full_url.origin() != self.tab.url.origin():
             raise Exception("CORS not allowed")
 

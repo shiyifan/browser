@@ -5,7 +5,8 @@ from layout import DocumentLayout
 from tags import Element, Text
 from css_parser import CSSParser
 from jscontext import JSContext
-from utils import tree_to_list
+from utils import tree_to_list, log
+from url import URL
 
 # 浏览器默认样式，user agent style
 DEFAULT_STYLE_SHEET = CSSParser(open("browser.css").read()).parse()
@@ -32,9 +33,19 @@ class Tab:
     def load(self, url, payload=None):
         self.history.append(url)
 
-        body = url.request(self.url, payload)
+        headers, body = url.request(self.url, payload)
         self.url = url
         self.nodes = HTMLParser(body).parse()  # 将HTML代码解析为DOM tree
+
+        # 添加对"Content-Security-Policy" Response Header的支持
+        # 仅支持 "default-src" directive
+        self.allowed_origins = None
+        if "content-security-policy" in headers:
+            csp = headers["content-security-policy"].split()
+            if len(csp) > 0 and csp[0] == "default-src":
+                self.allowed_origins = []
+                for origin in csp[1:]:
+                    self.allowed_origins.append(URL(origin).origin())
 
         # HTML代码中，加载所有"<script src=''>"的标签
         #
@@ -50,8 +61,14 @@ class Tab:
         self.js = JSContext(self)
         for script in scripts:
             script_url = url.resolve(script)
+
+            # <script>的"src"是否满足ContentSecurityPolicy
+            if not self.allowed_request(script_url):
+                log.e(f"CSP script block: {script_url}")
+                continue
+
             try:
-                body = script_url.request(url)
+                _, body = script_url.request(url)
                 self.js.run(body)
             except:
                 continue
@@ -69,8 +86,13 @@ class Tab:
         ]
         for link in links:
             style_url = url.resolve(link)
+
+            if not self.allowed_request(style_url):
+                log.e(f"CSP style block: {style_url}")
+                continue
+
             try:
-                body = style_url.request(url)
+                _, body = style_url.request(url)
             except:
                 continue
             rules.extend(CSSParser(body).parse())  # 获取author stylesheet
@@ -229,6 +251,10 @@ class Tab:
         self.focus.attributes["value"] = value[:-1]
         self.js.dispatch_event("keydown", self.focus)
         self.render()
+
+    # 根据CSP,是否允许请求(<script>, <style>, XHR)
+    def allowed_request(self, url):
+        return self.allowed_origins == None or url.origin() in self.allowed_origins
 
 
 # 根据DOM结点上"style"属性、css文件的代码创建CSS对象并赋值为"style"属性
