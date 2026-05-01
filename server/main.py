@@ -170,7 +170,6 @@ def show_comments(session):
     else:
         out += f"""
                 <a href=/login>Sign in to write a comment</a>
-                <script src="http://localhost:3000/script.js"></script>
                 """
     return out
 
