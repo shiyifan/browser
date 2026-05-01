@@ -57,7 +57,12 @@ def handle_connection(conx):
         log.w("empty request line, close connection")
         conx.close()
         return
-    method, url, version = reqline.split(" ", 2)
+    try:
+        method, url, version = reqline.split(" ", 2)
+    except Exception as e:
+        log.e(f'reqline: {reqline}, error: {e}')
+        conx.close()
+        return
     assert method in ["GET", "POST"]
 
     # 读取HTTP Request Header
