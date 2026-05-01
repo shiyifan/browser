@@ -93,7 +93,8 @@ def handle_connection(conx):
     status, body = do_request(session, method, url, headers, body)
     response = f"HTTP/1.0 {status}\r\n"
     response += f"Content-Length: {len(body.encode('utf8'))}\r\n"
-    response += "Content-Security-Policy: default-src http://localhost:8000\r\n"
+    # 暂不添加CSP
+    # response += "Content-Security-Policy: default-src http://localhost:8000\r\n"
 
     if "cookie" not in headers:
         # 如果请求中没有cookie,则在响应中设置上面随机生成的token
