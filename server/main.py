@@ -5,6 +5,8 @@ import urllib.parse
 import random
 from utils import log
 import html
+import ssl
+from pathlib import Path
 
 ENTRIES = [
     ("No names. We are nameless!", "cerealkiller"),
@@ -15,11 +17,19 @@ SESSIONS = {}
 
 LOGINS = {"admin": "1234", "scott": "1234"}
 
+USE_HTTPS = True
+
 
 def main():
     s = socket.socket(
         family=socket.AF_INET, type=socket.SOCK_STREAM, proto=socket.IPPROTO_TCP
     )
+
+    if USE_HTTPS:
+        dir = Path(__file__).resolve().parent
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.load_cert_chain(certfile=dir / "cert.pem", keyfile= dir / "cert-privkey.pem")
+        s = ctx.wrap_socket(s, server_side=True)
 
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
@@ -30,7 +40,11 @@ def main():
     count = 0
 
     while True:
-        conx, addr = s.accept()
+        try: 
+            conx, addr = s.accept()
+        except Exception as e:
+            log.e("socket accept error: ", e)
+            continue
         count += 1
         print(f"new connection! {count}")
         handle_connection(conx)
