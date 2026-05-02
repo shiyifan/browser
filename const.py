@@ -7,8 +7,8 @@ SCROLL_STEP = 20
 
 # HTTP_URL = "https://localhost:3000"
 # HTTP_URL = "https://www.baidu.com"
-# HTTP_URL = "https://browser.engineering/index.html"
-HTTP_URL = "https://localhost:8000"
+HTTP_URL = "https://browser.engineering/index.html"
+# HTTP_URL = "https://localhost:8000"
 
 # 无end close tag的标签
 SELF_CLOSING_TAGS = [
@@ -93,5 +93,9 @@ INHERITED_PROPERTIES = {
 NAMED_COLORS = {
     "black": "#000000",
     "white": "#ffffff",
-    "red": "#ff0000"
+    "red": "#ff0000",
+    "gray": "#808080",
+    "blue": "#0000FF",
+    "lightblue": "#add8e6",
+    "orange": "#ffa500",
 }

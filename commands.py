@@ -3,7 +3,9 @@
 将display list中各个绘制信息转换为绘制命令
 """
 
-from skia.Rect import MakeLTRB
+from skia import Path, Paint, Rect
+from utils import parse_color
+from font import linespace
 
 
 class DrawText:
@@ -15,22 +17,22 @@ class DrawText:
         self.font = font
         self.color = color
 
-        height = font.metrics("linespace")
-        width = font.measure(self.text)
-        self.rect = MakeLTRB(self.left, self.top, self.left + width, self.top + height)
+        height = linespace(font)
+        width = font.measureText(self.text)
+        self.rect = Rect.MakeLTRB(self.left, self.top, self.left + width, self.top + height)
 
         # 表示当前行的底部纵坐标，用于判断绘制位置是否位于canvas的可见区域外
-        self.bottom = y1 + font.metrics("linespace")
+        self.bottom = self.top + height
 
     # scroll: 已向上滚动的距离
     def execute(self, scroll, canvas):
-        canvas.create_text(
-            self.left,
-            self.top - scroll,
-            text=self.text,
-            font=self.font,
-            anchor="nw",
-            fill=self.color,
+        paint = Paint(AntiAlias=True, Color=parse_color(self.color))
+
+        # skia的font ascent是负值，而descent是正值，所以这里采用减法来计算baseline的纵坐标
+        baseline = self.rect.top() - scroll - self.font.getMetrics().fAscent
+
+        canvas.drawString(
+            self.text, float(self.rect.left()), baseline, self.font, paint
         )
 
 
@@ -59,14 +61,8 @@ class DrawRect:
 
     # scroll: 已向上滚动的距离
     def execute(self, scroll, canvas):
-        canvas.create_rectangle(
-            self.rect.left,
-            self.rect.top - scroll,
-            self.rect.right,
-            self.rect.bottom - scroll,
-            width=0,  # no default border
-            fill=self.color,
-        )
+        paint = Paint(Color=parse_color(self.color))
+        canvas.drawRect(self.rect.makeOffset(0, -scroll), paint)
 
 
 class DrawOutline:
@@ -78,30 +74,31 @@ class DrawOutline:
         self.thickness = thickness
 
     def execute(self, scroll, canvas):
-        canvas.create_rectangle(
-            self.rect.left,
-            self.rect.top - scroll,
-            self.rect.right,
-            self.rect.bottom - scroll,
-            width=self.thickness,
-            outline=self.color,
+        paint = Paint(
+            Color=parse_color(self.color),
+            StrokeWidth=self.thickness,
+            Style=Paint.kStroke_Style,
         )
+        canvas.drawRect(self.rect.makeOffset(0, -scroll), paint)
 
 
 class DrawLine:
     """绘制直线"""
 
     def __init__(self, x1, y1, x2, y2, color, thickness):
-        self.rect = Rect(x1, y1, x2, y2)
+        self.rect = Rect.MakeLTRB(x1, y1, x2, y2)
         self.color = color
         self.thickness = thickness
 
     def execute(self, scroll, canvas):
-        canvas.create_line(
-            self.rect.left,
-            self.rect.top - scroll,
-            self.rect.right,
-            self.rect.bottom - scroll,
-            fill=self.color,
-            width=self.thickness,
+        path = (
+            Path()
+            .moveTo(self.rect.left(), self.rect.top() - scroll)
+            .lineTo(self.rect.right(), self.rect.bottom() - scroll)
         )
+        paint = Paint(
+            Color=parse_color(self.color),
+            StrokeWidth=self.thickness,
+            Style=Paint.kStroke_Style,
+        )
+        canvas.drawPath(path, paint)

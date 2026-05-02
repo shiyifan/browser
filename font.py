@@ -19,7 +19,12 @@ def get_font(size, weight, style):
             skia_style = FontStyle.kUpright_Slant
         skia_width = FontStyle.kNormal_Width
         style_info = FontStyle(skia_weight, skia_width, skia_style)
-        font = TypeFace("Arial", style_info)
+        font = Typeface("Arial", style_info)
         FONTS[key] = font
 
     return Font(FONTS[key], size)
+
+def linespace(font):
+    """计算skia Font的\"linespace\""""
+
+    return font.getMetrics().fDescent - font.getMetrics().fAscent

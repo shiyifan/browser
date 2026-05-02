@@ -120,9 +120,9 @@ class Tab:
         # 根据计算后页面元素的坐标、样式开始绘制
         for cmd in self.display_list:
             # 不绘制位于窗口可见区域之外的内容
-            if cmd.rect.top > self.scroll + self.tab_height:
+            if cmd.rect.top() > self.scroll + self.tab_height:
                 continue
-            if cmd.rect.bottom < self.scroll:
+            if cmd.rect.bottom() < self.scroll:
                 continue
 
             cmd.execute(self.scroll - offset, canvas)

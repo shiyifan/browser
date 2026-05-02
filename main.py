@@ -10,7 +10,7 @@ from url import URL
 def main():
     SDL_Init(SDL_INIT_EVENTS)
     browser = Browser()
-    # browser.new_tab(URL(const.HTTP_URL))
+    browser.new_tab(URL(const.HTTP_URL))
     mainloop(browser)
 
 
@@ -70,7 +70,7 @@ class Browser:
         # self.window.bind("<Return>", self.handle_enter)  # 地址栏内按下回车后加载新url
         # self.window.bind("<BackSpace>", self.handle_backspace)
 
-        # self.chrome = Chrome(self)
+        self.chrome = Chrome(self)
 
         # 点击之后焦点位于chrome中还是tab页中
         # None表示位于chrome,"content"表示位于tab中
@@ -88,15 +88,14 @@ class Browser:
         self.draw()
 
     def draw(self):
-        self.canvas.delete("all")
-        self.active_tab.draw(self.canvas, self.chrome.bottom)
+        canvas = self.root_surface.getCanvas()
+
+        self.active_tab.draw(canvas, self.chrome.bottom)
 
         # 绘制browser chrome
         for cmd in self.chrome.paint():
             # 绘制时滚动距离scroll=0，确保chrome始终位于canvas上方
-            cmd.execute(0, self.canvas)
-
-        canvas = self.root_surface.getCanvas()
+            cmd.execute(0, canvas)
 
         skia_image = self.root_surface.makeImageSnapshot()
         skia_bytes = skia_image.tobytes()
@@ -143,17 +142,17 @@ class Browser:
             self.active_tab.click(e.x, tab_y)
         self.draw()
 
-    def handle_key(self, e):
-        if len(e.char) == 0:
+    def handle_key(self, char):
+        if len(char) == 0:
             return
-        if not (0x20 <= ord(e.char) <= 0x7F):
+        if not (0x20 <= ord(char) <= 0x7F):
             return
 
         # 如果chrome处理了<Key>事件，那么tab将不再继续处理,否则将<Key>事件发送至tab页处理
-        if self.chrome.keypress(e.char):
+        if self.chrome.keypress(char):
             self.draw()
         elif self.focus == "content":
-            self.active_tab.keypress(e.char)
+            self.active_tab.keypress(char)
             self.draw()
 
     def handle_enter(self):
@@ -230,7 +229,7 @@ def mainloop(browser):
 
             elif event.type == SDL_TEXTINPUT:
                 # 文字输入事件
-                browser.handle_key(event.text.key.key.decode("utf8"))
+                browser.handle_key(event.text.text.decode("utf8"))
 
 
 # keep this being the last statement

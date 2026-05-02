@@ -1,8 +1,8 @@
-from font import get_font
-from rect import Rect
+from font import get_font, linespace
 from commands import DrawOutline, DrawText, DrawLine, DrawRect
 import const
 from url import URL
+from skia import Rect
 
 
 # 浏览器的tab标签、地址栏以及按钮等部分
@@ -11,14 +11,14 @@ class Chrome:
     def __init__(self, browser):
         self.browser = browser
         self.font = get_font(20, "normal", "roman")  # 用于各个控件的字体
-        self.font_height = self.font.metrics("linespace")
+        self.font_height = linespace(self.font)
 
         self.padding = 5
         self.tabbar_top = 0  # tab标签条的顶部y坐标
         self.tabbar_bottom = self.font_height + 2 * self.padding  # tab标签条的底部y坐标
 
         # 新建tab页的按钮"+"
-        plus_width = self.font.measure("+") + 2 * self.padding  # 新建tab页的"+"按钮宽度
+        plus_width = self.font.measureText("+") + 2 * self.padding  # 新建tab页的"+"按钮宽度
         self.newtab_rect = Rect(
             self.padding,
             self.padding,
@@ -29,7 +29,7 @@ class Chrome:
         # 地址栏的空间
         self.urlbar_top = self.tabbar_bottom
         self.urlbar_bottom = self.urlbar_top + self.font_height + 2 * self.padding
-        back_width = self.font.measure("<") + 2 * self.padding
+        back_width = self.font.measureText("<") + 2 * self.padding
         # 后退按钮"<"的矩形区域
         self.back_rect = Rect(
             self.padding,
@@ -39,7 +39,7 @@ class Chrome:
         )
         # 地址栏的矩形区域
         self.address_rect = Rect(
-            self.back_rect.right + self.padding,
+            self.back_rect.right() + self.padding,
             self.urlbar_top + self.padding,
             const.WIDTH - self.padding,
             self.urlbar_bottom - self.padding,
@@ -55,9 +55,9 @@ class Chrome:
         """计算"self.tabs"中，第i个tab标签的矩形绘制区域"""
 
         # "+"按钮的右侧x坐标，作为绘制tab标签的起点
-        tabs_start = self.newtab_rect.right + self.padding
+        tabs_start = self.newtab_rect.right() + self.padding
 
-        tab_width = self.font.measure("Tab X") + 3 * self.padding
+        tab_width = self.font.measureText("Tab X") + 3 * self.padding
         return Rect(
             tabs_start + tab_width * i,
             self.tabbar_top,
@@ -68,20 +68,20 @@ class Chrome:
     def click(self, x, y):
         self.focus = None  # 判断点击位置前先重置"focus"
 
-        if self.newtab_rect.contains_point(x, y):
+        if self.newtab_rect.contains(x, y):
             # 当点击在"+"按钮时
             self.browser.new_tab(URL(const.HTTP_URL))
-        elif self.back_rect.contains_point(x, y):
+        elif self.back_rect.contains(x, y):
             # 当点击在"<"按钮时
             self.browser.active_tab.go_back()
-        elif self.address_rect.contains_point(x, y):
+        elif self.address_rect.contains(x, y):
             # 当点击在地址栏内时
             self.focus = "address bar"
             self.address_bar = ""
         else:
             # 当点击在tab标签时
             for i, tab in enumerate(self.browser.tabs):
-                if self.tab_rect(i).contains_point(x, y):
+                if self.tab_rect(i).contains(x, y):
                     self.browser.active_tab = tab
                     break
 
@@ -97,8 +97,8 @@ class Chrome:
         cmds.append(DrawOutline(self.newtab_rect, "black", 1))
         cmds.append(
             DrawText(
-                self.newtab_rect.left + self.padding,
-                self.newtab_rect.top,
+                self.newtab_rect.left() + self.padding,
+                self.newtab_rect.top(),
                 "+",
                 self.font,
                 "black",
@@ -111,15 +111,15 @@ class Chrome:
 
             # 不绘制完整的矩形轮廓，仅根据"tab_rect"计算得到的矩形区域绘制矩形的左侧垂直边以及tab标签文字
             cmds.append(
-                DrawLine(bounds.left, 0, bounds.left, bounds.bottom, "black", 1)
+                DrawLine(bounds.left(), 0, bounds.left(), bounds.bottom(), "black", 1)
             )
             cmds.append(
-                DrawLine(bounds.right, 0, bounds.right, bounds.bottom, "black", 1)
+                DrawLine(bounds.right(), 0, bounds.right(), bounds.bottom(), "black", 1)
             )
             cmds.append(
                 DrawText(
-                    bounds.left + self.padding,
-                    bounds.top + self.padding,
+                    bounds.left() + self.padding,
+                    bounds.top() + self.padding,
                     "TAB {}".format(i),
                     self.font,
                     "black",
@@ -130,14 +130,14 @@ class Chrome:
             if tab == self.browser.active_tab:
                 # 下面这两条线可能与chrome的底部边缘线条冲突,所以宽度改成2
                 cmds.append(
-                    DrawLine(0, bounds.bottom, bounds.left, bounds.bottom, "blue", 2)
+                    DrawLine(0, bounds.bottom(), bounds.left(), bounds.bottom(), "blue", 2)
                 )
                 cmds.append(
                     DrawLine(
-                        bounds.right,
-                        bounds.bottom,
+                        bounds.right(),
+                        bounds.bottom(),
                         const.WIDTH,
-                        bounds.bottom,
+                        bounds.bottom(),
                         "blue",
                         2,
                     )
@@ -147,8 +147,8 @@ class Chrome:
         cmds.append(DrawOutline(self.back_rect, "black", 1))
         cmds.append(
             DrawText(
-                self.back_rect.left + self.padding,
-                self.back_rect.top,
+                self.back_rect.left() + self.padding,
+                self.back_rect.top(),
                 "<",
                 self.font,
                 "black",
@@ -163,21 +163,21 @@ class Chrome:
 
             cmds.append(
                 DrawText(
-                    self.address_rect.left + self.padding,
-                    self.address_rect.top,
+                    self.address_rect.left() + self.padding,
+                    self.address_rect.top(),
                     self.address_bar,
                     self.font,
                     "black",
                 )
             )
             # 绘制光标
-            w = self.font.measure(self.address_bar)
+            w = self.font.measureText(self.address_bar)
             cmds.append(
                 DrawLine(
-                    self.address_rect.left + self.padding + w,
-                    self.address_rect.top,
-                    self.address_rect.left + self.padding + w,
-                    self.address_rect.bottom,
+                    self.address_rect.left() + self.padding + w,
+                    self.address_rect.top(),
+                    self.address_rect.left() + self.padding + w,
+                    self.address_rect.bottom(),
                     "red",
                     1,
                 )
@@ -188,8 +188,8 @@ class Chrome:
             url = str(self.browser.active_tab.url)
             cmds.append(
                 DrawText(
-                    self.address_rect.left + self.padding,
-                    self.address_rect.top,
+                    self.address_rect.left() + self.padding,
+                    self.address_rect.top(),
                     url,
                     self.font,
                     "black",

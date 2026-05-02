@@ -2,7 +2,6 @@ from font import *
 from tags import Text, Element
 from commands import DrawText, DrawRect, DrawLine
 import const
-from rect import Rect
 
 # <input>的固定宽度
 INPUT_WIDTH_PX = 200
@@ -119,12 +118,12 @@ class BlockLayout:
         size = int(float(node.style["font-size"][:-2]) * 0.75)
 
         font = get_font(size, weight, style)
-        w = font.measure(word)
+        w = font.measureText(word)
 
         if self.cursor_x + w > self.width:
             # 根据BlockLayout宽度，已超出一行时，新建一行
             self.new_line()
-        self.cursor_x += w + font.measure(" ")
+        self.cursor_x += w + font.measureText(" ")
 
         # 将未超出一行的word添加至当前行中
         line = self.children[-1]
@@ -149,7 +148,7 @@ class BlockLayout:
         size = int(float(node.style["font-size"][:-2]) * 0.75)
         font = get_font(size, weight, style)
 
-        self.cursor_x += w + font.measure(" ")
+        self.cursor_x += w + font.measureText(" ")
 
     def new_line(self):
         self.cursor_x = 0
@@ -284,7 +283,7 @@ class LineLayout:
         # 行内的所有TextLayout均以计算完成，然后确定baseline的位置以及每个TextLayout的y绘制坐标
 
         # 计算一行中最大的ascent
-        max_ascent = max([word.font.metrics("ascent") for word in self.children])
+        max_ascent = max([-word.font.getMetrics().fAscent for word in self.children])
 
         # 可以直接以"max_ascent"作为baseline的位置，或者在这个基础上、在最大字符的ascent与descent之外再
         # 添加一些leading（空白区域），ascent上面添加一半leading, descent下面添加一半leading,
@@ -294,9 +293,9 @@ class LineLayout:
 
         # 确定y绘制坐标
         for word in self.children:
-            word.y = baseline - word.font.metrics("ascent")
+            word.y = baseline - -word.font.getMetrics().fAscent
 
-        max_descent = max([word.font.metrics("descent") for word in self.children])
+        max_descent = max([word.font.getMetrics().fDescent for word in self.children])
         self.height = 1.25 * (max_ascent + max_descent)
 
     def paint(self):
@@ -330,13 +329,13 @@ class TextLayout:
         size = int(float(self.node.style["font-size"][:-2]) * 0.75)
         self.font = get_font(size, weight, style)
 
-        self.width = self.font.measure(self.word)
+        self.width = self.font.measureText(self.word)
         if self.previous:
-            space = self.previous.font.measure(" ")
+            space = self.previous.font.measureText(" ")
             self.x = self.previous.x + self.previous.width + space
         else:
             self.x = self.parent.x
-        self.height = self.font.metrics("linespace")
+        self.height = linespace(self.font)
 
     def paint(self):
         color = self.node.style["color"]
@@ -370,11 +369,11 @@ class InputLayout:
 
         self.width = INPUT_WIDTH_PX
         if self.previous:
-            space = self.previous.font.measure(" ")
+            space = self.previous.font.measureText(" ")
             self.x = self.previous.x + self.previous.width + space
         else:
             self.x = self.parent.x
-        self.height = self.font.metrics("linespace")
+        self.height = linespace(self.font)
 
     def paint(self):
         cmds = []
@@ -401,7 +400,7 @@ class InputLayout:
 
         # 如果当前"<input>"已获取焦点，则绘制光标
         if self.node.is_focused:
-            cx = self.x + self.font.measure(text)
+            cx = self.x + self.font.measureText(text)
             cmds.append(DrawLine(cx, self.y, cx, self.y + self.height, "black", 1))
 
         return cmds
