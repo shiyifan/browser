@@ -21,6 +21,19 @@ class Browser:
         self.tabs = []
         self.active_tab = None
 
+        # 根据计算机的端序初始化surface基础颜色信息
+        if SDL_BYTEORDER == SDL_BIG_ENDIAN:
+            self.RED_MASK = 0xFF000000
+            self.GREEN_MASK = 0x00FF0000
+            self.BLUE_MASK = 0x0000FF00
+            self.ALPHA_MASK = 0x000000FF
+        else:
+            self.RED_MASK = 0x000000FF
+            self.GREEN_MASK = 0x0000FF00
+            self.BLUE_MASK = 0x00FF0000
+            self.ALPHA_MASK = 0xFF000000
+
+        # 浏览器的窗口，负责接收系统事件、展示其他sdl surface的绘制结果
         self.sdl_window = SDL_CreateWindow(
             b"Browser",
             SDL_WINDOWPOS_CENTERED,
@@ -30,6 +43,7 @@ class Browser:
             SDL_WINDOW_SHOWN,
         )
 
+        # 用于初步绘制的skia surface
         self.root_surface = Surface.MakeRaster(
             ImageInfo.Make(
                 const.WIDTH,
@@ -81,9 +95,32 @@ class Browser:
         for cmd in self.chrome.paint():
             # 绘制时滚动距离scroll=0，确保chrome始终位于canvas上方
             cmd.execute(0, self.canvas)
-        
+
+        canvas = self.root_surface.getCanvas()
+
         skia_image = self.root_surface.makeImageSnapshot()
         skia_bytes = skia_image.tobytes()
+        depth = 32
+        pitch = 4 * const.WIDTH
+
+        # 从初步绘制的skia surface新建sdl surface
+        sdl_surface = SDL_CreateRGBSurfaceFrom(
+            skia_bytes,
+            const.WIDTH,
+            const.HEIGHT,
+            depth,
+            pitch,
+            self.RED_MASK,
+            self.GREEN_MASK,
+            self.BLUE_MASK,
+            self.ALPHA_MASK,
+        )
+
+        # 将新建的sdl surface绘制至窗口中
+        rect = SDL_Rect(0, 0, const.WIDTH, const.HEIGHT)
+        window_surface = SDL_GetWindowSurface(self.sdl_window)
+        SDL_BlitSurface(sdl_surface, rect, window_surface, rect)
+        SDL_UpdateWindowSurface(self.sdl_window)
 
     def handle_down(self):
         self.active_tab.scrolldown()

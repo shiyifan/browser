@@ -3,7 +3,7 @@
 将display list中各个绘制信息转换为绘制命令
 """
 
-from rect import Rect
+from skia.Rect import MakeLTRB
 
 
 class DrawText:
@@ -17,7 +17,7 @@ class DrawText:
 
         height = font.metrics("linespace")
         width = font.measure(self.text)
-        self.rect = Rect(self.left, self.top, self.left + width, self.top + height)
+        self.rect = MakeLTRB(self.left, self.top, self.left + width, self.top + height)
 
         # 表示当前行的底部纵坐标，用于判断绘制位置是否位于canvas的可见区域外
         self.bottom = y1 + font.metrics("linespace")
