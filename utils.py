@@ -1,5 +1,8 @@
 """Some Utils functions"""
 
+from skia import Color, ColorBLACK
+from const import NAMED_COLORS
+
 
 # 树状结构转为扁平的list结构
 def tree_to_list(tree, list):
@@ -7,6 +10,22 @@ def tree_to_list(tree, list):
     for child in tree.children:
         tree_to_list(child, list)
     return list
+
+
+def parse_color(color):
+    """解析16进制或者关键字的颜色数值为Skia的Color"""
+
+    if color.startswith("#") and len(color) == 7:
+        r = int(color[1:3], 16)
+        g = int(color[3:5], 16)
+        b = int(color[5:7], 16)
+        return Color(r, g, b)
+
+    elif color in NAMED_COLORS:
+        return parse_color(NAMED_COLORS[color])
+
+    else:
+        return ColorBLACK
 
 
 class Log:
