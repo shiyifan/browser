@@ -58,6 +58,10 @@ class Browser:
 
         self.chrome = Chrome(self)
 
+        # 用于绘制chrome以及tab页内容的skia surface
+        self.chrome_surface = Surface(const.WIDTH, math.ceil(self.chrome.bottom))
+        self.tab_surface = None
+
         # 点击之后焦点位于chrome中还是tab页中
         # None表示位于chrome,"content"表示位于tab中
         self.focus = None
@@ -69,6 +73,24 @@ class Browser:
         self.active_tab = new_tab
         self.tabs.append(new_tab)
         self.draw()
+
+    def raster_tab(self):
+        canvas = self.tab_surface.getCanvas()
+        canvas.clear(ColorWHITE)
+
+        # 获取tab页内容的高度
+        #
+        # 这里的高度根据layout tree计算得到。
+        # 对于某些超出parent元素边界的HTML元素，目前浏览器不支持绘制这样的元素
+        tab_height = math.ceil(self.active_tab.document.height + 2 * const.VSTEP)
+
+        if not self.tab_surface or tab_height != self.tab_surface.height:
+            # 如果tab_surface未初始化或者tab页高度发生变化，则新建一个surface
+            self.tab_surface = Surface(const.WIDTH, tab_height)
+
+    def raster_chrome(self):
+        canvas = self.chrome_surface.getCanvas()
+        canvas.clear(ColorWHITE)
 
     def draw(self):
         canvas = self.root_surface.getCanvas()
@@ -82,7 +104,7 @@ class Browser:
             # 绘制时滚动距离scroll=0，确保chrome始终位于canvas上方
             cmd.execute(0, canvas)
 
-        # 将skia的绘制结果展示至sdl window中
+        # 将skia的绘制结果复制至sdl window中
 
         skia_image = self.root_surface.makeImageSnapshot()
         skia_bytes = skia_image.tobytes()
