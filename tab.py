@@ -204,15 +204,6 @@ class Tab:
             elt = elt.parent
         self.render()
 
-    def reconfigure(self):
-        if self.loaded:
-            if not self.nodes:
-                return
-            self.document = DocumentLayout(self.nodes)
-            self.document.layout()
-            self.display_list = []
-            paint_tree(self.document, self.display_list)
-
     def go_back(self):
         """返回至上一个访问的url"""
 

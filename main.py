@@ -153,16 +153,6 @@ class Browser:
             self.active_tab.backspace()
             self.draw()
 
-    def recfg(self, e):
-        if const.WIDTH == e.width and const.HEIGHT == e.height:
-            return
-        const.WIDTH = e.width
-        const.HEIGHT = e.height
-
-        if self.active_tab:
-            self.active_tab.reconfigure()
-            self.draw()
-
     def handle_quit(self):
         SDL_DestroyWindow(self.sdl_window)
 
