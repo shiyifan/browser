@@ -53,31 +53,11 @@ class Browser:
             )
         )
 
-        # self.window = tkinter.Tk()
-        # self.canvas = tkinter.Canvas(
-        #     self.window,
-        #     width=const.WIDTH,
-        #     height=const.HEIGHT,
-        #     bg="white",
-        # )
-        # self.canvas.pack(fill=tkinter.BOTH, expand=1)  # 让canvas填充window的空间
-
-        # self.window.bind("<Down>", self.handle_down)
-        # self.window.bind("<Up>", self.handle_up)
-        # self.window.bind("<Configure>", self.recfg)  # 当窗口大小更新时，重新布局
-        # self.window.bind("<Button-1>", self.handle_click)
-        # self.window.bind("<Key>", self.handle_key)  # 地址栏内输入url
-        # self.window.bind("<Return>", self.handle_enter)  # 地址栏内按下回车后加载新url
-        # self.window.bind("<BackSpace>", self.handle_backspace)
-
         self.chrome = Chrome(self)
 
         # 点击之后焦点位于chrome中还是tab页中
         # None表示位于chrome,"content"表示位于tab中
         self.focus = None
-
-        # 将初始窗口在屏幕上居中
-        # center(self.window)
 
     # 新建一个tab并设置为当前显示的tab
     def new_tab(self, url):
@@ -179,18 +159,6 @@ class Browser:
 
     def handle_quit(self):
         SDL_DestroyWindow(self.sdl_window)
-
-
-# 居中初始窗口
-def center(window):
-    window.update_idletasks()
-    w = window.winfo_width()
-    h = window.winfo_height()
-    scr_w = window.winfo_screenwidth()
-    scr_h = window.winfo_screenheight()
-    x = (scr_w - w) // 2
-    y = (scr_h - h) // 2
-    window.geometry(f"+{x}+{y}")
 
 
 # 输出DOM Tree结构
