@@ -16,6 +16,9 @@ def main():
 
 # 带有标签页功能的浏览器
 # 负责管理窗口以及canvas，响应用户操作事件
+#
+# 采用SDL界面框架，负责捕获系统事件(用户的键盘、鼠标事件), 创建窗口并展示Skia的绘制结果
+# 采用Skia图形库，负责实际的绘制工作，并可以将绘制结果转换为二进制的像素信息并由SDL展示
 class Browser:
     def __init__(self):
         self.tabs = []
@@ -170,6 +173,8 @@ def print_tree(node, indent=0):
 
 def mainloop(browser):
     event = SDL_Event()
+
+    # 使用SDL GUI框架需要用户自己轮询并捕获事件
     while True:
         while SDL_PollEvent(ctypes.byref(event)) != 0:
             # 轮询系统事件并捕获处理
