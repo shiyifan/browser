@@ -104,15 +104,17 @@ class Tab:
     def render(self):
         """根据DOM Tree构建layout tree,然后收集layout tree上每个结点的绘制command"""
 
+        # 将css rules全部赋值至DOM结点的"style"属性上
         style(
             self.nodes, sorted(self.rules if self.rules else [], key=cascade_priority)
-        )  # 将css rules全部赋值至DOM结点的"style"属性上
+        )
+
         self.document = DocumentLayout(self.nodes)
         self.document.layout()  # 构建layout tree
         self.display_list = []
-        paint_tree(
-            self.document, self.display_list
-        )  # 收集layout tree上每个layout object生成的绘制command
+
+        # 收集layout tree上每个layout object生成的绘制command
+        paint_tree(self.document, self.display_list)
 
     def draw(self, canvas, offset):
         """根据已生成的绘制command,在canvas上绘制tab内容，由Browser调用"""
