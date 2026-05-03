@@ -381,8 +381,8 @@ class InputLayout:
         # 绘制背景色
         bgcolor = self.node.style.get("background-color", "transparent")
         if bgcolor != "transparent":
-            rect = DrawRect(self.self_rect(), bgcolor)
-            cmds.append(rect)
+            radius = float(self.node.style.get("border-radius", "0px")[:-2])
+            cmds.append(DrawRRect(self.self_rect(), radius, bgcolor))
 
         # 绘制文字
         if self.node.tag == "input":
