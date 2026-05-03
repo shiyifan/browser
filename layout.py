@@ -1,6 +1,6 @@
 from font import *
 from tags import Text, Element
-from commands import DrawText, DrawRect, DrawLine
+from commands import DrawText, DrawRect, DrawRRect, DrawLine
 import const
 
 # <input>的固定宽度
@@ -168,8 +168,8 @@ class BlockLayout:
         # 目前背景色仅能由DOM节点本身对应的layout tree节点绘制
         bgcolor = self.node.style.get("background-color", "transparent")
         if bgcolor != "transparent":
-            rect = DrawRect(self.self_rect(), bgcolor)
-            cmds.append(rect)
+            radius = float(self.node.style.get("border-radius", "0px")[:-2])
+            cmds.append(DrawRRect(self.self_rect(), radius, bgcolor))
 
         return cmds
 

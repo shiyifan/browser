@@ -89,6 +89,7 @@ class Browser:
 
     def draw(self):
         canvas = self.root_surface.getCanvas()
+        canvas.clear(ColorWHITE)
 
         self.active_tab.draw(canvas, self.chrome.bottom)
 

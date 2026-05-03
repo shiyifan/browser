@@ -5,10 +5,11 @@ HSTEP, VSTEP = 13, 18
 # 滚动步长
 SCROLL_STEP = 20
 
-# HTTP_URL = "https://localhost:3000"
+HTTP_URL = "https://localhost:3000"
 # HTTP_URL = "https://www.baidu.com"
-HTTP_URL = "https://browser.engineering/index.html"
+# HTTP_URL = "https://browser.engineering/index.html"
 # HTTP_URL = "https://localhost:8000"
+# HTTP_URL = "https://browser.engineering/examples/example11-rounded-background.html"
 
 # 无end close tag的标签
 SELF_CLOSING_TAGS = [

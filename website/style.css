@@ -3,5 +3,9 @@ pre {
 }
 
 a {
-  background-color: silver;
+  background-color: #c0c0c0;
+}
+
+div {
+  background-color: red;
 }

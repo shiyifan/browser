@@ -3,7 +3,7 @@
 将display list中各个绘制信息转换为绘制命令
 """
 
-from skia import Path, Paint, Rect
+from skia import Path, Paint, Rect, RRect
 from utils import parse_color
 from font import linespace
 
@@ -64,6 +64,17 @@ class DrawRect:
         paint = Paint(Color=parse_color(self.color))
         canvas.drawRect(self.rect.makeOffset(0, -scroll), paint)
 
+class DrawRRect:
+    """绘制圆角矩形区域，仅有内部填充颜色，没有边框"""
+
+    def __init__(self, rect, radius, color):
+        self.rect = rect
+        self.rrect = RRect.MakeRectXY(self.rect, radius, radius)
+        self.color = color
+    
+    def execute(self, scroll, canvas):
+        paint = Paint(Color=parse_color(self.color), AntiAlias=True)
+        canvas.drawRRect(self.rrect.makeOffset(0, -scroll), paint)
 
 class DrawOutline:
     """绘制矩形区域，仅有边框，没有内部填充颜色"""
