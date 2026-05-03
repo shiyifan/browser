@@ -74,12 +74,15 @@ class Browser:
         canvas = self.root_surface.getCanvas()
         canvas.clear(ColorWHITE)
 
+        # 绘制tab页内容
         self.active_tab.draw(canvas, self.chrome.bottom)
 
         # 绘制browser chrome
         for cmd in self.chrome.paint():
             # 绘制时滚动距离scroll=0，确保chrome始终位于canvas上方
             cmd.execute(0, canvas)
+
+        # 将skia的绘制结果展示至sdl window中
 
         skia_image = self.root_surface.makeImageSnapshot()
         skia_bytes = skia_image.tobytes()
