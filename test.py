@@ -22,6 +22,10 @@ def main():
 
     canvas.clear(ColorWHITE)
 
+    rect = Rect(100, 100, 300, 300)
+    rrect = RRect.MakeRectXY(rect, 20, 20)
+    canvas.drawRRect(rrect, Paint(Color=Color(255, 0, 0)))
+
     update(sdl_window, root_surface)
     mainloop()
 
