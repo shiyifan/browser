@@ -117,7 +117,11 @@ class Tab:
         paint_tree(self.document, self.display_list)
 
     def draw(self, canvas, offset):
-        """根据已生成的绘制command,在canvas上绘制tab内容，由Browser调用"""
+        """
+        根据已生成的绘制command,在canvas上绘制tab内容，由Browser调用
+
+        offset: 为绘制时的偏移量，一般是chrome的高度
+        """
 
         # 根据计算后页面元素的坐标、样式开始绘制
         for cmd in self.display_list:
