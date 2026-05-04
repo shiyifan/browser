@@ -24,12 +24,11 @@ class DrawText:
         # 表示当前行的底部纵坐标，用于判断绘制位置是否位于canvas的可见区域外
         self.bottom = self.top + height
 
-    # scroll: 已向上滚动的距离
-    def execute(self, scroll, canvas):
+    def execute(self, canvas):
         paint = Paint(AntiAlias=True, Color=parse_color(self.color))
 
         # skia的font ascent是负值，而descent是正值，所以这里采用减法来计算baseline的纵坐标
-        baseline = self.rect.top() - scroll - self.font.getMetrics().fAscent
+        baseline = self.rect.top() - self.font.getMetrics().fAscent
 
         canvas.drawString(
             self.text, float(self.rect.left()), baseline, self.font, paint
@@ -60,9 +59,9 @@ class DrawRect:
         self.color = color
 
     # scroll: 已向上滚动的距离
-    def execute(self, scroll, canvas):
+    def execute(self, canvas):
         paint = Paint(Color=parse_color(self.color))
-        canvas.drawRect(self.rect.makeOffset(0, -scroll), paint)
+        canvas.drawRect(self.rect, paint)
 
 class DrawRRect:
     """绘制圆角矩形区域，仅有内部填充颜色，没有边框"""
@@ -72,9 +71,9 @@ class DrawRRect:
         self.rrect = RRect.MakeRectXY(self.rect, radius, radius)
         self.color = color
     
-    def execute(self, scroll, canvas):
+    def execute(self, canvas):
         paint = Paint(Color=parse_color(self.color), AntiAlias=True)
-        canvas.drawRRect(self.rrect.makeOffset(0, -scroll), paint)
+        canvas.drawRRect(self.rrect, paint)
 
 class DrawOutline:
     """绘制矩形区域，仅有边框，没有内部填充颜色"""
@@ -84,13 +83,13 @@ class DrawOutline:
         self.color = color
         self.thickness = thickness
 
-    def execute(self, scroll, canvas):
+    def execute(self, canvas):
         paint = Paint(
             Color=parse_color(self.color),
             StrokeWidth=self.thickness,
             Style=Paint.kStroke_Style,
         )
-        canvas.drawRect(self.rect.makeOffset(0, -scroll), paint)
+        canvas.drawRect(self.rect, paint)
 
 
 class DrawLine:
@@ -101,11 +100,11 @@ class DrawLine:
         self.color = color
         self.thickness = thickness
 
-    def execute(self, scroll, canvas):
+    def execute(self, canvas):
         path = (
             Path()
-            .moveTo(self.rect.left(), self.rect.top() - scroll)
-            .lineTo(self.rect.right(), self.rect.bottom() - scroll)
+            .moveTo(self.rect.left(), self.rect.top())
+            .lineTo(self.rect.right(), self.rect.bottom())
         )
         paint = Paint(
             Color=parse_color(self.color),

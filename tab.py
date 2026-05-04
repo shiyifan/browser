@@ -116,22 +116,15 @@ class Tab:
         # 收集layout tree上每个layout object生成的绘制command
         paint_tree(self.document, self.display_list)
 
-    def draw(self, canvas, offset):
-        """
-        根据已生成的绘制command,在canvas上绘制tab内容，由Browser调用
-
-        offset: 为绘制时的偏移量，一般是chrome的高度
-        """
+    def draw(self, canvas):
+        """根据已生成的绘制command,在canvas上绘制tab内容，由Browser调用"""
 
         # 根据计算后页面元素的坐标、样式开始绘制
+        #
+        # 由于tab页先绘制在tab surface上，将tab surface内容复制到浏览器整个页面的root surface上再
+        # 根据偏移量和滚动距离调整。因此绘制时不需要考虑滚动以及相对于chrome的偏移量
         for cmd in self.display_list:
-            # 不绘制位于窗口可见区域之外的内容
-            if cmd.rect.top() > self.scroll + self.tab_height:
-                continue
-            if cmd.rect.bottom() < self.scroll:
-                continue
-
-            cmd.execute(self.scroll - offset, canvas)
+            cmd.execute(canvas)
 
     def scrollup(self):
         if self.scroll <= 0:

@@ -5,6 +5,7 @@ import const
 from chrome import Chrome
 from tab import Tab
 from url import URL
+import math
 
 
 def main():
@@ -72,12 +73,11 @@ class Browser:
         new_tab.load(url)
         self.active_tab = new_tab
         self.tabs.append(new_tab)
+        self.raster_chrome()
+        self.raster_tab()
         self.draw()
 
     def raster_tab(self):
-        canvas = self.tab_surface.getCanvas()
-        canvas.clear(ColorWHITE)
-
         # 获取tab页内容的高度
         #
         # 这里的高度根据layout tree计算得到。
@@ -88,21 +88,40 @@ class Browser:
             # 如果tab_surface未初始化或者tab页高度发生变化，则新建一个surface
             self.tab_surface = Surface(const.WIDTH, tab_height)
 
+        canvas = self.tab_surface.getCanvas()
+        canvas.clear(ColorWHITE)
+
+        # 绘制tab页内容
+        self.active_tab.draw(canvas)
+
     def raster_chrome(self):
         canvas = self.chrome_surface.getCanvas()
         canvas.clear(ColorWHITE)
+
+        # 绘制browser chrome
+        for cmd in self.chrome.paint():
+            # 绘制时滚动距离scroll=0，确保chrome始终位于canvas上方
+            cmd.execute(canvas)
 
     def draw(self):
         canvas = self.root_surface.getCanvas()
         canvas.clear(ColorWHITE)
 
-        # 绘制tab页内容
-        self.active_tab.draw(canvas, self.chrome.bottom)
+        # 将tab_surface的内容绘制到"root surface"的canvas上
+        tab_rect = Rect.MakeLTRB(0, self.chrome.bottom, const.WIDTH, const.HEIGHT)
+        tab_offset = self.chrome.bottom - self.active_tab.scroll
+        canvas.save()
+        canvas.clipRect(tab_rect)  # canvas限制为tab页内容在root surface上的所在的区域
+        canvas.translate(0, tab_offset)  # 绘制时tab页内容相对于chrome的偏移量
+        self.tab_surface.draw(canvas, 0, 0)
+        canvas.restore()
 
-        # 绘制browser chrome
-        for cmd in self.chrome.paint():
-            # 绘制时滚动距离scroll=0，确保chrome始终位于canvas上方
-            cmd.execute(0, canvas)
+        # 将chrome_surface的内容绘制到"root surface"的canvas上
+        chrome_rect = Rect.MakeLTRB(0, 0, const.WIDTH, self.chrome.bottom)
+        canvas.save()
+        canvas.clipRect(chrome_rect)  # canvas限制为chrome在root surface上的所在的区域
+        self.chrome_surface.draw(canvas, 0, 0)
+        canvas.restore()
 
         # 将skia的绘制结果复制至sdl window中
 
@@ -132,23 +151,39 @@ class Browser:
 
     def handle_down(self):
         self.active_tab.scrolldown()
+        self.raster_tab()
         self.draw()
 
     def handle_up(self):
         self.active_tab.scrollup()
+        self.raster_tab()
         self.draw()
 
     def handle_click(self, e):
         if e.y < self.chrome.bottom:
             # 点击位置位于chrome中
             self.focus = None
+            old_tab = self.active_tab
             self.chrome.click(e.x, e.y)
+            self.raster_chrome()
+            if old_tab != self.active_tab:
+                # 如果切换了tab页，那么也需要raster tab
+                self.raster_tab()
         else:
             # 点击位置位于chrome下面的网页
             self.focus = "content"
             self.chrome.blur()
+
+            url = self.active_tab.url  # 保存点击前的url
+
             tab_y = e.y - self.chrome.bottom
             self.active_tab.click(e.x, tab_y)
+
+            if self.active_tab.url != url:
+                # 如果点击前后url发生变化(可能点击了"<a>")，那么也需要raster chrome
+                self.raster_chrome()
+
+            self.raster_tab()
         self.draw()
 
     def handle_key(self, char):
@@ -159,20 +194,26 @@ class Browser:
 
         # 如果chrome处理了<Key>事件，那么tab将不再继续处理,否则将<Key>事件发送至tab页处理
         if self.chrome.keypress(char):
+            self.raster_chrome()
             self.draw()
         elif self.focus == "content":
             self.active_tab.keypress(char)
+            self.raster_tab()
             self.draw()
 
     def handle_enter(self):
         self.chrome.enter()
+        self.raster_chrome()
+        self.raster_tab()
         self.draw()
 
-    def handle_backspace(self, e):
+    def handle_backspace(self):
         if self.chrome.backspace():
+            self.raster_chrome()
             self.draw()
         elif self.focus == "content":
             self.active_tab.backspace()
+            self.raster_tab()
             self.draw()
 
     def handle_quit(self):
@@ -211,6 +252,9 @@ def mainloop(browser):
                 if event.key.keysym.sym == SDLK_RETURN:
                     # 回车
                     browser.handle_enter()
+                elif event.key.keysym.sym == SDLK_BACKSPACE:
+                    # 按下"Backspace"
+                    browser.handle_backspace()
                 elif event.key.keysym.sym == SDLK_DOWN:
                     browser.handle_down()
                 elif event.key.keysym.sym == SDLK_UP:
