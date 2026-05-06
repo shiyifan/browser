@@ -163,11 +163,11 @@ class Browser:
         if e.y < self.chrome.bottom:
             # 点击位置位于chrome中
             self.focus = None
-            old_tab = self.active_tab
+            old_url = self.active_tab.url
             self.chrome.click(e.x, e.y)
             self.raster_chrome()
-            if old_tab != self.active_tab:
-                # 如果切换了tab页，那么也需要raster tab
+            if old_url != self.active_tab.url:
+                # 如果url发生变化，那么也需要raster tab
                 self.raster_tab()
         else:
             # 点击位置位于chrome下面的网页
