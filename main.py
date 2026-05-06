@@ -151,12 +151,14 @@ class Browser:
 
     def handle_down(self):
         self.active_tab.scrolldown()
-        self.raster_tab()
+
+        # 滚动时，由于页面内容不变，因此不需要再次raster tab页内容
         self.draw()
 
     def handle_up(self):
         self.active_tab.scrollup()
-        self.raster_tab()
+
+        # 同"handle_down"
         self.draw()
 
     def handle_click(self, e):
@@ -166,6 +168,7 @@ class Browser:
             old_url = self.active_tab.url
             self.chrome.click(e.x, e.y)
             self.raster_chrome()
+
             if old_url != self.active_tab.url:
                 # 如果url发生变化，那么也需要raster tab
                 self.raster_tab()
@@ -256,8 +259,10 @@ def mainloop(browser):
                     # 按下"Backspace"
                     browser.handle_backspace()
                 elif event.key.keysym.sym == SDLK_DOWN:
+                    # 按下向下按键
                     browser.handle_down()
                 elif event.key.keysym.sym == SDLK_UP:
+                    # 按下向上按键
                     browser.handle_up()
 
             elif event.type == SDL_TEXTINPUT:
