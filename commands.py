@@ -19,7 +19,9 @@ class DrawText:
 
         height = linespace(font)
         width = font.measureText(self.text)
-        self.rect = Rect.MakeLTRB(self.left, self.top, self.left + width, self.top + height)
+        self.rect = Rect.MakeLTRB(
+            self.left, self.top, self.left + width, self.top + height
+        )
 
         # 表示当前行的底部纵坐标，用于判断绘制位置是否位于canvas的可见区域外
         self.bottom = self.top + height
@@ -63,6 +65,7 @@ class DrawRect:
         paint = Paint(Color=parse_color(self.color))
         canvas.drawRect(self.rect, paint)
 
+
 class DrawRRect:
     """绘制圆角矩形区域，仅有内部填充颜色，没有边框"""
 
@@ -70,10 +73,11 @@ class DrawRRect:
         self.rect = rect
         self.rrect = RRect.MakeRectXY(self.rect, radius, radius)
         self.color = color
-    
+
     def execute(self, canvas):
         paint = Paint(Color=parse_color(self.color), AntiAlias=True)
         canvas.drawRRect(self.rrect, paint)
+
 
 class DrawOutline:
     """绘制矩形区域，仅有边框，没有内部填充颜色"""
@@ -112,3 +116,30 @@ class DrawLine:
             Style=Paint.kStroke_Style,
         )
         canvas.drawPath(path, paint)
+
+
+# "opacity"效果的绘制命令。
+#
+# 在当前的canvas中新建一个子surface并在其中绘制子结点的内容，然后将新surface中的内容以
+# 指定的"opacity"值混合(blend)至当前canvas中
+class Opacity:
+    def __init__(self, opacity, children):
+        self.opacity = opacity
+
+        # 所有需要应用opacity的结点(当前结点与子结点)的绘制命令
+        self.children = children
+
+        # 表示所有子结点的区域，在这个区域上应用opacity效果
+        self.rect = Rect.MakeEmpty()
+
+        for cmd in self.children:
+            self.rect.join(cmd.rect)
+
+    def execute(self, canvas):
+        paint = Paint(Alphaf=self.opacity)
+        canvas.saveLayer(None, paint)  # 新建子surface
+
+        for cmd in self.children:
+            cmd.execute(canvas)
+
+        canvas.restore()  # 将子surface中的内容blend至canvas中

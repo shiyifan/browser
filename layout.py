@@ -1,6 +1,6 @@
 from font import *
 from tags import Text, Element
-from commands import DrawText, DrawRect, DrawRRect, DrawLine
+from commands import DrawText, DrawRect, DrawRRect, DrawLine, Opacity
 import const
 
 # <input>的固定宽度
@@ -157,6 +157,8 @@ class BlockLayout:
         self.children.append(new_line)
 
     def paint(self):
+        """根据已计算的坐标, 创建当前layout对象的绘制命令. 注意:不创建layout的children的绘制命令"""
+
         cmds = []
 
         # 绘制当前layout对象的背景色
@@ -171,6 +173,17 @@ class BlockLayout:
             radius = float(self.node.style.get("border-radius", "0px")[:-2])
             cmds.append(DrawRRect(self.self_rect(), radius, bgcolor))
 
+        return cmds
+
+    def paint_effects(self, cmds):
+        """
+        绘制css visual effect, 例如opacity等. 注意: 应用在当前layout对象的effect同样也会应用在
+        children上
+        
+        cmds: 当前layout对象与children的绘制命令
+        """
+
+        cmds = paint_visual_effects(self.node, cmds, self.self_rect())
         return cmds
 
     def self_rect(self):
@@ -410,3 +423,8 @@ class InputLayout:
 
     def should_paint(self):
         return True
+
+
+def paint_visual_effects(node, cmds, rect):
+    opacity = float(node.style.get("opacity", "1.0"))
+    return [Opacity(opacity, cmds)]

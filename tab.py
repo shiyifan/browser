@@ -288,9 +288,15 @@ def style(node, rules):
 
 def paint_tree(layout_object, display_list):
     if layout_object.should_paint():
-        display_list.extend(layout_object.paint())
+        cmds = layout_object.paint()
+
     for child in layout_object.children:
-        paint_tree(child, display_list)
+        paint_tree(child, cmds)
+
+    if layout_object.should_paint() and hasattr(layout_object, "paint_effects"):
+        cmds = layout_object.paint_effects(cmds)
+
+    display_list.extend(cmds)
 
 
 def cascade_priority(rule):
