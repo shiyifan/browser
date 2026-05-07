@@ -1,6 +1,6 @@
 from font import *
 from tags import Text, Element
-from commands import DrawText, DrawRect, DrawRRect, DrawLine, Opacity
+from commands import DrawText, DrawRect, DrawRRect, DrawLine, Opacity, Blend
 import const
 
 # <input>的固定宽度
@@ -179,7 +179,7 @@ class BlockLayout:
         """
         绘制css visual effect, 例如opacity等. 注意: 应用在当前layout对象的effect同样也会应用在
         children上
-        
+
         cmds: 当前layout对象与children的绘制命令
         """
 
@@ -427,4 +427,41 @@ class InputLayout:
 
 def paint_visual_effects(node, cmds, rect):
     opacity = float(node.style.get("opacity", "1.0"))
-    return [Opacity(opacity, cmds)]
+    blend_mode = node.style.get("mix-blend-mode")
+
+    # 注意: 这里先应用opacity再应用blend mode, 即确保正确的"canvas.saveLayer()"的调用顺序
+    #
+    #
+    # 例如：先调用opacity再调用blend mode
+    #
+    # canvas: # 初始canvas
+    #
+    #   # opacity开始，在初始canvas上创建opacity子surface
+    #   canvas.saveLayer()
+    #
+    #       # blend mode开始，此时在opacity的子surface上创建blend子surface
+    #       canvas.saveLayer()
+    #       # 绘制结束后，由于opacity的子surface尚未绘制任何内容，因此没有任何blend效果
+    #       canvas.restore()
+    #
+    #   canvas.restore() # opacity
+    #
+    #
+    #
+    # 例如：先调用blend mode再调用opacity
+    #
+    # canvas: # 初始canvas
+    #
+    #   # blend开始，在初始canvas上创建blend子surface
+    #   canvas.saveLayer()
+    #
+    #       # opacity开始，在blend子surface上创建opacity子surface
+    #       canvas.saveLayer()
+    #       # 绘制结束后，对子surface中的内容应用opacity并绘制到blend子surface中
+    #       canvas.restore()
+    #
+    #   # 将blend子surface中的内容绘制到初始canvas中，并应用blend效果。
+    #   # 由于初始canvas中已绘制了其他内容, 所以blend mode效果可以正确显示出来
+    #   canvas.restore()
+    #
+    return [Blend(blend_mode, [Opacity(opacity, cmds)])]

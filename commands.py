@@ -3,7 +3,7 @@
 将display list中各个绘制信息转换为绘制命令
 """
 
-from skia import Path, Paint, Rect, RRect
+from skia import Path, Paint, Rect, RRect, BlendMode
 from utils import parse_color
 from font import linespace
 
@@ -143,3 +143,33 @@ class Opacity:
             cmd.execute(canvas)
 
         canvas.restore()  # 将子surface中的内容blend至canvas中
+
+
+# "mix-blend-mode"效果的绘制命令
+class Blend:
+    def __init__(self, blend_mode, children):
+        self.blend_mode = blend_mode
+        self.children = children
+
+        self.rect = Rect.MakeEmpty()
+        for cmd in self.children:
+            self.rect.join(cmd.rect)
+
+    def execute(self, canvas):
+        paint = Paint(BlendMode=parse_blend_mode(self.blend_mode))
+        canvas.saveLayer(None, paint)
+
+        for cmd in self.children:
+            cmd.execute(canvas)
+
+        canvas.restore()
+
+
+# 将CSS中的"mix-blend-mode"属性值转换为skia中的枚举值
+def parse_blend_mode(blend_mode):
+    if blend_mode == "multiply":
+        return BlendMode.kMultiply
+    elif blend_mode == "difference":
+        return BlendMode.kDifference
+    else:
+        return BlendMode.kSrcOver

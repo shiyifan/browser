@@ -7,8 +7,15 @@ a {
 }
 
 div {
-  color: #000000;
   font-size: 45px;
   background-color: #ffa500;
-  opacity: .4
+}
+
+p {
+  background-color: #00ffff;
+  font-size: 45px;
+}
+
+div p {
+  mix-blend-mode: difference;
 }
