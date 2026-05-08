@@ -137,32 +137,42 @@ class Opacity:
 
     def execute(self, canvas):
         paint = Paint(Alphaf=self.opacity)
-        canvas.saveLayer(None, paint)  # 新建子surface
+
+        if self.opacity < 1:
+            # 仅在需要"不透明度"效果时才新建子surface
+            canvas.saveLayer(None, paint)  # 新建子surface
 
         for cmd in self.children:
             cmd.execute(canvas)
 
-        canvas.restore()  # 将子surface中的内容blend至canvas中
+        if self.opacity < 1:
+            canvas.restore()  # 将子surface中的内容blend至canvas中
 
 
-# "mix-blend-mode"效果的绘制命令
+# "mix-blend-mode"效果以及"opacity"效果的绘制命令
 class Blend:
-    def __init__(self, blend_mode, children):
+    def __init__(self, opacity, blend_mode, children):
+        self.opacity = opacity
         self.blend_mode = blend_mode
         self.children = children
+
+        # 是否需要新建子surface来应用opacity或者blend
+        self.should_save = bool(self.blend_mode or self.opacity < 1)
 
         self.rect = Rect.MakeEmpty()
         for cmd in self.children:
             self.rect.join(cmd.rect)
 
     def execute(self, canvas):
-        paint = Paint(BlendMode=parse_blend_mode(self.blend_mode))
-        canvas.saveLayer(None, paint)
+        if self.should_save:
+            paint = Paint(Alphaf=self.opacity, BlendMode=parse_blend_mode(self.blend_mode))
+            canvas.saveLayer(None, paint)
 
         for cmd in self.children:
             cmd.execute(canvas)
 
-        canvas.restore()
+        if self.should_save:
+            canvas.restore()
 
 
 # 将CSS中的"mix-blend-mode"属性值转换为skia中的枚举值
@@ -173,5 +183,7 @@ def parse_blend_mode(blend_mode):
         return BlendMode.kDifference
     elif blend_mode == "destination-in":
         return BlendMode.kDstIn
+    elif blend_mode == "source-over":
+        return BlendMode.kSrcOver
     else:
         return BlendMode.kSrcOver
