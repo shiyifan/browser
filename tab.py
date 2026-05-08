@@ -287,9 +287,13 @@ def style(node, rules):
 
 
 def paint_tree(layout_object, display_list):
+    """收集\"layout_object\"及其子节点的绘制命令,绘制命令保存在\"display_list\"中"""
+
+    # "layout_object"自身的绘制命令
     if layout_object.should_paint():
         cmds = layout_object.paint()
 
+    # "layout_object"的子节点的绘制命令
     for child in layout_object.children:
         paint_tree(child, cmds)
 

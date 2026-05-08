@@ -9,6 +9,8 @@ a {
 div {
   font-size: 45px;
   background-color: #ffa500;
+  border-radius: 40px;
+  overflow: clip;
 }
 
 p {

@@ -429,7 +429,12 @@ def paint_visual_effects(node, cmds, rect):
     opacity = float(node.style.get("opacity", "1.0"))
     blend_mode = node.style.get("mix-blend-mode")
 
-    # 注意: 这里先应用opacity再应用blend mode, 即确保正确的"canvas.saveLayer()"的调用顺序
+    # 如果"overflow"为"clip"，则根据"border-radius"裁剪当前layout对象的绘制区域
+    if node.style.get("overflow", "visible") == "clip":
+        border_radius = float(node.style.get("border-radius", "0px")[:-2])
+        cmds.append(Blend("destination-in", [DrawRRect(rect, border_radius, "white")]))
+
+    # 注意: 这里先应用blend再应用opacity, 即确保正确的"canvas.saveLayer()"的调用顺序
     #
     #
     # 例如：先调用opacity再调用blend mode

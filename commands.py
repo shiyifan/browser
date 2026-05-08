@@ -171,5 +171,7 @@ def parse_blend_mode(blend_mode):
         return BlendMode.kMultiply
     elif blend_mode == "difference":
         return BlendMode.kDifference
+    elif blend_mode == "destination-in":
+        return BlendMode.kDstIn
     else:
         return BlendMode.kSrcOver
