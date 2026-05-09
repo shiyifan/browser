@@ -7,6 +7,7 @@ from css_parser import CSSParser
 from jscontext import JSContext
 from utils import tree_to_list, log
 from url import URL
+from task import Task, TaskRunner
 
 # 浏览器默认样式，user agent style
 DEFAULT_STYLE_SHEET = CSSParser(open("browser.css").read()).parse()
@@ -29,6 +30,8 @@ class Tab:
         self.rules = None  # css解析后的rules
 
         self.focus = None  # 点击后，获取到焦点的'<input>'DOM对象
+
+        self.task_runner = TaskRunner(self)
 
     def load(self, url, payload=None):
         self.history.append(url)
@@ -69,9 +72,10 @@ class Tab:
 
             try:
                 _, body = script_url.request(url)
-                self.js.run(body)
             except:
                 continue
+            task = Task(self.js.run, body)
+            self.task_runner.schedule_task(task)
 
         # 加载并解析所有"<link rel=stylesheet>"的css
         rules = DEFAULT_STYLE_SHEET.copy()  # 解析user agent stylesheet

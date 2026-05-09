@@ -268,6 +268,8 @@ def mainloop(browser):
             elif event.type == SDL_TEXTINPUT:
                 # 文字输入事件
                 browser.handle_key(event.text.text.decode("utf8"))
+        
+        browser.active_tab.task_runner.run()
 
 
 # keep this being the last statement
