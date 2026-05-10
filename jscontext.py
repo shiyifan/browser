@@ -112,4 +112,7 @@ class JSContext:
             task = Task(self.dispatch_settimeout, handle)
             self.tab.task_runner.schedule_task(task)
 
+        # 在time ms后执行run_callback. run_callback执行在其他线程中.
+        # 因此，当浏览器在某些timer的callback实际执行之前被关闭时，主进程会等待直到
+        # callback执行结束后才终止。
         Timer(time / 1000, run_callback).start()
