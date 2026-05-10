@@ -1,6 +1,18 @@
 // 浏览器Javascript Runtime所需的变量
 // 定义一些全局变量和函数，例如console、document、Node、Event等
 
+/*
+由于Javascript和Python之间无法传递对象，因此互操作时尽量采用简单类型数值作为handle，例如整数。
+并且可能会在Python与Javascript中分别创建handle与对象的映射：
+
+对于同一个handle:
+Python: 
+  map = { handle -> Python对象 }
+Javascript: 
+  var map = { handle -> Javascript对象 }
+这样Python对象就与Javascript对象建立了对应关系
+*/
+
 var console = {
   log: function () {
     var joined = Array.prototype.join.call(arguments, ' '); // 将多个参数合并为一个字符串

@@ -74,6 +74,8 @@ class Tab:
                 _, body = script_url.request(url)
             except:
                 continue
+
+            # 将运行javascript的任务添加至任务队列，待后续执行(依赖于mainloop)
             task = Task(self.js.run, body)
             self.task_runner.schedule_task(task)
 
