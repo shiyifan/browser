@@ -269,6 +269,7 @@ def mainloop(browser):
                 # 文字输入事件
                 browser.handle_key(event.text.text.decode("utf8"))
         
+        # 系统事件处理完成后，执行tab页保存的task
         browser.active_tab.task_runner.run()
 
 

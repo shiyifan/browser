@@ -94,3 +94,20 @@ XMLHttpRequest.prototype.open = function (method, url, is_async) {
 XMLHttpRequest.prototype.send = function (body) {
   this.responseText = call_python('XMLHttpRequest_send', this.method, this.url, body);
 };
+
+// 保存setTimeout的callback与handle的对应关系, handle -> callback
+SET_TIMEOUT_REQUESTS = {};
+
+function setTimeout(callback, time_delta) {
+  var handle = Object.keys(SET_TIMEOUT_REQUESTS).length;
+  SET_TIMEOUT_REQUESTS[handle] = callback;
+  call_python('setTimeout', handle, time_delta);
+}
+
+// 由Python调用，执行setTimeout的callback
+function __runSetTimeout(handle) {
+  var callback = SET_TIMEOUT_REQUESTS[handle];
+  callback();
+
+  /* 这里没有从SET_TIMEOUT_REQUESTS中删除callback,可能会导致memory leak */
+}

@@ -61,7 +61,12 @@ class Tab:
             and node.tag == "script"
             and "src" in node.attributes
         ]
+
+        if hasattr(self, "js") and self.js:
+            # 废弃旧的js context, 避免后续执行queue中的旧task
+            self.js.discarded = True
         self.js = JSContext(self)
+
         for script in scripts:
             script_url = url.resolve(script)
 

@@ -1,7 +1,9 @@
 import dukpy
+from threading import Timer
 from css_parser import CSSParser
 from utils import tree_to_list, log
 from html_parser import HTMLParser
+from task import Task
 
 RUNTIME_JS = open("runtime.js").read()
 
@@ -9,6 +11,8 @@ RUNTIME_JS = open("runtime.js").read()
 # 新建一个包含handle的Javascript DOM Node对象，然后在这个对象上触发事件
 # 注意，javascript中的event handler中的"this"指向的是一个临时新建的Node对象，而非实际被点击的Python中DOM Tree中的Node对象
 EVENT_DISPATCH_JS = "new Node(dukpy.handle).dispatchEvent(new Event(dukpy.type))"
+
+SETTIMEOUT_JS = "__runSetTimeout(dukpy.handle)"
 
 
 class JSContext:
@@ -26,6 +30,7 @@ class JSContext:
         self.interp.export_function("querySelectorAll", self.querySelectorAll)
         self.interp.export_function("getAttribute", self.getAttribute)
         self.interp.export_function("innerHTML_set", self.innerHTML_set)
+        self.interp.export_function("setTimeout", self.setTimeout)
 
         # python的DOM node与Javascript DOM node间的映射
         #
@@ -37,6 +42,12 @@ class JSContext:
         # 这里仍然保存这个Python DOM node。解决这个问题可能需要Python与Javascript虚拟机间的协同
         self.node_to_handle = {}  # python DOM node -> handle
         self.handle_to_node = {}  # handle -> python DOM node
+
+        # 该js context是否已被废弃。
+        #
+        # 在tab页加载新的url前后，task queue不变但会创建新的js context.
+        # 因此加载新url后，queue中可能存在一些待执行的旧task(由旧url页面添加的task), 这些task不应再被旧的js context执行
+        self.discarded = False
 
     def run(self, code):
         try:
@@ -90,3 +101,15 @@ class JSContext:
 
         headers, out = full_url.request(self.tab.url, body)
         return out
+
+    def dispatch_settimeout(self, handle):
+        if self.discarded:
+            return
+        self.interp.evaljs(SETTIMEOUT_JS, handle=handle)
+
+    def setTimeout(self, handle, time):
+        def run_callback():
+            task = Task(self.dispatch_settimeout, handle)
+            self.tab.task_runner.schedule_task(task)
+
+        Timer(time / 1000, run_callback).start()
