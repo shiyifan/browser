@@ -235,7 +235,7 @@ def mainloop(browser):
 
     # 使用SDL GUI框架需要用户自己轮询并捕获事件
     while True:
-        while SDL_PollEvent(ctypes.byref(event)) != 0:
+        if SDL_PollEvent(ctypes.byref(event)) != 0:
             # 轮询系统事件并捕获处理
 
             if event.type == SDL_QUIT:
