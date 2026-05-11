@@ -60,6 +60,10 @@ class Browser:
         self.chrome = Chrome(self)
 
         # 用于绘制chrome以及tab页内容的skia surface
+        #
+        # 分别创建两者的surface可以减少不必要的绘制过程（tab更新后，chrome不必重绘，chrome更新后，tab不必重绘）。
+        # 被减少的"绘制过程"具体指"通过canvas对象在surface上绘制图形", 而每次渲染时仍需要将两者的surface中的数据一同复制到
+        # root surface中.
         self.chrome_surface = Surface(const.WIDTH, math.ceil(self.chrome.bottom))
         self.tab_surface = None
 
