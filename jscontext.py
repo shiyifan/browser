@@ -1,5 +1,5 @@
 import dukpy
-from threading import Timer
+from threading import Timer, Thread
 from css_parser import CSSParser
 from utils import tree_to_list, log
 from html_parser import HTMLParser
@@ -13,6 +13,7 @@ RUNTIME_JS = open("runtime.js").read()
 EVENT_DISPATCH_JS = "new Node(dukpy.handle).dispatchEvent(new Event(dukpy.type))"
 
 SETTIMEOUT_JS = "__runSetTimeout(dukpy.handle)"
+XHR_ONLOAD_JS = "__runXHROnload(dukpy.out, dukpy.handle)"
 
 
 class JSContext:
@@ -31,6 +32,7 @@ class JSContext:
         self.interp.export_function("getAttribute", self.getAttribute)
         self.interp.export_function("innerHTML_set", self.innerHTML_set)
         self.interp.export_function("setTimeout", self.setTimeout)
+        self.interp.export_function("XMLHttpRequest_send", self.XMLHttpRequest_send)
 
         # python的DOM node与Javascript DOM node间的映射
         #
@@ -90,7 +92,7 @@ class JSContext:
             node.parent = elt
         self.tab.render()
 
-    def XMLHttpRequest_send(self, method, url, body):
+    def XMLHttpRequest_send(self, method, url, body, is_async, handle):
         full_url = self.tab.url.resolve(url)
 
         if not self.tab.allowed_request(full_url):
@@ -99,8 +101,17 @@ class JSContext:
         if full_url.origin() != self.tab.url.origin():
             raise Exception("CORS not allowed")
 
-        headers, out = full_url.request(self.tab.url, body)
-        return out
+        def run_load():
+            headers, response = full_url.request(self.tab.url, body)
+            task = Task(self.dispatch_xhr_onload, response, handle)
+            self.tab.task_runner.schedule_task(task)
+            return response
+
+        if not is_async:
+            return run_load()
+        else:
+            # 理论上，两个异步的xhr请求时,同时访问cookie可能会有线程安全问题。但不前暂不考虑
+            Thread(target=run_load).start()
 
     def dispatch_settimeout(self, handle):
         if self.discarded:
@@ -116,3 +127,8 @@ class JSContext:
         # 因此，当浏览器在某些timer的callback实际执行之前被关闭时，主进程会等待直到
         # callback执行结束后才终止。
         Timer(time / 1000, run_callback).start()
+
+    def dispatch_xhr_onload(self, out, handle):
+        if self.discarded:
+            return
+        self.interp.evaljs(XHR_ONLOAD_JS, out=out, handle=handle)

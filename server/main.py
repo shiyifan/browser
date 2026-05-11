@@ -7,6 +7,7 @@ from utils import log
 import html
 import ssl
 from pathlib import Path
+import time
 
 ENTRIES = [
     ("No names. We are nameless!", "cerealkiller"),
@@ -129,6 +130,10 @@ def do_request(session, method, url, headers, body):
     elif method == "POST" and url == "/":
         params = form_decode(body)
         return do_login(session, params)
+
+    elif method == "GET" and url == "/test":
+        time.sleep(2);
+        return "200 OK", "Query OK!"
 
     else:
         return "404 Not Found", not_found(url, method)

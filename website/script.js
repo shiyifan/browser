@@ -1,5 +1,13 @@
 console.log('Hello');
 
-setTimeout(function () {
-  console.log('Hello Set Timeout');
-}, 10000);
+var b = document.querySelectorAll('button')[0];
+
+b.addEventListener('click', function () {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', 'https://localhost:8000/test', true);
+  xhr.onload = function () {
+    console.log('request finished: ', this.responseText);
+  };
+
+  xhr.send();
+});

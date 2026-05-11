@@ -81,18 +81,24 @@ Event.prototype.preventDefault = function () {
   this.do_default = false;
 };
 
+/* XHR与handle间的对应关系: handle -> XHR. 用于实现异步xhr请求。
+当浏览器利用多线程完成请求时，Python中根据handle触发xhr对象上的onload事件 */
+XHR_REQUESTS = {};
+
 // XMLHttpRequest对象
-function XMLHttpRequest() {}
+function XMLHttpRequest() {
+  this.handle = Object.keys(XHR_REQUESTS).length;
+  XHR_REQUESTS[this.handle] = this;
+}
 
 XMLHttpRequest.prototype.open = function (method, url, is_async) {
-  if (!is_async) throw new Error('async is not supported');
-
+  this.is_async = is_async;
   this.method = method;
   this.url = url;
 };
 
 XMLHttpRequest.prototype.send = function (body) {
-  this.responseText = call_python('XMLHttpRequest_send', this.method, this.url, body);
+  this.responseText = call_python('XMLHttpRequest_send', this.method, this.url, body, this.is_async, this.handle);
 };
 
 // 保存setTimeout的callback与handle的对应关系, handle -> callback
@@ -110,4 +116,14 @@ function __runSetTimeout(handle) {
   callback();
 
   /* 这里没有从SET_TIMEOUT_REQUESTS中删除callback,可能会导致memory leak */
+}
+
+// 由Python调用，异步请求完成后触发xhr对象的'onload'事件
+function __runXHROnload(body, handle) {
+  var obj = XHR_REQUESTS[handle];
+  var evt = new Event('load');
+  obj.responseText = body;
+  if (obj.onload) {
+    obj.onload(evt);
+  }
 }
