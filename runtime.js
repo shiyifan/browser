@@ -29,7 +29,7 @@ var document = {
   },
 };
 
-// 保存DOM node与event listener的对应关系: { DOM node handle: { eventType: eventHandler } }
+// 保存DOM node与event listener的对应关系: { DOM node handle: { eventType: [eventHandler] } }
 var LISTENERS = {};
 
 // Javascript DOM node
