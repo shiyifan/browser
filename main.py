@@ -82,6 +82,8 @@ class Browser:
         self.draw()
 
     def raster_tab(self):
+        """根据tab页'layout()'之后得到的display list, 在tab canvas中清空并重新绘制tab内容"""
+
         # 获取tab页内容的高度
         #
         # 这里的高度根据layout tree计算得到。
@@ -99,6 +101,8 @@ class Browser:
         self.active_tab.draw(canvas)
 
     def raster_chrome(self):
+        """在chrome canvas上清空并重新绘制chrome"""
+
         canvas = self.chrome_surface.getCanvas()
         canvas.clear(ColorWHITE)
 
