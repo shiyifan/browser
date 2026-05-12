@@ -32,6 +32,8 @@ class TaskRunner:
         self.condition.release()
 
     def run(self):
+        """执行task, 每次调用仅执行队列中的第一个task"""
+
         task = None
 
         self.condition.acquire(blocking=True)

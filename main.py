@@ -6,6 +6,8 @@ from chrome import Chrome
 from tab import Tab
 from url import URL
 import math
+from task import Task
+from threading import Timer
 
 
 def main():
@@ -71,15 +73,23 @@ class Browser:
         # None表示位于chrome,"content"表示位于tab中
         self.focus = None
 
+        # 用于计算layout的timer. 注意：timer超时后仅计算layout(即调用'tab.render()')，不会在canvas中绘制
+        self.animation_timer = None
+
+        # 是否需要在canvas中重新绘制
+        self.needs_raster_and_draw = False
+
+    def set_needs_raster_and_draw(self):
+        self.needs_raster_and_draw = True
+
     # 新建一个tab并设置为当前显示的tab
     def new_tab(self, url):
-        new_tab = Tab(const.HEIGHT - self.chrome.bottom)
+        new_tab = Tab(self, const.HEIGHT - self.chrome.bottom)
         new_tab.load(url)
         self.active_tab = new_tab
         self.tabs.append(new_tab)
-        self.raster_chrome()
-        self.raster_tab()
-        self.draw()
+
+        self.set_needs_raster_and_draw()
 
     def raster_tab(self):
         """根据tab页'layout()'之后得到的display list, 在tab canvas中清空并重新绘制tab内容"""
@@ -157,6 +167,17 @@ class Browser:
         SDL_BlitSurface(sdl_surface, rect, window_surface, rect)
         SDL_UpdateWindowSurface(self.sdl_window)
 
+    # 由event loop调用，负责在canvas上重绘
+    def raster_and_draw(self):
+        if not self.needs_raster_and_draw:
+            return
+
+        self.raster_chrome()
+        self.raster_tab()
+        self.draw()
+
+        self.needs_raster_and_draw = False
+
     def handle_down(self):
         self.active_tab.scrolldown()
 
@@ -175,11 +196,6 @@ class Browser:
             self.focus = None
             old_url = self.active_tab.url
             self.chrome.click(e.x, e.y)
-            self.raster_chrome()
-
-            if old_url != self.active_tab.url:
-                # 如果url发生变化，那么也需要raster tab
-                self.raster_tab()
         else:
             # 点击位置位于chrome下面的网页
             self.focus = "content"
@@ -190,12 +206,7 @@ class Browser:
             tab_y = e.y - self.chrome.bottom
             self.active_tab.click(e.x, tab_y)
 
-            if self.active_tab.url != url:
-                # 如果点击前后url发生变化(可能点击了"<a>")，那么也需要raster chrome
-                self.raster_chrome()
-
-            self.raster_tab()
-        self.draw()
+        self.set_needs_raster_and_draw()
 
     def handle_key(self, char):
         if len(char) == 0:
@@ -205,30 +216,38 @@ class Browser:
 
         # 如果chrome处理了<Key>事件，那么tab将不再继续处理,否则将<Key>事件发送至tab页处理
         if self.chrome.keypress(char):
-            self.raster_chrome()
-            self.draw()
+            self.set_needs_raster_and_draw()
         elif self.focus == "content":
             self.active_tab.keypress(char)
-            self.raster_tab()
-            self.draw()
+            self.set_needs_raster_and_draw()
 
     def handle_enter(self):
-        self.chrome.enter()
-        self.raster_chrome()
-        self.raster_tab()
-        self.draw()
+        if self.chrome.enter():
+            self.set_needs_raster_and_draw()
 
     def handle_backspace(self):
         if self.chrome.backspace():
-            self.raster_chrome()
-            self.draw()
+            self.set_needs_raster_and_draw()
         elif self.focus == "content":
             self.active_tab.backspace()
-            self.raster_tab()
-            self.draw()
+            self.set_needs_raster_and_draw()
 
     def handle_quit(self):
         SDL_DestroyWindow(self.sdl_window)
+
+    # 安排下一次重新计算layout的task.
+    #
+    # 注意：timer超时后仅是将"重新计算layout"的task添加至Queue中，而不是立刻执行，而task的实际执行时间点则与Queue的长度有关
+    def schedule_animation_frame(self):
+        def callback():
+            active_tab = self.active_tab
+            task = Task(active_tab.render)
+            active_tab.task_runner.schedule_task(task)
+            self.animation_timer = None
+
+        if not self.animation_timer:
+            self.animation_timer = Timer(const.REFRESH_RATE_SEC, callback)
+            self.animation_timer.start()
 
 
 # 输出DOM Tree结构
@@ -276,9 +295,15 @@ def mainloop(browser):
             elif event.type == SDL_TEXTINPUT:
                 # 文字输入事件
                 browser.handle_key(event.text.text.decode("utf8"))
-        
+
         # 系统事件处理完成后，执行tab页保存的task
         browser.active_tab.task_runner.run()
+
+        # 在canvas上重绘
+        browser.raster_and_draw()
+
+        # 安排下一次的重新布局（仅重新计算layout, 不在canvas上面绘制）
+        browser.schedule_animation_frame()
 
 
 # keep this being the last statement

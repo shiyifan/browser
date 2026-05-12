@@ -100,3 +100,5 @@ NAMED_COLORS = {
     "lightblue": "#add8e6",
     "orange": "#ffa500",
 }
+
+REFRESH_RATE_SEC = 0.033

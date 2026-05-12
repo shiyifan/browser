@@ -90,7 +90,7 @@ class JSContext:
         elt.children = new_nodes
         for node in new_nodes:
             node.parent = elt
-        self.tab.render()
+        self.tab.set_needs_render()
 
     def XMLHttpRequest_send(self, method, url, body, is_async, handle):
         full_url = self.tab.url.resolve(url)

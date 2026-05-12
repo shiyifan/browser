@@ -18,7 +18,7 @@ class Chrome:
         self.tabbar_bottom = self.font_height + 2 * self.padding  # tab标签条的底部y坐标
 
         # 新建tab页的按钮"+"
-        plus_width = self.font.measureText("+") + 2 * self.padding  # 新建tab页的"+"按钮宽度
+        plus_width = self.font.measureText("+") + 2 * self.padding
         self.newtab_rect = Rect(
             self.padding,
             self.padding,
@@ -130,7 +130,9 @@ class Chrome:
             if tab == self.browser.active_tab:
                 # 下面这两条线可能与chrome的底部边缘线条冲突,所以宽度改成2
                 cmds.append(
-                    DrawLine(0, bounds.bottom(), bounds.left(), bounds.bottom(), "blue", 2)
+                    DrawLine(
+                        0, bounds.bottom(), bounds.left(), bounds.bottom(), "blue", 2
+                    )
                 )
                 cmds.append(
                     DrawLine(
@@ -208,13 +210,16 @@ class Chrome:
         if self.focus == "address bar":
             self.browser.active_tab.load(URL(self.address_bar))
             self.focus = None
+            return True  # 已加载新url
+
+        return False  # 焦点不在address bar中，忽略该事件
 
     def backspace(self):
         if self.focus == "address bar":
             self.address_bar = self.address_bar[:-1]
             return True
         else:
-            return False # 当前焦点不在chrome中，由其他地方负责处理
+            return False  # 当前焦点不在chrome中，由其他地方负责处理
 
     def blur(self):
         """取消焦点"""

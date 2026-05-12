@@ -16,7 +16,7 @@ DEFAULT_STYLE_SHEET = CSSParser(open("browser.css").read()).parse()
 # 浏览器标签页
 # 负责url请求、DOM解析、layout tree解析
 class Tab:
-    def __init__(self, tab_height):
+    def __init__(self, browser, tab_height):
         self.scroll = 0  # 当前已向上滑动的距离
         self.loaded = False
 
@@ -32,6 +32,12 @@ class Tab:
         self.focus = None  # 点击后，获取到焦点的'<input>'DOM对象
 
         self.task_runner = TaskRunner(self)
+        self.needs_render = False
+
+        self.browser = browser
+
+    def set_needs_render(self):
+        self.needs_render = True
 
     def load(self, url, payload=None):
         self.history.append(url)
@@ -108,12 +114,19 @@ class Tab:
                 continue
             rules.extend(CSSParser(body).parse())  # 获取author stylesheet
         self.rules = rules
-        self.render()
+
+        self.set_needs_render()
+        self.render()  # 加载新url时，先render一次以避免raster和draw时的变量的初始化问题
 
         self.loaded = True
 
+    # 计算layout并收集每个layout对象的绘制命令
+    # 多数情况下由Browser的animation timer添加至task队列中，并在event loop中调用。
     def render(self):
         """根据DOM Tree构建layout tree,然后收集layout tree上每个结点的绘制command"""
+
+        if not self.needs_render:
+            return
 
         # 将css rules全部赋值至DOM结点的"style"属性上
         style(
@@ -126,6 +139,9 @@ class Tab:
 
         # 收集layout tree上每个layout object生成的绘制command
         paint_tree(self.document, self.display_list)
+
+        self.needs_render = False
+        self.browser.set_needs_raster_and_draw()
 
     def draw(self, canvas):
         """根据已生成的绘制command,在canvas上绘制tab内容，由Browser调用"""
@@ -152,9 +168,11 @@ class Tab:
         if self.focus:
             self.js.dispatch_event("keydown", self.focus)
             self.focus.attributes["value"] += char
-            self.render()
+            self.set_needs_render()
 
     def click(self, x, y):
+        self.render()  # 在判断点击位置之前，确保页面布局必须是最新的
+
         # 如果未找到被点击的layout object, 返回前是否需要重绘
         focus_lost = False
 
@@ -178,7 +196,7 @@ class Tab:
         ]
         if not objs:
             if focus_lost:
-                self.render()
+                self.set_needs_render()
             return
         elt = objs[-1].node  # 获取最上层被点击的layout object对应的DOM node
 
@@ -198,7 +216,7 @@ class Tab:
                 self.focus = elt
                 elt.attributes["value"] = ""
                 elt.is_focused = True
-                return self.render()
+                return self.set_needs_render()
             elif elt.tag == "button":
                 if self.js.dispatch_event("click", elt):
                     return
@@ -210,7 +228,7 @@ class Tab:
                     elt = elt.parent
                 break  # 如果是一个独立的"<button>",不在任何"<form>"中，则仅触发"click"事件
             elt = elt.parent
-        self.render()
+        self.set_needs_render()
 
     def go_back(self):
         """返回至上一个访问的url"""
@@ -251,7 +269,7 @@ class Tab:
             return
         self.focus.attributes["value"] = value[:-1]
         self.js.dispatch_event("keydown", self.focus)
-        self.render()
+        self.set_needs_render()
 
     # 根据CSP,是否允许请求(<script>, <style>, XHR)
     def allowed_request(self, url):
