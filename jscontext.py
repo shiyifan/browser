@@ -29,6 +29,7 @@ class JSContext:
 
         self.interp.export_function("log", log.js)
         self.interp.export_function("querySelectorAll", self.querySelectorAll)
+        self.interp.export_function("getElementById", self.getElementById)
         self.interp.export_function("getAttribute", self.getAttribute)
         self.interp.export_function("innerHTML_set", self.innerHTML_set)
         self.interp.export_function("setTimeout", self.setTimeout)
@@ -63,6 +64,17 @@ class JSContext:
             node for node in tree_to_list(self.tab.nodes, []) if selector.matches(node)
         ]
         return [self.get_handle(node) for node in nodes]
+
+    def getElementById(self, id):
+        selected = None
+        all_nodes = tree_to_list(self.tab.nodes, [])
+        for node in all_nodes:
+            if not hasattr(node, "attributes"):
+                continue
+
+            attr = node.attributes
+            if attr.get("id") == id:
+                return self.get_handle(node)
 
     def get_handle(self, elt):
         if elt not in self.node_to_handle:

@@ -27,6 +27,11 @@ var document = {
       return new Node(h);
     });
   },
+  getElementById: function (id) {
+    var handle = call_python('getElementById', id);
+    console.log('id: ', id, ', handle: ', handle)
+    return handle == null ? null : new Node(handle);
+  },
 };
 
 // 保存DOM node与event listener的对应关系: { DOM node handle: { eventType: [eventHandler] } }
