@@ -29,7 +29,6 @@ var document = {
   },
   getElementById: function (id) {
     var handle = call_python('getElementById', id);
-    console.log('id: ', id, ', handle: ', handle)
     return handle == null ? null : new Node(handle);
   },
 };
