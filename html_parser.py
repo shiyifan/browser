@@ -101,7 +101,7 @@ class HTMLParser:
                 key, value = attrpair.split("=", 1)
 
                 if value == '""' or value == "''":
-                    # 如果属性值未空字符串，则不创建该属性
+                    # 如果属性值为空字符串，则不创建该属性
                     continue
 
                 if len(value) > 2 and value[0] in ["'", '"']:
