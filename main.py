@@ -100,7 +100,7 @@ class Browser:
         # 对于某些超出parent元素边界的HTML元素，目前浏览器不支持绘制这样的元素
         tab_height = math.ceil(self.active_tab.document.height + 2 * const.VSTEP)
 
-        if not self.tab_surface or tab_height != self.tab_surface.height:
+        if not self.tab_surface or tab_height != self.tab_surface.height():
             # 如果tab_surface未初始化或者tab页高度发生变化，则新建一个surface
             self.tab_surface = Surface(const.WIDTH, tab_height)
 
