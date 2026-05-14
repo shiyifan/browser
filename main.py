@@ -79,8 +79,15 @@ class Browser:
         # 是否需要在canvas中重新绘制
         self.needs_raster_and_draw = False
 
+        # 是否安排下一次的页面绘制的task
+        self.needs_animation_frame = True
+
     def set_needs_raster_and_draw(self):
         self.needs_raster_and_draw = True
+
+    def set_needs_animation_frame(self, tab):
+        if tab == self.active_tab:
+            self.needs_animation_frame = True
 
     # 新建一个tab并设置为当前显示的tab
     def new_tab(self, url):
@@ -194,7 +201,7 @@ class Browser:
         if e.y < self.chrome.bottom:
             # 点击位置位于chrome中
             self.focus = None
-            old_url = self.active_tab.url
+            old_tab = self.active_tab
             self.chrome.click(e.x, e.y)
         else:
             # 点击位置位于chrome下面的网页
@@ -205,6 +212,10 @@ class Browser:
 
             tab_y = e.y - self.chrome.bottom
             self.active_tab.click(e.x, tab_y)
+
+        if old_tab != self.active_tab:
+            # 如果切换了tab,那么还需要安排下一次页面绘制的task
+            self.set_needs_animation_frame(self.active_tab)
 
         self.set_needs_raster_and_draw()
 
@@ -245,9 +256,10 @@ class Browser:
             active_tab.task_runner.schedule_task(task)
             self.animation_timer = None
 
-        if not self.animation_timer:
+        if self.needs_animation_frame and not self.animation_timer:
             self.animation_timer = Timer(const.REFRESH_RATE_SEC, callback)
             self.animation_timer.start()
+            self.needs_animation_frame = False
 
 
 # 输出DOM Tree结构

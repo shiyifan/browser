@@ -33,12 +33,16 @@ class Tab:
 
         # 在tab页加载新的url前后，task queue不变
         self.task_runner = TaskRunner(self)
+        
+        # 是否需要重新计算布局，计算layout（仅仅计算页面元素坐标、收集绘制命令，但不会
+        # 在canvas中绘制）
         self.needs_render = False
 
         self.browser = browser
 
     def set_needs_render(self):
         self.needs_render = True
+        self.browser.set_needs_animation_frame(self)
 
     def load(self, url, payload=None):
         self.history.append(url)
