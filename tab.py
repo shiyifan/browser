@@ -133,9 +133,13 @@ class Tab:
         if not self.needs_render:
             return
         self.needs_render = False
+
+        self.browser.measure.time('render')
         
+        self.browser.measure.time("__runRAFHandlers")
         # 计算layout之前执行通过"requestAnimationFrame"注册的callback
         self.js.interp.evaljs("__runRAFHandlers()")
+        self.browser.measure.stop("__runRAFHandlers")
 
         # 将css rules全部赋值至DOM结点的"style"属性上
         style(
@@ -150,6 +154,8 @@ class Tab:
         paint_tree(self.document, self.display_list)
 
         self.browser.set_needs_raster_and_draw()
+
+        self.browser.measure.stop('render')
 
     def draw(self, canvas):
         """根据已生成的绘制command,在canvas上绘制tab内容，由Browser调用"""

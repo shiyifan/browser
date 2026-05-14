@@ -8,6 +8,7 @@ from url import URL
 import math
 from task import Task
 from threading import Timer
+from measure import MeasureTime
 
 
 def main():
@@ -81,6 +82,8 @@ class Browser:
 
         # 是否安排下一次的页面绘制的task
         self.needs_animation_frame = True
+
+        self.measure = MeasureTime()
 
     def set_needs_raster_and_draw(self):
         self.needs_raster_and_draw = True
@@ -178,12 +181,16 @@ class Browser:
     def raster_and_draw(self):
         if not self.needs_raster_and_draw:
             return
+        
+        self.measure.time('raster_draw')
 
         self.raster_chrome()
         self.raster_tab()
         self.draw()
 
         self.needs_raster_and_draw = False
+
+        self.measure.stop('raster_draw')
 
     def handle_down(self):
         self.active_tab.scrolldown()
@@ -245,6 +252,7 @@ class Browser:
 
     def handle_quit(self):
         SDL_DestroyWindow(self.sdl_window)
+        self.measure.finish()
 
     # 安排下一次重新计算layout的task.
     #

@@ -25,7 +25,10 @@ class JSContext:
         # 创建一个Javascript runtime,网页上的所有js代码都将在这个runtime中执行,
         # 这样可以保证网页中不同"<script>"中context的连续性
         self.interp = dukpy.JSInterpreter()
+
+        self.tab.browser.measure.time("RUNTIME_JS")
         self.interp.evaljs(RUNTIME_JS)  # 准备runtime环境
+        self.tab.browser.measure.stop("RUNTIME_JS")
 
         self.interp.export_function("log", log.js)
         self.interp.export_function("querySelectorAll", self.querySelectorAll)
@@ -55,9 +58,13 @@ class JSContext:
 
     def run(self, code):
         try:
-            return self.interp.evaljs(code)
+            self.tab.browser.measure.time("run js")
+            self.interp.evaljs(code)
         except dukpy.JSRuntimeError as e:
             log.e(f"@@@ JS crashed! @@@\n{e}")
+        finally:
+            self.tab.browser.measure.stop("run js")
+
 
     def querySelectorAll(self, selector_text):
         selector = CSSParser(selector_text).selector()
@@ -93,7 +100,11 @@ class JSContext:
 
     def dispatch_event(self, type, elt):
         handle = self.node_to_handle.get(elt, -1)
+
+        self.tab.browser.measure.time("EVENT_DISPATCH_JS")
         do_default = self.interp.evaljs(EVENT_DISPATCH_JS, type=type, handle=handle)
+        self.tab.browser.measure.stop("EVENT_DISPATCH_JS")
+
         return not do_default  # 如果返回True，则表示不执行后续default操作，否则执行
 
     def innerHTML_set(self, handle, s):
@@ -129,7 +140,10 @@ class JSContext:
     def dispatch_settimeout(self, handle):
         if self.discarded:
             return
+        
+        self.tab.browser.measure.time("SETTIMEOUT_JS")
         self.interp.evaljs(SETTIMEOUT_JS, handle=handle)
+        self.tab.browser.measure.stop("SETTIMEOUT_JS")
 
     def setTimeout(self, handle, time):
         def run_callback():
@@ -144,7 +158,10 @@ class JSContext:
     def dispatch_xhr_onload(self, out, handle):
         if self.discarded:
             return
+
+        self.tab.browser.measure.time("XHR_ONLOAD_JS")
         self.interp.evaljs(XHR_ONLOAD_JS, out=out, handle=handle)
+        self.tab.browser.measure.stop("XHR_ONLOAD_JS")
 
     def requestAnimationFrame(self):
 
