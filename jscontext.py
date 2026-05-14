@@ -149,7 +149,7 @@ class JSContext:
     def requestAnimationFrame(self):
 
         # mainloop中已经实现了以固定频率schedule render task。这里如果
-        # 再次schedule,那么动画的渲染频率将比固定频率还快.如果不再schedule,
+        # 再次schedule,那么动画的渲染频率将比固定频率还快.如果取消这次schedule,
         # 那么动画将以固定频率渲染
         #
         # task = Task(self.tab.render)
