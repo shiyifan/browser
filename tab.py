@@ -31,6 +31,7 @@ class Tab:
 
         self.focus = None  # 点击后，获取到焦点的'<input>'DOM对象
 
+        # 在tab页加载新的url前后，task queue不变
         self.task_runner = TaskRunner(self)
         self.needs_render = False
 
@@ -127,6 +128,10 @@ class Tab:
 
         if not self.needs_render:
             return
+        self.needs_render = False
+        
+        # 计算layout之前执行通过"requestAnimationFrame"注册的callback
+        self.js.interp.evaljs("__runRAFHandlers()")
 
         # 将css rules全部赋值至DOM结点的"style"属性上
         style(
@@ -140,7 +145,6 @@ class Tab:
         # 收集layout tree上每个layout object生成的绘制command
         paint_tree(self.document, self.display_list)
 
-        self.needs_render = False
         self.browser.set_needs_raster_and_draw()
 
     def draw(self, canvas):

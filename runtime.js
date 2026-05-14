@@ -131,3 +131,20 @@ function __runXHROnload(body, handle) {
     obj.onload(evt);
   }
 }
+
+/* 保存animation frame的callback */
+var RAF_LISTENERS = [];
+
+function requestAnimationFrame(fn) {
+  RAF_LISTENERS.push(fn);
+  call_python('requestAnimationFrame');
+}
+
+function __runRAFHandlers() {
+  var handlers_copy = RAF_LISTENERS;
+  RAF_LISTENERS = [];
+
+  for (var i = 0; i < handlers_copy.length; i++) {
+    handlers_copy[i]();
+  }
+}

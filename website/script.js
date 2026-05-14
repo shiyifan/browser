@@ -11,3 +11,15 @@ b.addEventListener('click', function () {
 
   xhr.send();
 });
+
+var anim = document.getElementById('anim');
+var count = 0;
+
+function cb() {
+  anim.innerHTML = 'count: ' + count++;
+  if (count < 100) {
+    requestAnimationFrame(cb);
+  }
+}
+
+requestAnimationFrame(cb);

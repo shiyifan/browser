@@ -34,6 +34,7 @@ class JSContext:
         self.interp.export_function("innerHTML_set", self.innerHTML_set)
         self.interp.export_function("setTimeout", self.setTimeout)
         self.interp.export_function("XMLHttpRequest_send", self.XMLHttpRequest_send)
+        self.interp.export_function("requestAnimationFrame", self.requestAnimationFrame)
 
         # python的DOM node与Javascript DOM node间的映射
         #
@@ -144,3 +145,14 @@ class JSContext:
         if self.discarded:
             return
         self.interp.evaljs(XHR_ONLOAD_JS, out=out, handle=handle)
+
+    def requestAnimationFrame(self):
+
+        # mainloop中已经实现了以固定频率schedule render task。这里如果
+        # 再次schedule,那么动画的渲染频率将比固定频率还快.如果不再schedule,
+        # 那么动画将以固定频率渲染
+        #
+        # task = Task(self.tab.render)
+        # self.tab.task_runner.schedule_task(task)
+
+        self.tab.set_needs_render()
