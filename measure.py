@@ -3,6 +3,8 @@ from time import time
 
 
 class MeasureTime:
+    """通过在代码中插入测试点，统计函数、方法或者某些过程的耗时"""
+
     def __init__(self):
         self.file = open("browser.trace", "w")
 

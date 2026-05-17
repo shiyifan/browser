@@ -3,6 +3,7 @@ from commands import DrawOutline, DrawText, DrawLine, DrawRect
 import const
 from url import URL
 from skia import Rect
+from task import Task
 
 
 # 浏览器的tab标签、地址栏以及按钮等部分
@@ -70,10 +71,11 @@ class Chrome:
 
         if self.newtab_rect.contains(x, y):
             # 当点击在"+"按钮时
-            self.browser.new_tab(URL(const.HTTP_URL))
+            self.browser.new_tab_internal(URL(const.HTTP_URL))
         elif self.back_rect.contains(x, y):
             # 当点击在"<"按钮时
-            self.browser.active_tab.go_back()
+            active_tab = self.browser.active_tab
+            active_tab.task_runner.schedule_task(Task(active_tab.go_back))
         elif self.address_rect.contains(x, y):
             # 当点击在地址栏内时
             self.focus = "address bar"
@@ -159,7 +161,7 @@ class Chrome:
 
         # 绘制地址栏
         cmds.append(DrawOutline(self.address_rect, "black", 1))
-        url = str(self.browser.active_tab.url)
+        url = str(self.browser.active_tab_url)
         if self.focus == "address bar":
             # 地址栏获取了焦点，绘制待输入的url
 
@@ -187,7 +189,7 @@ class Chrome:
         else:
             # 地址栏失去了焦点，绘制当前显示的tab页的url
 
-            url = str(self.browser.active_tab.url)
+            url = str(self.browser.active_tab_url)
             cmds.append(
                 DrawText(
                     self.address_rect.left() + self.padding,
@@ -208,7 +210,7 @@ class Chrome:
 
     def enter(self):
         if self.focus == "address bar":
-            self.browser.active_tab.load(URL(self.address_bar))
+            self.browser.schedule_load(URL(self.address_bar))
             self.focus = None
             return True  # 已加载新url
 

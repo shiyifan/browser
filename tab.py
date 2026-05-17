@@ -8,6 +8,7 @@ from jscontext import JSContext
 from utils import tree_to_list, log
 from url import URL
 from task import Task, TaskRunner
+from commit import CommitData
 
 # 浏览器默认样式，user agent style
 DEFAULT_STYLE_SHEET = CSSParser(open("browser.css").read()).parse()
@@ -121,7 +122,6 @@ class Tab:
         self.rules = rules
 
         self.set_needs_render()
-        self.render()  # 加载新url时，先render一次以避免raster和draw时的变量的初始化问题
 
         self.loaded = True
 
@@ -136,11 +136,6 @@ class Tab:
 
         self.browser.measure.time('render')
         
-        self.browser.measure.time("__runRAFHandlers")
-        # 计算layout之前执行通过"requestAnimationFrame"注册的callback
-        self.js.interp.evaljs("__runRAFHandlers()")
-        self.browser.measure.stop("__runRAFHandlers")
-
         # 将css rules全部赋值至DOM结点的"style"属性上
         style(
             self.nodes, sorted(self.rules if self.rules else [], key=cascade_priority)
@@ -153,18 +148,28 @@ class Tab:
         # 收集layout tree上每个layout object生成的绘制command
         paint_tree(self.document, self.display_list)
 
-        self.browser.set_needs_raster_and_draw()
-
         self.browser.measure.stop('render')
+    
+    def run_animation_frame(self):
+        self.browser.measure.time("__runRAFHandlers")
+        # 计算layout之前执行通过"requestAnimationFrame"注册的callback
+        self.js.interp.evaljs("__runRAFHandlers()")
+        self.browser.measure.stop("__runRAFHandlers")
 
-    def draw(self, canvas):
+        self.render()
+
+        commit_data = CommitData(self.url, self.scroll, self.document.height, self.display_list)
+        self.display_list = None
+        self.browser.commit(self, commit_data)
+
+    def draw(self, canvas, display_list):
         """根据已生成的绘制command,在canvas上绘制tab内容，由Browser调用"""
 
         # 根据计算后页面元素的坐标、样式开始绘制
         #
         # 由于tab页先绘制在tab surface上，将tab surface内容复制到浏览器整个页面的root surface上再
         # 根据偏移量和滚动距离调整。因此绘制时不需要考虑滚动以及相对于chrome的偏移量
-        for cmd in self.display_list:
+        for cmd in display_list:
             cmd.execute(canvas)
 
     def scrollup(self):

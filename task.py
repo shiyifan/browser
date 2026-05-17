@@ -1,4 +1,4 @@
-from threading import Condition
+from threading import Condition, Thread
 
 
 # 表示一个可以被schedule的任务
@@ -25,21 +25,51 @@ class TaskRunner:
 
         self.condition = Condition()  # task queue的添加task与取出task时的同步锁
 
+        # 负责event loop并执行"self.tasks"中的task
+        self.main_thread = Thread(target=self.run, name="Main Thread")
+
+        self.needs_quit = False
+
     def schedule_task(self, task):
         self.condition.acquire(blocking=True)
         self.tasks.append(task)
         self.condition.notify_all()
         self.condition.release()
-
-    def run(self):
-        """执行task, 每次调用仅执行队列中的第一个task"""
-
-        task = None
-
+    
+    def set_needs_quit(self):
         self.condition.acquire(blocking=True)
-        if len(self.tasks) > 0:
-            task = self.tasks.pop(0)  # 取出队列第一个task
+        self.needs_quit = True
+        self.condition.notify_all()
+        self.condition.release()
+    
+    def clear_pending_tasks(self):
+        self.condition.acquire(blocking=True)
+        self.tasks.clear()
         self.condition.release()
 
-        if task:
-            task.run()
+    def run(self):
+        """在event loop中执行task"""
+
+        while True:
+            self.condition.acquire(blocking=True)
+
+            # 是否结束event loop
+            if self.needs_quit:
+                self.condition.release()
+                return
+
+            task = None
+            if len(self.tasks) > 0:
+                task = self.tasks.pop(0)  # 取出队列第一个task
+            else:
+                self.condition.wait() # 队列中没有task时
+
+            self.condition.release()
+
+            if task:
+                task.run()
+            
+
+    
+    def start_thread(self):
+        self.main_thread.start()
