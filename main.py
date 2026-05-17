@@ -9,6 +9,7 @@ import math
 from task import Task
 from threading import Timer, current_thread, RLock
 from measure import MeasureTime
+from watchdog import Watchdog
 
 
 def main():
@@ -378,6 +379,7 @@ def print_tree(node, indent=0):
 
 def mainloop(browser):
     event = SDL_Event()
+    dog = Watchdog(5)
 
     # 使用SDL GUI框架需要用户自己轮询并捕获事件
     while True:
@@ -420,6 +422,8 @@ def mainloop(browser):
 
         # 安排下一次的重新布局（仅重新计算layout, 不在canvas上面绘制）
         browser.schedule_animation_frame()
+
+        dog.feed()
 
 
 # keep this being the last statement
