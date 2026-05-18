@@ -9,6 +9,9 @@ class Watchdog:
         self.timer.cancel()
         self.timer = self.new_timer(self.timeout)
     
+    def dismiss(self):
+        self.timer.cancel()
+    
     def new_timer(self, timeout):
         def bark():
             # 如果在timeout时间内没有调用"feed()",则抛出异常

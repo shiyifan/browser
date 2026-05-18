@@ -390,6 +390,7 @@ def mainloop(browser):
                 # 关闭所有窗口
 
                 browser.handle_quit()
+                dog.dismiss()
                 SDL_Quit()
                 sys.exit()
 
