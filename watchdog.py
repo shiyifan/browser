@@ -11,6 +11,7 @@ class Watchdog:
     
     def new_timer(self, timeout):
         def bark():
+            # 如果在timeout时间内没有调用"feed()",则抛出异常
             raise Exception("WOOF! WOOF!")
 
         t = Timer(timeout, bark)
