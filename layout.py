@@ -34,9 +34,10 @@ class BlockLayout:
 
     # 根据绘制方式创建layout tree
     def layout(self):
-        # 根据layout tree中的父结点以及previous计算当前结点的x坐标、y坐标以及宽度width
-        self.x = self.parent.x
+        # 根据layout tree中的父结点以及previous计算当前结点的x坐标、y坐标以及宽度width.
+        self.x = self.parent.x  # 子结点的绘制起始点的x坐标继承自父结点的x坐标
         self.width = self.parent.width
+        # 子结点绘制起始点的y坐标继承自父结点的y坐标（如果当前结点是父结点的第一个子结点）,或者上一个兄弟结点的"y坐标 + 兄弟结点的高度"
         if self.previous:
             self.y = self.previous.y + self.previous.height
         else:
@@ -60,7 +61,8 @@ class BlockLayout:
 
         for child in self.children:
             child.layout()
-        # block html element的高度等于所有子结点的高度之和
+
+        # block html element的高度等于所有子结点的高度之和.
         # 在所有子结点计算得到height之后再计算当前结点的高度
         self.height = sum([child.height for child in self.children])
 
@@ -230,10 +232,13 @@ class DocumentLayout:
         self.width = None
         self.height = None
 
+    # 对整个HTML文档内容布局
+    #
+    # 布局时额外添加四周的空白边距
     def layout(self):
-        self.width = const.WIDTH - 2 * const.HSTEP
+        self.width = const.WIDTH - 2 * const.HSTEP  # "HSTEP"作为左右的空白边距
         self.x = const.HSTEP
-        self.y = const.VSTEP
+        self.y = const.VSTEP  # "VSTEP"作为上下的空白边距
 
         child = BlockLayout(self.node, self, None)
         self.children.append(child)

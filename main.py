@@ -133,11 +133,16 @@ class Browser:
         # 获取tab页内容的高度
         #
         # 这里的高度根据layout tree计算得到。
-        # 对于某些超出parent元素边界的HTML元素，目前浏览器不支持绘制这样的元素
+        # 对于某些超出parent元素边界的HTML元素，目前浏览器不支持绘制这样的元素.
+        #
+        # 另外，这里的高度不仅包含DOM元素总体占据的高度(active_tab_height), 而且包含了
+        # 在DOM上、下额外多出的空白(2 * const.VSTEP) (另见DocumentLayout.layout())
         tab_height = math.ceil(self.active_tab_height + 2 * const.VSTEP)
 
         if not self.tab_surface or tab_height != self.tab_surface.height():
-            # 如果tab_surface未初始化或者tab页高度发生变化，则新建一个surface
+            # 如果tab_surface未初始化或者tab页高度发生变化，则新建一个surface.
+            #
+            # 该surface不仅包含DOM元素总体，而且也包含DOM总体的四周空白边距(另见DocumentLayout.layout())
             self.tab_surface = Surface(const.WIDTH, tab_height)
 
         canvas = self.tab_surface.getCanvas()
