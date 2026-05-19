@@ -1,4 +1,5 @@
 from threading import Timer
+from utils import log
 
 class Watchdog:
     def __init__(self, timeout):
@@ -15,7 +16,9 @@ class Watchdog:
     def new_timer(self, timeout):
         def bark():
             # 如果在timeout时间内没有调用"feed()",则抛出异常
-            raise Exception("WOOF! WOOF!")
+            # raise Exception("WOOF! WOOF!")
+            # 为方便调试，暂以log代替
+            log.e("WOOF! WOOF!")
 
         t = Timer(timeout, bark)
         t.name = "watch_dog"
