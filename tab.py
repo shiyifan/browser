@@ -9,17 +9,23 @@ from utils import tree_to_list, log
 from url import URL
 from task import Task, TaskRunner
 from commit import CommitData
+import math
 
 # 浏览器默认样式，user agent style
 DEFAULT_STYLE_SHEET = CSSParser(open("browser.css").read()).parse()
+
+tab_counter = 0  # tab id
 
 
 # 浏览器标签页
 # 负责url请求、DOM解析、layout tree解析
 class Tab:
     def __init__(self, browser, tab_height):
+        global tab_counter
+        self.id = tab_counter
+        tab_counter += 1
+
         self.scroll = 0  # 当前已向上滑动的距离
-        self.loaded = False
 
         # tab页的高度，即"canvas高度" - "canvas顶部chrome所占据的高度"
         self.tab_height = tab_height
@@ -34,12 +40,14 @@ class Tab:
 
         # 在tab页加载新的url前后，task queue不变
         self.task_runner = TaskRunner(self)
-        
+
         # 是否需要重新计算布局，计算layout（仅仅计算页面元素坐标、收集绘制命令，但不会
         # 在canvas中绘制）
         self.needs_render = False
 
         self.browser = browser
+
+        self.scroll_changed_in_tab = False
 
     def set_needs_render(self):
         self.needs_render = True
@@ -69,9 +77,7 @@ class Tab:
         scripts = [
             node.attributes["src"]
             for node in tree_to_list(self.nodes, [])
-            if isinstance(node, Element)
-            and node.tag == "script"
-            and "src" in node.attributes
+            if isinstance(node, Element) and node.tag == "script" and "src" in node.attributes
         ]
 
         if hasattr(self, "js") and self.js:
@@ -123,7 +129,8 @@ class Tab:
 
         self.set_needs_render()
 
-        self.loaded = True
+        self.scroll = 0
+        self.scroll_changed_in_tab = True
 
     # 计算layout并收集每个layout对象的绘制命令
     # 多数情况下由Browser的animation timer添加至task队列中，并在event loop中调用。
@@ -134,12 +141,10 @@ class Tab:
             return
         self.needs_render = False
 
-        self.browser.measure.time('render')
-        
+        self.browser.measure.time("render")
+
         # 将css rules全部赋值至DOM结点的"style"属性上
-        style(
-            self.nodes, sorted(self.rules if self.rules else [], key=cascade_priority)
-        )
+        style(self.nodes, sorted(self.rules if self.rules else [], key=cascade_priority))
 
         self.document = DocumentLayout(self.nodes)
         self.document.layout()  # 构建layout tree
@@ -148,9 +153,20 @@ class Tab:
         # 收集layout tree上每个layout object生成的绘制command
         paint_tree(self.document, self.display_list)
 
-        self.browser.measure.stop('render')
-    
-    def run_animation_frame(self):
+        clamped_scroll = self.clamp_scroll(self.scroll)
+        if clamped_scroll != self.scroll:
+            self.scroll_changed_in_tab = True
+        self.scroll = clamped_scroll
+
+        self.browser.measure.stop("render")
+
+    def run_animation_frame(self, scroll, rand):
+        self.browser.lock.acquire(blocking=True)
+        self.browser.measure.time("run animation", cat="debug", args={"tab": self.id, "changed": self.scroll_changed_in_tab, "rand": rand})
+
+        if not self.scroll_changed_in_tab:
+            self.scroll = scroll
+
         self.browser.measure.time("__runRAFHandlers")
         # 计算layout之前执行通过"requestAnimationFrame"注册的callback
         self.js.interp.evaljs("__runRAFHandlers()")
@@ -160,7 +176,12 @@ class Tab:
 
         commit_data = CommitData(self.url, self.scroll, self.document.height, self.display_list)
         self.display_list = None
-        self.browser.commit(self, commit_data)
+        self.browser.commit(self, commit_data, rand)
+
+        self.scroll_changed_in_tab = False
+
+        self.browser.measure.stop("run animation", cat="debug", args={"tab": self.id, "rand": rand})
+        self.browser.lock.release()
 
     def draw(self, canvas, display_list):
         """根据已生成的绘制command,在canvas上绘制tab内容，由Browser调用"""
@@ -263,9 +284,7 @@ class Tab:
         inputs = [
             node
             for node in tree_to_list(elt, [])
-            if isinstance(node, Element)
-            and node.tag == "input"
-            and "name" in node.attributes
+            if isinstance(node, Element) and node.tag == "input" and "name" in node.attributes
         ]
 
         # encode the "name-value" pairs
@@ -293,6 +312,11 @@ class Tab:
     # 根据CSP,是否允许请求(<script>, <style>, XHR)
     def allowed_request(self, url):
         return self.allowed_origins == None or url.origin() in self.allowed_origins
+
+    def clamp_scroll(self, scroll):
+        height = math.ceil(self.document.height + 2 * const.VSTEP)
+        maxscroll = height - self.tab_height
+        return max(0, min(scroll, maxscroll))
 
 
 # 根据DOM结点上"style"属性、css文件的代码创建CSS对象并赋值为"style"属性

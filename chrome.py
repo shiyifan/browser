@@ -83,8 +83,8 @@ class Chrome:
         else:
             # 当点击在tab标签时
             for i, tab in enumerate(self.browser.tabs):
-                if self.tab_rect(i).contains(x, y):
-                    self.browser.active_tab = tab
+                if self.tab_rect(i).contains(x, y) and tab != self.browser.active_tab:
+                    self.browser.set_active_tab(tab)
                     break
 
     def paint(self):
@@ -112,12 +112,8 @@ class Chrome:
             bounds = self.tab_rect(i)  # 计算每个tab标签绘制的矩形区域
 
             # 不绘制完整的矩形轮廓，仅根据"tab_rect"计算得到的矩形区域绘制矩形的左侧垂直边以及tab标签文字
-            cmds.append(
-                DrawLine(bounds.left(), 0, bounds.left(), bounds.bottom(), "black", 1)
-            )
-            cmds.append(
-                DrawLine(bounds.right(), 0, bounds.right(), bounds.bottom(), "black", 1)
-            )
+            cmds.append(DrawLine(bounds.left(), 0, bounds.left(), bounds.bottom(), "black", 1))
+            cmds.append(DrawLine(bounds.right(), 0, bounds.right(), bounds.bottom(), "black", 1))
             cmds.append(
                 DrawText(
                     bounds.left() + self.padding,
@@ -131,11 +127,7 @@ class Chrome:
             # 突出当前的正在显示的tab
             if tab == self.browser.active_tab:
                 # 下面这两条线可能与chrome的底部边缘线条冲突,所以宽度改成2
-                cmds.append(
-                    DrawLine(
-                        0, bounds.bottom(), bounds.left(), bounds.bottom(), "blue", 2
-                    )
-                )
+                cmds.append(DrawLine(0, bounds.bottom(), bounds.left(), bounds.bottom(), "blue", 2))
                 cmds.append(
                     DrawLine(
                         bounds.right(),

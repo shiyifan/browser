@@ -19,7 +19,7 @@ def get_font(size, weight, style):
             skia_style = FontStyle.kUpright_Slant
         skia_width = FontStyle.kNormal_Width
         style_info = FontStyle(skia_weight, skia_width, skia_style)
-        font = Typeface("Arial", style_info)
+        font = Typeface("Noto Serif CJK SC", style_info)
         FONTS[key] = font
 
     return Font(FONTS[key], size)

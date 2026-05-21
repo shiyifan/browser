@@ -26,7 +26,7 @@ class TaskRunner:
         self.condition = Condition()  # task queue的添加task与取出task时的同步锁
 
         # 负责event loop并执行"self.tasks"中的task
-        self.main_thread = Thread(target=self.run, name="Main Thread")
+        self.main_thread = Thread(target=self.run, name=f"Tab({self.tab.id})")
 
         self.needs_quit = False
 
