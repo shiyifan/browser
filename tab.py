@@ -5,7 +5,7 @@ from layout import DocumentLayout
 from tags import Element, Text
 from css_parser import CSSParser
 from jscontext import JSContext
-from utils import tree_to_list, log
+from utils import tree_to_list, log, print_tree
 from url import URL
 from task import Task, TaskRunner
 from commit import CommitData
@@ -157,6 +157,9 @@ class Tab:
         if clamped_scroll != self.scroll:
             self.scroll_changed_in_tab = True
         self.scroll = clamped_scroll
+
+        for item in self.display_list:
+            print_tree(item)
 
         self.browser.measure.stop("render")
 

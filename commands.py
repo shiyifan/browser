@@ -8,6 +8,21 @@ from utils import parse_color
 from font import linespace
 
 
+class PaintCommand:
+    def __init__(self, rect):
+        self.rect = rect
+        self.children = []
+
+
+class VisualEffect:
+    def __init__(self, rect, children):
+        self.rect = rect.makeOffset(0.0, 0.0)
+        self.children = children
+
+        for child in self.children:
+            self.rect.join(child.rect)
+
+
 class DrawText:
     # (x1, y1)为相对于canvas的坐标
     def __init__(self, x1, y1, text, font, color):
@@ -31,6 +46,9 @@ class DrawText:
         baseline = self.rect.top() - self.font.getMetrics().fAscent
 
         canvas.drawString(self.text, float(self.rect.left()), baseline, self.font, paint)
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(text={self.text})"
 
 
 class DrawRect:
@@ -97,11 +115,12 @@ class DrawOutline:
         canvas.drawRect(self.rect, paint)
 
 
-class DrawLine:
+class DrawLine(PaintCommand):
     """绘制直线"""
 
     def __init__(self, x1, y1, x2, y2, color, thickness):
-        self.rect = Rect.MakeLTRB(x1, y1, x2, y2)
+        super().__init__(Rect.MakeLTRB(x1, y1, x2, y2))
+
         self.color = color
         self.thickness = thickness
 
@@ -174,7 +193,7 @@ class Blend:
 
         if self.should_save:
             canvas.restore()
-    
+
     def __repr__(self):
         args = ""
         if self.opacity < 1:
@@ -184,6 +203,7 @@ class Blend:
         if not args:
             args = "no-op"
         return f"{self.__class__.__name__}({args})"
+
 
 # 将CSS中的"mix-blend-mode"属性值转换为skia中的枚举值
 def parse_blend_mode(blend_mode):
