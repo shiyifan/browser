@@ -19,9 +19,7 @@ class DrawText:
 
         height = linespace(font)
         width = font.measureText(self.text)
-        self.rect = Rect.MakeLTRB(
-            self.left, self.top, self.left + width, self.top + height
-        )
+        self.rect = Rect.MakeLTRB(self.left, self.top, self.left + width, self.top + height)
 
         # 表示当前行的底部纵坐标，用于判断绘制位置是否位于canvas的可见区域外
         self.bottom = self.top + height
@@ -32,9 +30,7 @@ class DrawText:
         # skia的font ascent是负值，而descent是正值，所以这里采用减法来计算baseline的纵坐标
         baseline = self.rect.top() - self.font.getMetrics().fAscent
 
-        canvas.drawString(
-            self.text, float(self.rect.left()), baseline, self.font, paint
-        )
+        canvas.drawString(self.text, float(self.rect.left()), baseline, self.font, paint)
 
 
 class DrawRect:
@@ -64,6 +60,11 @@ class DrawRect:
     def execute(self, canvas):
         paint = Paint(Color=parse_color(self.color))
         canvas.drawRect(self.rect, paint)
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(top={self.rect.top}, \
+bottom={self.rect.bottom}, right={self.rect.right}, left={self.rect.left}, \
+color={self.color})"
 
 
 class DrawRRect:
@@ -173,7 +174,16 @@ class Blend:
 
         if self.should_save:
             canvas.restore()
-
+    
+    def __repr__(self):
+        args = ""
+        if self.opacity < 1:
+            args += f"opacity={self.opacity}, "
+        if self.blend_mode:
+            args += f"blend_mode={self.blend_mode}, "
+        if not args:
+            args = "no-op"
+        return f"{self.__class__.__name__}({args})"
 
 # 将CSS中的"mix-blend-mode"属性值转换为skia中的枚举值
 def parse_blend_mode(blend_mode):
