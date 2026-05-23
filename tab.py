@@ -317,6 +317,9 @@ class Tab:
         height = math.ceil(self.document.height + 2 * const.VSTEP)
         maxscroll = height - self.tab_height
         return max(0, min(scroll, maxscroll))
+    
+    def destroy(self):
+        self.js.destroy()
 
 
 # 根据DOM结点上"style"属性、css文件的代码创建CSS对象并赋值为"style"属性

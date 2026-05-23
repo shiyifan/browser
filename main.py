@@ -379,6 +379,7 @@ class Browser:
         # 结束每个tab的eventloop
         for tab in self.tabs:
             tab.task_runner.set_needs_quit()
+            tab.destroy()
 
     # 安排下一次重新计算layout的task.
     #

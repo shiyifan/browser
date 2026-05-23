@@ -15,6 +15,7 @@ EVENT_DISPATCH_JS = "new Node(dukpy.handle).dispatchEvent(new Event(dukpy.type))
 SETTIMEOUT_JS = "__runSetTimeout(dukpy.handle)"
 XHR_ONLOAD_JS = "__runXHROnload(dukpy.out, dukpy.handle)"
 
+TIMEOUT_TIMERS = []
 
 class JSContext:
     """Javascript运行时"""
@@ -38,6 +39,7 @@ class JSContext:
         self.interp.export_function("setTimeout", self.setTimeout)
         self.interp.export_function("XMLHttpRequest_send", self.XMLHttpRequest_send)
         self.interp.export_function("requestAnimationFrame", self.requestAnimationFrame)
+        self.interp.export_function("style_set", self.style_set)
 
         # python的DOM node与Javascript DOM node间的映射
         #
@@ -65,12 +67,9 @@ class JSContext:
         finally:
             self.tab.browser.measure.stop("run js")
 
-
     def querySelectorAll(self, selector_text):
         selector = CSSParser(selector_text).selector()
-        nodes = [
-            node for node in tree_to_list(self.tab.nodes, []) if selector.matches(node)
-        ]
+        nodes = [node for node in tree_to_list(self.tab.nodes, []) if selector.matches(node)]
         return [self.get_handle(node) for node in nodes]
 
     def getElementById(self, id):
@@ -140,7 +139,7 @@ class JSContext:
     def dispatch_settimeout(self, handle):
         if self.discarded:
             return
-        
+
         self.tab.browser.measure.time("SETTIMEOUT_JS")
         self.interp.evaljs(SETTIMEOUT_JS, handle=handle)
         self.tab.browser.measure.stop("SETTIMEOUT_JS")
@@ -149,11 +148,14 @@ class JSContext:
         def run_callback():
             task = Task(self.dispatch_settimeout, handle)
             self.tab.task_runner.schedule_task(task)
+            TIMEOUT_TIMERS.remove(t)
 
         # 在time ms后执行run_callback. run_callback执行在其他线程中.
         # 因此，当浏览器在某些timer的callback实际执行之前被关闭时，主进程会等待直到
         # callback执行结束后才终止。
-        Timer(time / 1000, run_callback).start()
+        t = Timer(time / 1000, run_callback)
+        TIMEOUT_TIMERS.append(t)
+        t.start()
 
     def dispatch_xhr_onload(self, out, handle):
         if self.discarded:
@@ -173,3 +175,12 @@ class JSContext:
         # self.tab.task_runner.schedule_task(task)
 
         self.tab.set_needs_render()
+
+    def style_set(self, handle, s):
+        node = self.handle_to_node[handle]
+        node.attributes["style"] = s
+        self.tab.set_needs_render()
+    
+    def destroy(self):
+        for t in TIMEOUT_TIMERS:
+            t.cancel()
