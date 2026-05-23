@@ -1,25 +1,24 @@
-console.log('Hello');
+var div = document.querySelectorAll('div')[0];
 
-var b = document.querySelectorAll('button')[0];
+var total_frames = 120;
+var current_frame = 0;
 
-b.addEventListener('click', function () {
-  var xhr = new XMLHttpRequest();
-  xhr.open('GET', 'https://localhost:8000/test', true);
-  xhr.onload = function () {
-    console.log('request finished: ', this.responseText);
-  };
+function animate() {
+  current_frame++;
 
-  xhr.send();
-});
+  if (current_frame > total_frames) return false;
 
-var anim = document.getElementById('anim');
-var count = 0;
+  opacity = 0 + (current_frame / total_frames) * (1 - 0);
+  div.style = 'opacity: ' + opacity;
+  return true;
+}
 
-function cb() {
-  anim.innerHTML = 'count: ' + count++;
-  if (count < 100) {
-    requestAnimationFrame(cb);
+function run_animation_frame() {
+  if (animate()) {
+    requestAnimationFrame(run_animation_frame);
   }
 }
 
-requestAnimationFrame(cb);
+requestAnimationFrame(run_animation_frame);
+
+setTimeout(function () { console.log('hello') }, 10000)

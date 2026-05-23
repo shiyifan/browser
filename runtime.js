@@ -76,6 +76,12 @@ Object.defineProperty(Node.prototype, 'innerHTML', {
   },
 });
 
+Object.defineProperty(Node.prototype, 'style', {
+  set: function(s) {
+    call_python('style_set', this.handle, s.toString())
+  }
+})
+
 function Event(type) {
   this.type = type;
   this.do_default = true; // 是否执行默认的后续流程

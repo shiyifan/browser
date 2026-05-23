@@ -12,6 +12,7 @@ from measure import MeasureTime
 from watchdog import Watchdog
 import random
 import sys
+import OpenGL.GL
 
 
 def main():
@@ -33,36 +34,18 @@ class Browser:
         self.tabs = []
         self.active_tab = None
 
-        # 根据计算机的端序初始化surface基础颜色信息
-        if SDL_BYTEORDER == SDL_BIG_ENDIAN:
-            self.RED_MASK = 0xFF000000
-            self.GREEN_MASK = 0x00FF0000
-            self.BLUE_MASK = 0x0000FF00
-            self.ALPHA_MASK = 0x000000FF
-        else:
-            self.RED_MASK = 0x000000FF
-            self.GREEN_MASK = 0x0000FF00
-            self.BLUE_MASK = 0x00FF0000
-            self.ALPHA_MASK = 0xFF000000
-
-        # 浏览器的窗口，负责接收系统事件、展示其他sdl surface的绘制结果
-        self.sdl_window = SDL_CreateWindow(
-            b"Browser",
-            SDL_WINDOWPOS_CENTERED,
-            SDL_WINDOWPOS_CENTERED,
-            const.WIDTH,
-            const.HEIGHT,
-            SDL_WINDOW_SHOWN,
-        )
+        # 初始化SDL, Skia以及OpenGL
+        init_sdl_skia_opengl(self)
 
         # 用于初步绘制的skia surface
-        self.root_surface = Surface.MakeRaster(
-            ImageInfo.Make(
-                const.WIDTH,
-                const.HEIGHT,
-                ct=kRGBA_8888_ColorType,
-                at=kUnpremul_AlphaType,
-            )
+        self.root_surface = Surface.MakeFromBackendRenderTarget(
+            self.skia_context,
+            GrBackendRenderTarget(
+                const.WIDTH, const.HEIGHT, 0, 0, GrGLFramebufferInfo(0, OpenGL.GL.GL_RGBA8)
+            ),
+            kBottomLeft_GrSurfaceOrigin,
+            kRGBA_8888_ColorType,
+            ColorSpace.MakeSRGB(),
         )
 
         self.chrome = Chrome(self)
@@ -72,7 +55,12 @@ class Browser:
         # 分别创建两者的surface可以减少不必要的绘制过程（tab更新后，chrome不必重绘，chrome更新后，tab不必重绘）。
         # 被减少的"绘制过程"具体指"通过canvas对象在surface上绘制图形", 而每次渲染时仍需要将两者的surface中的数据一同复制到
         # root surface中.
-        self.chrome_surface = Surface(const.WIDTH, math.ceil(self.chrome.bottom))
+        self.chrome_surface = Surface.MakeRenderTarget(
+            self.skia_context,
+            Budgeted.kNo,
+            ImageInfo.MakeN32Premul(const.WIDTH, math.ceil(self.chrome.bottom)),
+        )
+
         self.tab_surface = None
 
         # 点击之后焦点位于chrome中还是tab页中
@@ -169,7 +157,9 @@ class Browser:
             # 如果tab_surface未初始化或者tab页高度发生变化，则新建一个surface.
             #
             # 该surface不仅包含DOM元素总体，而且也包含DOM总体的四周空白边距(另见DocumentLayout.layout())
-            self.tab_surface = Surface(const.WIDTH, tab_height)
+            self.tab_surface = Surface.MakeRenderTarget(
+                self.skia_context, Budgeted.kNo, ImageInfo.MakeN32Premul(const.WIDTH, tab_height)
+            )
 
         canvas = self.tab_surface.getCanvas()
         canvas.clear(ColorWHITE)
@@ -211,31 +201,9 @@ class Browser:
         self.chrome_surface.draw(canvas, 0, 0)
         canvas.restore()
 
-        # 将skia的绘制结果复制至sdl window中
-
-        skia_image = self.root_surface.makeImageSnapshot()
-        skia_bytes = skia_image.tobytes()
-        depth = 32
-        pitch = 4 * const.WIDTH
-
-        # 从初步绘制的skia surface新建sdl surface
-        sdl_surface = SDL_CreateRGBSurfaceFrom(
-            skia_bytes,
-            const.WIDTH,
-            const.HEIGHT,
-            depth,
-            pitch,
-            self.RED_MASK,
-            self.GREEN_MASK,
-            self.BLUE_MASK,
-            self.ALPHA_MASK,
-        )
-
-        # 将新建的sdl surface绘制至窗口中
-        rect = SDL_Rect(0, 0, const.WIDTH, const.HEIGHT)
-        window_surface = SDL_GetWindowSurface(self.sdl_window)
-        SDL_BlitSurface(sdl_surface, rect, window_surface, rect)
-        SDL_UpdateWindowSurface(self.sdl_window)
+        # 将最底层的surface中的数据通过GPU渲染至窗口中
+        self.root_surface.flushAndSubmit()
+        SDL_GL_SwapWindow(self.sdl_window)
 
     # 由browser eventloop调用，负责在canvas上重绘
     def raster_and_draw(self):
@@ -373,6 +341,7 @@ class Browser:
         self.lock.release()
 
     def handle_quit(self):
+        SDL_GL_DeleteContext(self.gl_context)
         SDL_DestroyWindow(self.sdl_window)
         self.measure.finish()
 
@@ -528,6 +497,45 @@ def mainloop(browser):
         browser.schedule_animation_frame()
 
         dog.feed()
+
+
+def init_sdl_skia_opengl(browser):
+    # 根据计算机的端序初始化surface基础颜色信息
+    if SDL_BYTEORDER == SDL_BIG_ENDIAN:
+        browser.RED_MASK = 0xFF000000
+        browser.GREEN_MASK = 0x00FF0000
+        browser.BLUE_MASK = 0x0000FF00
+        browser.ALPHA_MASK = 0x000000FF
+    else:
+        browser.RED_MASK = 0x000000FF
+        browser.GREEN_MASK = 0x0000FF00
+        browser.BLUE_MASK = 0x00FF0000
+        browser.ALPHA_MASK = 0xFF000000
+
+    # 浏览器的窗口，负责接收系统事件、展示其他sdl surface的绘制结果, 该窗口通过GPU渲染
+    browser.sdl_window = SDL_CreateWindow(
+        b"Browser",
+        SDL_WINDOWPOS_CENTERED,
+        SDL_WINDOWPOS_CENTERED,
+        const.WIDTH,
+        const.HEIGHT,
+        SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL,
+    )
+
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3)
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2)
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG, True)
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE)
+
+    # 创建OpenGL context, 准备通过GPU渲染
+    browser.gl_context = SDL_GL_CreateContext(browser.sdl_window)
+    print(
+        f"** OpenGL initialized: vendor={OpenGL.GL.glGetString(OpenGL.GL.GL_VENDOR)}, render={OpenGL.GL.glGetString(OpenGL.GL.GL_RENDERER)} **"
+    )
+    print()
+
+    # 创建基于GPU渲染的Skia context, 后续创建的skia Surface均可利用GPU绘制
+    browser.skia_context = GrDirectContext.MakeGL()
 
 
 # keep this being the last statement
