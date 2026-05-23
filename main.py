@@ -11,6 +11,7 @@ from threading import Timer, current_thread, RLock
 from measure import MeasureTime
 from watchdog import Watchdog
 import random
+import sys
 
 
 def main():
