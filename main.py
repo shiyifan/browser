@@ -13,6 +13,9 @@ from watchdog import Watchdog
 import random
 import sys
 import OpenGL.GL
+from utils import tree_to_list
+from commands import PaintCommand, DrawCompositedLayer
+from layer import CompositedLayer
 
 
 def main():
@@ -71,7 +74,7 @@ class Browser:
         self.animation_timer = None
 
         # 是否需要在canvas中重新绘制
-        self.needs_raster_and_draw = False
+        self.needs_composite_raster_and_draw = False
 
         # 该随机数标识由"browser.commit()"调用发起的一次"raster and draw"。
         #
@@ -94,6 +97,9 @@ class Browser:
         self.active_tab_height = 0  # "Tab.render()"后计算得到的DOM总体高度（不包含上下空白边距）
         self.active_tab_display_list = None
 
+        self.composited_layers = []
+        self.draw_list = []
+
     # 设置当前active tab
     #
     # 这里重置了一些“active_tab_*”变量，没有直接从切换后的tab中获取这些变量值.
@@ -114,7 +120,7 @@ class Browser:
 
     def set_needs_raster_and_draw(self):
         self.lock.acquire(blocking=True)
-        self.needs_raster_and_draw = True
+        self.needs_composite_raster_and_draw = True
         self.lock.release()
 
     def set_needs_animation_frame(self, tab):
@@ -144,31 +150,8 @@ class Browser:
     def raster_tab(self):
         """根据tab页'layout()'之后得到的display list, 在tab canvas中清空并重新绘制tab内容"""
 
-        # 获取tab页内容的高度
-        #
-        # 这里的高度根据layout tree计算得到。
-        # 对于某些超出parent元素边界的HTML元素，目前浏览器不支持绘制这样的元素.
-        #
-        # 另外，这里的高度不仅包含DOM元素总体占据的高度(active_tab_height), 而且包含了
-        # 在DOM上、下额外多出的空白(2 * const.VSTEP) (另见DocumentLayout.layout())
-        tab_height = math.ceil(self.active_tab_height + 2 * const.VSTEP)
-
-        if not self.tab_surface or tab_height != self.tab_surface.height():
-            # 如果tab_surface未初始化或者tab页高度发生变化，则新建一个surface.
-            #
-            # 该surface不仅包含DOM元素总体，而且也包含DOM总体的四周空白边距(另见DocumentLayout.layout())
-            self.tab_surface = Surface.MakeRenderTarget(
-                self.skia_context, Budgeted.kNo, ImageInfo.MakeN32Premul(const.WIDTH, tab_height)
-            )
-
-        canvas = self.tab_surface.getCanvas()
-        canvas.clear(ColorWHITE)
-
-        # 绘制tab页内容.
-        #
-        # 注意，在browser thread中rastser, 在tab main thread中render. 所以此处没有将
-        # "draw()"添加到tab的eventloop中
-        self.active_tab.draw(canvas, self.active_tab_display_list)
+        for composited_layer in self.composited_layers:
+            composited_layer.raster()
 
     def raster_chrome(self):
         """在chrome canvas上清空并重新绘制chrome"""
@@ -181,17 +164,69 @@ class Browser:
             # 绘制时滚动距离scroll=0，确保chrome始终位于canvas上方
             cmd.execute(canvas)
 
+    # 提取display list中所有的PaintCommand, 并根据每一个PaintCommand创建"CompositedLayer"以便于缓存绘制结果
+    def composite(self):
+        self.composited_layers = []
+
+        # 创建display list中command间的父级关系，便于创建包含"DrawCompositedLayer"command的display list
+        add_parent_pointers(self.active_tab_display_list)
+
+        all_commands = []
+        for cmd in self.active_tab_display_list:
+            all_commands = tree_to_list(cmd, all_commands)
+        paint_commands = [cmd for cmd in all_commands if isinstance(cmd, PaintCommand)]
+
+        for cmd in paint_commands:
+            layer = CompositedLayer(self.skia_context, cmd)
+            self.composited_layers.append(layer)
+
+    # 用DrawCompositedLayer代替PaintCommand,
+    # 并根据所有的"CompositedLayer"创建允许缓存绘制结果的display list("draw_list")
+    # 一般情况下，只有VisualEffect command拥有子结点，PaintCommand没有子结点
+    #
+    # display list(tab):
+    # Blend:
+    #     Blend:
+    #         DrawLine
+    #         DrawText
+    #
+    # draw_list(tab):
+    # Blend:
+    #     Blend:
+    #         DrawCompositedLayer(cacheable) --> DrawLine
+    #         DrawCompositedLayer(cacheable) --> DrawText
+    #
+    def paint_draw_list(self):
+        new_effects = {}  # 临时保存已经clone的parent
+        self.draw_list = []
+
+        for composited_layer in self.composited_layers:
+            current_effect = DrawCompositedLayer(composited_layer)
+            if not composited_layer.display_items:
+                continue
+            parent = composited_layer.display_items[0].parent
+            while parent:
+                if parent in new_effects:
+                    new_effects[parent].children.append(current_effect)
+                    break
+                else:
+                    current_effect = parent.clone(current_effect)
+                    new_effects[parent] = current_effect
+                    parent = parent.parent
+
+            if not parent:
+                self.draw_list.append(current_effect)
+
     def draw(self):
         canvas = self.root_surface.getCanvas()
         canvas.clear(ColorWHITE)
 
         # 将tab_surface的内容绘制到"root surface"的canvas上
-        tab_rect = Rect.MakeLTRB(0, self.chrome.bottom, const.WIDTH, const.HEIGHT)
         tab_offset = self.chrome.bottom - self.active_tab_scroll
         canvas.save()
-        canvas.clipRect(tab_rect)  # canvas限制为tab页内容在root surface上的所在的区域
         canvas.translate(0, tab_offset)  # 绘制时tab页内容相对于chrome的偏移量
-        self.tab_surface.draw(canvas, 0, 0)
+        for item in self.draw_list:
+            item.execute(canvas)
         canvas.restore()
 
         # 将chrome_surface的内容绘制到"root surface"的canvas上
@@ -206,10 +241,10 @@ class Browser:
         SDL_GL_SwapWindow(self.sdl_window)
 
     # 由browser eventloop调用，负责在canvas上重绘
-    def raster_and_draw(self):
+    def composite_raster_and_draw(self):
         self.lock.acquire(blocking=True)
 
-        if not self.needs_raster_and_draw:
+        if not self.needs_composite_raster_and_draw:
             self.lock.release()
             return
 
@@ -217,16 +252,19 @@ class Browser:
 
         if self.rand_raster_and_draw:
             # 如果是从"browser.commit()"中发起的raster,那么添加一个"instant"事件
+
             self.measure.instant(
                 "raster_draw_from_commit", cat="debug", args={"rand": self.rand_raster_and_draw}
             )
             self.rand_raster_and_draw = None
 
+        self.composite()
         self.raster_chrome()
         self.raster_tab()
+        self.paint_draw_list()
         self.draw()
 
-        self.needs_raster_and_draw = False
+        self.needs_composite_raster_and_draw = False
 
         self.measure.stop("raster_draw")
 
@@ -294,7 +332,7 @@ class Browser:
             self.measure.instant("tab switched", cat="debug", args={"tab": self.active_tab.id})
 
             # 如果切换后恰好上一个tab设置了"needs_raster_and_draw", 那么取消该次raster
-            self.needs_raster_and_draw = False
+            self.needs_composite_raster_and_draw = False
         else:
             # 由于"mainloop"中"raster and draw"发生在"schedule animation frame"之前,
             # 此时"active_tab_*"的某些变量仍表示原来的tab，所以切换tab之后就不必再"raster and draw"
@@ -484,7 +522,7 @@ def mainloop(browser):
                 browser.handle_key(event.text.text.decode("utf8"))
 
         # 在canvas上重绘
-        browser.raster_and_draw()
+        browser.composite_raster_and_draw()
 
         # 安排下一次的重新布局（仅重新计算layout, 不在canvas上面绘制）
         browser.schedule_animation_frame()
@@ -529,6 +567,12 @@ def init_sdl_skia_opengl(browser):
 
     # 创建基于GPU渲染的Skia context, 后续创建的skia Surface均可利用GPU绘制
     browser.skia_context = GrDirectContext.MakeGL()
+
+
+def add_parent_pointers(nodes, parent=None):
+    for node in nodes:
+        node.parent = parent
+        add_parent_pointers(node.children, node)
 
 
 # keep this being the last statement

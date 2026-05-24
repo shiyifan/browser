@@ -158,8 +158,8 @@ class Tab:
             self.scroll_changed_in_tab = True
         self.scroll = clamped_scroll
 
-        for item in self.display_list:
-            print_tree(item)
+        # for item in self.display_list:
+        #     print_tree(item)
 
         self.browser.measure.stop("render")
 
