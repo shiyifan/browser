@@ -50,12 +50,18 @@ class Tab:
 
         self.scroll_changed_in_tab = False
 
+        self.composited_updates = []
+
     def set_needs_render(self):
         self.needs_style = True
         self.browser.set_needs_animation_frame(self)
 
     def set_needs_layout(self):
         self.needs_layout = True
+        self.browser.set_needs_animation_frame(self)
+
+    def set_needs_paint(self):
+        self.needs_paint = True
         self.browser.set_needs_animation_frame(self)
 
     def load(self, url, payload=None):
@@ -206,11 +212,23 @@ class Tab:
                 value = animation.animate()
                 if value:
                     node.style[property_name] = value
-                    self.set_needs_layout()
+                    self.composited_updates.append(node)
+                    self.set_needs_paint()
+
+        needs_composite = self.needs_style or self.needs_layout
 
         self.render()
 
-        commit_data = CommitData(self.url, self.scroll, self.document.height, self.display_list)
+        composited_updates = None
+        if not needs_composite:
+            composited_updates = {}
+            for node in self.composited_updates:
+                composited_updates[node] = node.blend_op
+        self.composited_updates = []
+
+        commit_data = CommitData(
+            self.url, self.scroll, self.document.height, self.display_list, composited_updates
+        )
         self.display_list = None
         self.browser.commit(self, commit_data, rand)
 

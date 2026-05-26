@@ -21,9 +21,10 @@ class PaintCommand:
 # 作为所有绘制视觉效果的command的基类
 # 对于基于visual effect的animation, 一般不会缓存该命令的绘制结果
 class VisualEffect:
-    def __init__(self, rect, children):
+    def __init__(self, rect, children, node=None):
         self.rect = rect.makeOffset(0.0, 0.0)  # effect本身的应用区域
         self.children = children  # 所有需要应用当前effect的结点(当前结点与子结点)的绘制命令
+        self.node = node  # 拥有当前effect的DOM node
 
         # effect本身的应用区域合并所有子命令的区域,最终该区域为effect实际影响区域
         for child in self.children:
@@ -176,8 +177,8 @@ class Opacity(VisualEffect):
 
 # "mix-blend-mode"效果以及"opacity"效果的绘制命令
 class Blend(VisualEffect):
-    def __init__(self, opacity, blend_mode, children):
-        super().__init__(Rect.MakeEmpty(), children)
+    def __init__(self, opacity, blend_mode, node, children):
+        super().__init__(Rect.MakeEmpty(), children, node)
 
         self.opacity = opacity
         self.blend_mode = blend_mode
@@ -197,7 +198,7 @@ class Blend(VisualEffect):
 
     # 创建当前Blend对象的副本，但采用不同的子结点
     def clone(self, child):
-        return Blend(self.opacity, self.blend_mode, [child])
+        return Blend(self.opacity, self.blend_mode, self.node, [child])
 
     def __repr__(self):
         args = ""
