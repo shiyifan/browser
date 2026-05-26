@@ -430,7 +430,10 @@ class Browser:
             # 创建一个Timer发起的"schedule"的事件。由于Timer每次启动均新建thread,每次的thread id均不一致。因此
             # 这里记录事件时采用固定id方便日志分析
             self.measure.instant(
-                "schedule", cat="debug", args={"tab": active_tab.id, "rand": rand}, tid=9999999
+                "schedule",
+                cat="debug",
+                args={"tab": active_tab.id, "rand": rand},
+                tid=const.SCHEDULE_ANIMATION_TIMER_TID,
             )
 
             self.needs_animation_frame = False
@@ -445,6 +448,29 @@ class Browser:
             # 的整体渲染重绘流程
             r = random.randint(0, 10000000)
 
+            # 创建一个Timer,在"REFRESH_RATE_SEC"时长后超时并将"animation frame"添加至tab的eventloop中.
+            #
+            # 假设刷新率为30fps(即每0.033ms完成一次重绘). 在理想状态下，每隔0.033ms就将完成一次重绘。但是
+            # 当前仅实现了每0.033ms"开始"一次重绘,而不是"完成"。而且重绘本身也需要时间，这就导致了在连续的animation
+            # 渲染时，两次重绘"完成"的间隔将远大于0.033ms。在该情况下，如果在实现某些css animation（例如transition）
+            # 时，先通过预定时长（总帧数 = 时长 / REFRESH_RATE_SEC）计算总帧数,然后连续地渲染每一帧（上一帧结束后立刻
+            # schedule下一帧），那么总渲染时长将大大超出预定时长
+            #
+            #
+            #           animation frame
+            #                 |
+            #      |          v  |             |           |
+            # -----|--------|++++|--------|++++|-------|+++|------->
+            #           ^                                       time
+            #      ^    |        ^             ^
+            #      | refresh     |             |
+            #      |   gap       |             |
+            #      |             |             |
+            #      |-------------+-------------|
+            #        whole render      next
+            #          process        render
+            #                        process
+            #
             self.animation_timer = Timer(const.REFRESH_RATE_SEC, callback, [self.active_tab, r])
             self.animation_timer.start()
             self.measure.instant(

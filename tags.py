@@ -2,8 +2,9 @@
 class Text:
     def __init__(self, text, parent):
         self.text = text
-        self.children = []
+        self.children = []  # 文本结点没有子结点，这里仅为了与"Element"统一
         self.parent = parent
+        self.animations = {}  # 保存结点的animations、transitions
 
         # 是否获取到焦点.纯文本DOM结点无法获取焦点,该值始终为"False"
         self.is_focused = False
@@ -20,6 +21,7 @@ class Element:
         self.attributes = attributes
         self.parent = parent
         self.is_focused = False  # 是否获取到焦点
+        self.animations = {}  # 保存结点的animations、transitions
 
     def __repr__(self):
         return "<" + self.tag + ">"

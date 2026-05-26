@@ -1,6 +1,7 @@
 import json
 from time import time
 from threading import Lock, get_native_id, enumerate
+import const
 
 
 class MeasureTime:
@@ -43,15 +44,7 @@ class MeasureTime:
         ts = time() * 1000000
         tid = get_native_id()
 
-        event = {
-            "ph": "E",
-            "cat": cat,
-            "name": name,
-            "ts": ts,
-            "pid": 1,
-            "tid": tid,
-            "args": args
-        }
+        event = {"ph": "E", "cat": cat, "name": name, "ts": ts, "pid": 1, "tid": tid, "args": args}
         self.events.append(event)
 
         self.lock.release()
@@ -79,6 +72,16 @@ class MeasureTime:
 
     def finish(self):
         self.lock.acquire(blocking=True)
+
+        self.events.append(
+            {
+                "ph": "M",
+                "name": "thread_name",
+                "pid": 1,
+                "tid": const.SCHEDULE_ANIMATION_TIMER_TID,
+                "args": {"name": "Schedule Animation Timer"},
+            },
+        )
 
         for thread in enumerate():
             self.events.append(

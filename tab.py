@@ -9,6 +9,7 @@ from utils import tree_to_list, log, print_tree
 from url import URL
 from task import Task, TaskRunner
 from commit import CommitData
+from animation import NumericAnimation
 import math
 
 # 浏览器默认样式，user agent style
@@ -41,16 +42,20 @@ class Tab:
         # 在tab页加载新的url前后，task queue不变
         self.task_runner = TaskRunner(self)
 
-        # 是否需要重新计算布局，计算layout（仅仅计算页面元素坐标、收集绘制命令，但不会
-        # 在canvas中绘制）
-        self.needs_render = False
+        self.needs_style = False  # 是否需要重新计算css style
+        self.needs_layout = False  # 是否需要重新计算layout
+        self.needs_paint = False  # 是否需要重新收集绘制命令
 
         self.browser = browser
 
         self.scroll_changed_in_tab = False
 
     def set_needs_render(self):
-        self.needs_render = True
+        self.needs_style = True
+        self.browser.set_needs_animation_frame(self)
+
+    def set_needs_layout(self):
+        self.needs_layout = True
         self.browser.set_needs_animation_frame(self)
 
     def load(self, url, payload=None):
@@ -137,35 +142,55 @@ class Tab:
     def render(self):
         """根据DOM Tree构建layout tree,然后收集layout tree上每个结点的绘制command"""
 
-        if not self.needs_render:
-            return
-        self.needs_render = False
-
         self.browser.measure.time("render")
 
-        # 将css rules全部赋值至DOM结点的"style"属性上
-        style(self.nodes, sorted(self.rules if self.rules else [], key=cascade_priority))
+        if self.needs_style:
+            self.browser.measure.time("style")
 
-        self.document = DocumentLayout(self.nodes)
-        self.document.layout()  # 构建layout tree
-        self.display_list = []
+            # 将css rules全部赋值至DOM结点的"style"属性上
+            style(self.nodes, sorted(self.rules if self.rules else [], key=cascade_priority), self)
 
-        # 收集layout tree上每个layout object生成的绘制command
-        paint_tree(self.document, self.display_list)
+            self.needs_layout = True
+            self.needs_style = False
+
+            self.browser.measure.stop("style")
+
+        if self.needs_layout:
+            self.browser.measure.time("layout")
+
+            self.document = DocumentLayout(self.nodes)
+            self.document.layout()  # 构建layout tree
+
+            self.needs_paint = True
+            self.needs_layout = False
+
+            self.browser.measure.stop("layout")
+
+        if self.needs_paint:
+            # 收集layout tree上每个layout object生成的绘制command
+
+            self.browser.measure.time("paint")
+
+            self.display_list = []
+            paint_tree(self.document, self.display_list)
+
+            self.needs_paint = False
+
+            self.browser.measure.stop("paint")
 
         clamped_scroll = self.clamp_scroll(self.scroll)
         if clamped_scroll != self.scroll:
             self.scroll_changed_in_tab = True
         self.scroll = clamped_scroll
 
-        # for item in self.display_list:
-        #     print_tree(item)
-
         self.browser.measure.stop("render")
 
     def run_animation_frame(self, scroll, rand):
-        self.browser.lock.acquire(blocking=True)
-        self.browser.measure.time("run animation", cat="debug", args={"tab": self.id, "changed": self.scroll_changed_in_tab, "rand": rand})
+        self.browser.measure.time(
+            "run animation",
+            cat="debug",
+            args={"tab": self.id, "changed": self.scroll_changed_in_tab, "rand": rand},
+        )
 
         if not self.scroll_changed_in_tab:
             self.scroll = scroll
@@ -174,6 +199,14 @@ class Tab:
         # 计算layout之前执行通过"requestAnimationFrame"注册的callback
         self.js.interp.evaljs("__runRAFHandlers()")
         self.browser.measure.stop("__runRAFHandlers")
+
+        # 更新所有的css"transition"动画帧
+        for node in tree_to_list(self.nodes, []):
+            for property_name, animation in node.animations.items():
+                value = animation.animate()
+                if value:
+                    node.style[property_name] = value
+                    self.set_needs_layout()
 
         self.render()
 
@@ -184,7 +217,6 @@ class Tab:
         self.scroll_changed_in_tab = False
 
         self.browser.measure.stop("run animation", cat="debug", args={"tab": self.id, "rand": rand})
-        self.browser.lock.release()
 
     def draw(self, canvas, display_list):
         """根据已生成的绘制command,在canvas上绘制tab内容，由Browser调用"""
@@ -320,13 +352,14 @@ class Tab:
         height = math.ceil(self.document.height + 2 * const.VSTEP)
         maxscroll = height - self.tab_height
         return max(0, min(scroll, maxscroll))
-    
+
     def destroy(self):
         self.js.destroy()
 
 
 # 根据DOM结点上"style"属性、css文件的代码创建CSS对象并赋值为"style"属性
-def style(node, rules):
+def style(node, rules, tab):
+    old_style = node.style if hasattr(node, "style") else None
     node.style = {}  # CSS解析后的对象
 
     # 先解析当前节点的inherited property的值
@@ -361,7 +394,20 @@ def style(node, rules):
 
     # 解析并创建子结点的CSS对象
     for child in node.children:
-        style(child, rules)
+        style(child, rules, tab)
+
+    if old_style:
+        # 查找在css中"transition"声明的属性中，哪些属性的值发生了更新,
+        # 并在DOM node上根据更新的属性值创建animation对象，接着触发下一次的animation frame
+
+        transitions = diff_styles(old_style, node.style)
+        for property, (old_value, new_value, num_frames) in transitions.items():
+            if property == "opacity":
+                animation = NumericAnimation(float(old_value), float(new_value), num_frames)
+                node.animations[property] = animation
+                node.style[property] = animation.animate()
+
+                tab.browser.set_needs_animation_frame(tab)  # 请求一次browser的animation frame
 
 
 def paint_tree(layout_object, display_list):
@@ -385,3 +431,37 @@ def paint_tree(layout_object, display_list):
 def cascade_priority(rule):
     selector, rule = rule
     return selector.priority
+
+
+# 获取在"transition"声明的属性中，render前后属性值不同的属性。返回 "<css property>: (<旧值>, <新值>, <动画帧个数>)" 的键值对
+def diff_styles(old_style, new_style):
+    transitions = {}
+
+    for property, num_frames in parse_transition(new_style.get("transition")).items():
+        if property not in old_style:
+            continue
+        if property not in new_style:
+            continue
+
+        old_value = old_style[property]
+        new_value = new_style[property]
+        if old_value == new_value:
+            continue
+
+        transitions[property] = (old_value, new_value, num_frames)
+
+    return transitions
+
+
+# 解析css"transition"属性值并返回 "<css property>: <动画帧个数>" 键值对
+def parse_transition(value):
+    properties = {}  # { <css property>: <动画帧个数> }
+
+    if not value:
+        return properties
+    for item in value.split(","):
+        property, duration = item.split(" ", 1)
+        frames = int(float(duration[:-1]) / const.REFRESH_RATE_SEC)  # 在预定的时间内的总帧数
+        properties[property] = frames
+
+    return properties

@@ -37,20 +37,20 @@ class CSSParser:
         self.i += 1
 
     # 从当前位置向后解析，截取一个css属性名与属性值
-    def pair(self):
+    def pair(self, until):
         prop = self.word()  # 截取属性名
         self.whitespace()
         self.literal(":")
         self.whitespace()
-        val = self.word()  # 截取属性值
-        return prop.casefold(), val
+        val = self.until_chars(until)  # 截取属性值
+        return prop.casefold(), val.strip()
 
     def body(self):
         pairs = {}
         # 解析css selector后花括号里面的具体rule，直到"}"字符
         while self.i < len(self.s) and self.s[self.i] != "}":
             try:
-                prop, val = self.pair()
+                prop, val = self.pair([";", "}"])
                 pairs[prop] = val
                 self.whitespace()
                 self.literal(";")
@@ -122,3 +122,10 @@ class CSSParser:
                 else:
                     break
         return rules
+
+    # 从当前位置截取直至某个字符
+    def until_chars(self, chars):
+        start = self.i
+        while self.i < len(self.s) and self.s[self.i] not in chars:
+            self.i += 1
+        return self.s[start : self.i]
