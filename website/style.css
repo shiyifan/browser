@@ -12,6 +12,8 @@ div {
   background-color: #ffa500;
   border-radius: 40px;
   overflow: clip;
+  opacity: 1;
+  transition: opacity 5s;
 }
 
 p {

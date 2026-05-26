@@ -19,6 +19,12 @@ function run_animation_frame() {
   }
 }
 
-requestAnimationFrame(run_animation_frame);
+// requestAnimationFrame(run_animation_frame);
 
-setTimeout(function () { console.log('hello') }, 10000)
+var div = document.getElementById('fade');
+
+var button = document.getElementById('click');
+
+button.addEventListener('click', function () {
+  div.style = 'opacity: 0.1';
+});
