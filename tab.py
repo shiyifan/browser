@@ -229,7 +229,19 @@ class Tab:
             composited_updates = {}
             for node, old_blend_op in self.composited_updates:
                 if node not in composited_updates:
-                    composited_updates[node] = [(old_blend_op, node.blend_op)]
+
+                    # TODO: "composited_updates"的结构无法适用于下面这样的display list:
+                    #
+                    # Blend: (opacity)
+                    #   Blend: (overflow: clip)
+                    #      DrawRRect
+                    #   Draw**
+                    #   Draw**
+                    #
+                    # 如果Blend的children中包含Blend和其他Draw command（例如"opacity"与"overflow: clip"同时应用在node上）,
+                    # 这时在"browser.get_latest"中无法仅根据"node"区分是哪个Blend需要替换为新的Blend(当get_latest()中
+                    # "effect" == DrawRRect)
+                    composited_updates[node] = [(old_blend_op, node.blend_op)] 
                 else:
                     composited_updates[node].append((old_blend_op, node.blend_op))
         self.composited_updates = []
