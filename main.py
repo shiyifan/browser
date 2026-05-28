@@ -97,25 +97,31 @@ class Browser:
         self.active_tab_height = 0  # "Tab.render()"后计算得到的DOM总体高度（不包含上下空白边距）
         self.active_tab_display_list = None
 
+        # 保存由(display list中的)所有的"PaintCommand"创建的composited layer, 在animation的绘制期间，
+        # 这些layer的绘制结果可以在多个frame间重用
         self.composited_layers = []
+
+        # 保存新的display list, 该list由"Blend -> ... -> DrawCompositedLayer"的结构构成,不同于由"tab.paint_tree()"
+        # 得到的list, 新list的所有叶子结点均为"DrawCompositedLayer", 且在animation的绘制期间在多个frame间重用绘制结果
         self.draw_list = []
 
         self.needs_composite = False
         self.needs_raster = False
         self.needs_draw = False
 
+        # 保存由"tab.commit()"传递来的"已更新animation frame"的node结点
         self.composited_updates = {}
+
+    def set_needs_composite(self):
+        self.needs_composite = True
+        self.needs_raster = True
+        self.needs_draw = True
 
     def set_needs_raster(self):
         self.needs_raster = True
         self.needs_draw = True
 
     def set_needs_draw(self):
-        self.needs_draw = True
-
-    def set_needs_composite(self):
-        self.needs_composite = True
-        self.needs_raster = True
         self.needs_draw = True
 
     # 设置当前active tab
@@ -282,15 +288,30 @@ class Browser:
             self.rand_raster_and_draw = None
 
         if self.needs_composite:
+            self.measure.time("composite")
+
             self.composite()
+            self.needs_composite = False
+
+            self.measure.stop("composite")
+
         if self.needs_raster:
+            self.measure.time("raster")
+
             self.raster_chrome()
             self.raster_tab()
+            self.needs_raster = False
+
+            self.measure.stop("raster")
+
         if self.needs_draw:
+            self.measure.time("draw")
+
             self.paint_draw_list()
             self.draw()
+            self.needs_draw = False
 
-        # self.needs_composite_raster_and_draw = False
+            self.measure.stop("draw")
 
         self.measure.stop("raster_draw")
 
@@ -306,7 +327,7 @@ class Browser:
 
         # 计算合理的滚动距离。滚动后不能超过tab中html document的顶部与底部
         self.active_tab_scroll = self.clamp_scroll(self.active_tab_scroll + const.SCROLL_STEP)
-        self.set_needs_raster()
+        self.set_needs_draw()
         self.needs_animation_frame = True
 
         self.lock.release()
@@ -321,7 +342,7 @@ class Browser:
 
         # 计算合理的滚动距离。滚动后不能超过tab中html document的顶部与底部
         self.active_tab_scroll = self.clamp_scroll(self.active_tab_scroll - const.SCROLL_STEP)
-        self.set_needs_raster()
+        self.set_needs_draw()
         self.needs_animation_frame = True
 
         self.lock.release()
@@ -329,7 +350,7 @@ class Browser:
     def handle_click(self, e):
         self.lock.acquire(blocking=True)
 
-        tab_switched = False
+        tab_switched = None
         if e.y < self.chrome.bottom:
             # 点击位置位于chrome中
 
@@ -349,7 +370,7 @@ class Browser:
             tab_y = e.y - self.chrome.bottom
             self.active_tab.task_runner.schedule_task(Task(self.active_tab.click, e.x, tab_y))
 
-        if tab_switched:
+        if tab_switched == True:
             # 如果切换了tab,切换后的tab需要触发一次"render -> raster"流程
             self.active_tab.set_needs_render()
             # 切换tab之后，由于在"Chrome.click()"中重置了"active_tab_*"等变量，
@@ -360,10 +381,12 @@ class Browser:
             # 如果切换后恰好上一个tab设置了"needs_raster_and_draw", 那么取消该次raster
             # self.needs_composite_raster_and_draw = False
             self.needs_composite = self.needs_raster = self.needs_draw = False
-        else:
+        elif tab_switched == False:
             # 由于"mainloop"中"raster and draw"发生在"schedule animation frame"之前,
             # 此时"active_tab_*"的某些变量仍表示原来的tab，所以切换tab之后就不必再"raster and draw"
             self.set_needs_raster()
+
+        # "tab_switched == None"表示点击位置在tab内，不需要考虑是否执行接下来最近的一次raster draw
 
         self.lock.release()
 
@@ -522,22 +545,22 @@ class Browser:
             if data.display_list:
                 self.active_tab_display_list = data.display_list
 
-            self.composited_updates = data.composited_updates
-            if self.composited_updates == None:
+            if data.composited_updates is None:
                 # "render"时执行了"style"以及"layout"的过程, 相比上次的render，"paint"过程收集的
                 # PaintCommand可能已经发生了变化，因此需要重新composite
 
                 self.composited_updates = {}
                 self.set_needs_composite()
-            else:
+            elif data.composited_updates:
+                self.composited_updates = data.composited_updates
                 self.set_needs_draw()
+            # 当"data.composited_updates == {}"时，说明没有node更新animation,那么不需要重绘
 
             # 重置timer
             #
             # 仅当再次调用"commit"时才会重置timer, 避免browser的线程向tab eventloop添加过多的animation frame task
             self.animation_timer = None
 
-            self.set_needs_raster()
             self.rand_raster_and_draw = rand
 
         self.lock.release()
@@ -548,12 +571,28 @@ class Browser:
             return effect
         if not isinstance(effect, Blend):
             return effect
-        return self.composited_updates[node]
-    
+
+        # blend_ops = self.composited_updates[node]
+        # for old_op, new_op in blend_ops:
+        #     if old_op == effect:
+        #         return new_op
+
+        # return effect
+
+        # for (node, old_op, new_op) in self.composited_updates:
+        #     if node == effect.node and old_op == effect:
+        #         return new_op
+
+        # if node not in self.composited_updates:
+        #     return effect
+
+        return self.composited_updates[node][0][1]
+
     def clear_data(self):
         self.active_tab_scroll = 0
         self.active_tab_url = None
         self.active_tab_display_list = []
+        self.draw_list = []
         self.composited_layers = []
         self.composited_updates = {}
 

@@ -50,7 +50,7 @@ class Tab:
 
         self.scroll_changed_in_tab = False
 
-        self.composited_updates = []
+        self.composited_updates = []  # 保存执行animation frame的node
 
     def set_needs_render(self):
         self.needs_style = True
@@ -206,24 +206,32 @@ class Tab:
         self.js.interp.evaljs("__runRAFHandlers()")
         self.browser.measure.stop("__runRAFHandlers")
 
-        # 更新所有的css"transition"动画帧
+        # 在"node.style"上更新所有的css"transition"属性的下一帧属性值, 然后保存这个node
         for node in tree_to_list(self.nodes, []):
             for property_name, animation in node.animations.items():
                 value = animation.animate()
                 if value:
                     node.style[property_name] = value
-                    self.composited_updates.append(node)
-                    self.set_needs_paint()
+                    self.composited_updates.append((node, node.blend_op))
+                    self.set_needs_paint()  # 不仅让"render"重新收集绘制命令，而且让browser安排下一次的animation frame
 
+        # 在browser "raster and draw"期间，是否需要从tab display list中提取PaintCommand并创建"CompositedLayer"
+        # 如果不需要，那么在"self.render()"前后仅仅是node的animation visual effect发生了变化. browser可以重用之前"CompositedLayer"的绘制结果
+        # 如果需要，那么"self.render()"中重新style以及layout, browser需要重新提取PaintCommand
         needs_composite = self.needs_style or self.needs_layout
 
         self.render()
 
-        composited_updates = None
+        composited_updates = None  # 保存已执行animation frame的node与新的Blend command
         if not needs_composite:
+            # browser不需要再次"composite", 可重用PaintCommand的绘制结果，仅重新绘制visual effect即可
+
             composited_updates = {}
-            for node in self.composited_updates:
-                composited_updates[node] = node.blend_op
+            for node, old_blend_op in self.composited_updates:
+                if node not in composited_updates:
+                    composited_updates[node] = [(old_blend_op, node.blend_op)]
+                else:
+                    composited_updates[node].append((old_blend_op, node.blend_op))
         self.composited_updates = []
 
         commit_data = CommitData(
@@ -264,6 +272,7 @@ class Tab:
             self.set_needs_render()
 
     def click(self, x, y):
+        self.browser.measure.instant("click")
         self.render()  # 在判断点击位置之前，确保页面布局必须是最新的
 
         # 如果未找到被点击的layout object, 返回前是否需要重绘

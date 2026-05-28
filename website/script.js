@@ -25,6 +25,13 @@ var div = document.getElementById('fade');
 
 var button = document.getElementById('click');
 
+var op = 1;
 button.addEventListener('click', function () {
-  div.style = 'opacity: 0.1';
+  if (op === 1) {
+    op = 0.1;
+    div.style = 'opacity: 0.1';
+  } else {
+    op = 1;
+    div.style = 'opacity: 1';
+  }
 });
