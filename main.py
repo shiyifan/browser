@@ -572,21 +572,7 @@ class Browser:
         if not isinstance(effect, Blend):
             return effect
 
-        # blend_ops = self.composited_updates[node]
-        # for old_op, new_op in blend_ops:
-        #     if old_op == effect:
-        #         return new_op
-
-        # return effect
-
-        # for (node, old_op, new_op) in self.composited_updates:
-        #     if node == effect.node and old_op == effect:
-        #         return new_op
-
-        # if node not in self.composited_updates:
-        #     return effect
-
-        return self.composited_updates[node][0][1]
+        return self.composited_updates[node]
 
     def clear_data(self):
         self.active_tab_scroll = 0

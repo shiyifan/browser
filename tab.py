@@ -212,7 +212,7 @@ class Tab:
                 value = animation.animate()
                 if value:
                     node.style[property_name] = value
-                    self.composited_updates.append((node, node.blend_op))
+                    self.composited_updates.append(node)
                     self.set_needs_paint()  # 不仅让"render"重新收集绘制命令，而且让browser安排下一次的animation frame
 
         # 在browser "raster and draw"期间，是否需要从tab display list中提取PaintCommand并创建"CompositedLayer"
@@ -227,23 +227,19 @@ class Tab:
             # browser不需要再次"composite", 可重用PaintCommand的绘制结果，仅重新绘制visual effect即可
 
             composited_updates = {}
-            for node, old_blend_op in self.composited_updates:
-                if node not in composited_updates:
-
-                    # TODO: "composited_updates"的结构无法适用于下面这样的display list:
-                    #
-                    # Blend: (opacity)
-                    #   Blend: (overflow: clip)
-                    #      DrawRRect
-                    #   Draw**
-                    #   Draw**
-                    #
-                    # 如果Blend的children中包含Blend和其他Draw command（例如"opacity"与"overflow: clip"同时应用在node上）,
-                    # 这时在"browser.get_latest"中无法仅根据"node"区分是哪个Blend需要替换为新的Blend(当get_latest()中
-                    # "effect" == DrawRRect)
-                    composited_updates[node] = [(old_blend_op, node.blend_op)] 
-                else:
-                    composited_updates[node].append((old_blend_op, node.blend_op))
+            for node in self.composited_updates:
+                # "composited_updates"的结构无法适用于下面这样的display list:
+                #
+                # Blend: (opacity)
+                #   Blend: (overflow: clip)
+                #      DrawRRect
+                #   Draw**
+                #   Draw**
+                #
+                # 在"get_latest()"中获取"DrawRRect"命令的最新的parent时，如果Blend(overflow)的"node"也是当前的DOM node,
+                # 那么DrawRRect的parent将会被错误地替换为animation的Blend. 
+                # 因此创建Blend(overflow)对象时，"node"参数设置为"None"
+                composited_updates[node] = node.blend_op
         self.composited_updates = []
 
         commit_data = CommitData(
@@ -437,16 +433,17 @@ def style(node, rules, tab):
 
     if old_style:
         # 查找在css中"transition"声明的属性中，哪些属性的值发生了更新,
-        # 并在DOM node上根据更新的属性值创建animation对象，接着触发下一次的animation frame
+        # 并在DOM node上根据更新的属性值创建animation对象，接着触发后续的animation frame
 
         transitions = diff_styles(old_style, node.style)
         for property, (old_value, new_value, num_frames) in transitions.items():
             if property == "opacity":
                 animation = NumericAnimation(float(old_value), float(new_value), num_frames)
                 node.animations[property] = animation
-                node.style[property] = animation.animate()
+                node.style[property] = animation.animate()  # animation的第一帧
 
-                tab.browser.set_needs_animation_frame(tab)  # 请求一次browser的animation frame
+                # 请求一次browser的animation frame, 以继续渲染animation后面的frame
+                tab.browser.set_needs_animation_frame(tab)
 
 
 def paint_tree(layout_object, display_list):
