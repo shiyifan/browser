@@ -439,7 +439,10 @@ def paint_visual_effects(node, cmds, rect):
         if not blend_mode:
             blend_mode = "source-over"
         border_radius = float(node.style.get("border-radius", "0px")[:-2])
-        cmds.append(Blend(1, "destination-in", node, [DrawRRect(rect, border_radius, "white")]))
+
+        # 这里实例化Blend时，"node"的参数设置为"None",详情参见"Tab.run_animation_frame()"函数中"composited_updates"
+        # 变量的相关注释
+        cmds.append(Blend(1, "destination-in", None, [DrawRRect(rect, border_radius, "white")]))
 
     # 注意: 这里先应用blend再应用opacity, 即确保正确的"canvas.saveLayer()"的调用顺序
     #
