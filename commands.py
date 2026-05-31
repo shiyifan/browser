@@ -225,6 +225,36 @@ class Blend(VisualEffect):
         return f"{self.__class__.__name__}({args})"
 
 
+# "transfrom"效果的绘制命令
+class Transform(VisualEffect):
+    def __init__(self, translation, rect, node, children):
+        super().__init__(rect, children, node)
+        self.self_rect = rect
+        self.translation = translation
+
+    def execute(self, canvas):
+        if self.translation:
+            x, y = self.translation
+            canvas.save()
+            canvas.translate(x, y)
+
+        for cmd in self.children:
+            cmd.execute(canvas)
+
+        if self.translation:
+            canvas.restore()
+
+    def clone(self, child):
+        return Transform(self.translation, self.self_rect, self.node, [child])
+
+    def __repr__(self):
+        if self.translation:
+            x, y = self.translation
+            return f"Transform(translate({x}, {y}))"
+        else:
+            return "Transform(<no-op>)"
+
+
 class DrawCompositedLayer(PaintCommand):
     def __init__(self, composited_layer):
         super().__init__(composited_layer.composited_bounds())

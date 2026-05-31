@@ -1,3 +1,4 @@
+from skia import *
 from html_parser import HTMLParser
 import const
 import urllib.parse
@@ -5,7 +6,7 @@ from layout import DocumentLayout
 from tags import Element, Text
 from css_parser import CSSParser
 from jscontext import JSContext
-from utils import tree_to_list, log, print_tree
+from utils import tree_to_list, log, print_tree, parse_transform
 from url import URL
 from task import Task, TaskRunner
 from commit import CommitData
@@ -237,7 +238,7 @@ class Tab:
                 #   Draw**
                 #
                 # 在"get_latest()"中获取"DrawRRect"命令的最新的parent时，如果Blend(overflow)的"node"也是当前的DOM node,
-                # 那么DrawRRect的parent将会被错误地替换为animation的Blend. 
+                # 那么DrawRRect的parent将会被错误地替换为animation的Blend.
                 # 因此创建Blend(overflow)对象时，"node"参数设置为"None"
                 composited_updates[node] = node.blend_op
         self.composited_updates = []
@@ -299,10 +300,11 @@ class Tab:
         # 可能会找到多个被点击的layout object,这些object位于tree中的不同层级
         # 在实际情况下，也可能出现相同层级的HTML元素被同时点击（例如"margin"为负值时），此时browser还需要
         # 根据"stacking context"机制判断最上层的被点击元素
+        loc_rect = Rect.MakeXYWH(x, y, 1, 1)
         objs = [
             obj
             for obj in tree_to_list(self.document, [])
-            if obj.x <= x < obj.x + obj.width and obj.y <= y < obj.y + obj.height
+            if absolute_bounds_for_obj(obj).intersects(loc_rect)
         ]
         if not objs:
             if focus_lost:
@@ -501,3 +503,27 @@ def parse_transition(value):
         properties[property] = frames
 
     return properties
+
+
+# 将矩形区域按照既定的"translation"返回转换后的矩形区域
+def map_translation(rect, translation):
+    if not translation:
+        return rect
+    else:
+        x, y = translation
+        matrix = Matrix()
+        matrix.setTranslation(x, y)
+        return matrix.mapRect(rect)
+
+
+# 计算layout object的absolute绘制区域
+def absolute_bounds_for_obj(obj):
+    rect = Rect.MakeXYWH(obj.x, obj.y, obj.width, obj.height)
+
+    # 顺着DOM Tree向上依次应用所有parent node上的"transform"
+    cur = obj.node
+    while cur:
+        rect = map_translation(rect, parse_transform(cur.style.get("transform", "")))
+        cur = cur.parent
+
+    return rect

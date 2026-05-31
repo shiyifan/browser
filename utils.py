@@ -22,7 +22,7 @@ def parse_color(color):
         g = int(color[3:5], 16)
         b = int(color[5:7], 16)
         return Color(r, g, b)
-    
+
     elif color.startswith("#") and len(color) == 9:
         # 带有alpha通道的Hex颜色值
 
@@ -63,6 +63,7 @@ class Log:
 
 log = Log()
 
+
 # 输出DOM Tree结构
 def print_tree(node, indent=0):
     print(" " * indent, node)
@@ -71,3 +72,13 @@ def print_tree(node, indent=0):
         return
     for child in node.children:
         print_tree(child, indent + 2)
+
+
+def parse_transform(transform_str):
+    if transform_str.find("translate(") < 0:
+        return None
+    left_paren = transform_str.find("(")
+    right_paren = transform_str.find(")")
+    x_px, y_px = transform_str[left_paren + 1 : right_paren].split(",")
+
+    return (float(x_px[:-2]), float(y_px[:-2]))

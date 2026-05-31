@@ -297,6 +297,11 @@ class Browser:
                 if layer.can_merge(cmd):
                     layer.add(cmd)
                     break
+                elif Rect.Intersects(layer.composited_bounds(), cmd.rect):
+                    layer = CompositedLayer(self.skia_context, cmd)
+                    self.composited_layers.append(layer)
+                    break
+
             else:
                 # 如果command与当前的每一个layer都不属于同一个parent,
                 # 那么新建一个layer
