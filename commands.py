@@ -26,6 +26,17 @@ class VisualEffect:
         self.children = children  # 所有需要应用当前effect的结点(当前结点与子结点)的绘制命令
         self.node = node  # 拥有当前effect的DOM node
 
+        # 该effect是否添加至"browser.draw_list"中（即绘制结果是否可被缓存）
+        # True: paint draw list时将作为draw list中的Blend命令, 绘制结果不会被缓存
+        # False: paint draw list时与其他的command一起构成一个DrawCompositedLayer作为draw list中的命令，绘制结果将被
+        #        DrawCompositedLayer缓存
+        self.needs_compositing = False
+
+        # 由于display list是一个树形结构, 如果children中任意一个command添加至draw_list中，那么该结点也需要添加至draw_list中.
+        self.needs_compositing = any(
+            [child.needs_compositing for child in self.children if isinstance(child, VisualEffect)]
+        )
+
         # effect本身的应用区域合并所有子命令的区域,最终该区域为effect实际影响区域
         for child in self.children:
             self.rect.join(child.rect)
@@ -184,6 +195,9 @@ class Blend(VisualEffect):
         self.blend_mode = blend_mode
         # 是否需要新建子surface来应用opacity或者blend
         self.should_save = bool(self.blend_mode or self.opacity < 1)
+
+        if self.should_save:
+            self.needs_compositing = True
 
     def execute(self, canvas):
         if self.should_save:

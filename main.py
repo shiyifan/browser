@@ -197,11 +197,112 @@ class Browser:
         all_commands = []
         for cmd in self.active_tab_display_list:
             all_commands = tree_to_list(cmd, all_commands)
-        paint_commands = [cmd for cmd in all_commands if isinstance(cmd, PaintCommand)]
 
-        for cmd in paint_commands:
-            layer = CompositedLayer(self.skia_context, cmd)
-            self.composited_layers.append(layer)
+        # Blend
+        #  |
+        #  +->Blend (opacity)              +-> layer
+        #  |   |                           |     |
+        #  |   +-->DrawRRect  ---+---------+     +-->DrawRRect
+        #  |   |                 |               |
+        #  |   +-->DrawText   ---+               +-->DrawText
+        #  |
+        #  |
+        #  +->Blend (no-op)  -----+----------> layer
+        #  |   |                  |              |
+        #  |   +-->DrawRRect      |              +->Blend (no-op)
+        #  |   |                  |              |   |
+        #  |   +-->DrawText       |              |   +-->DrawRRect
+        #  |                      |              |   |
+        #  +->Blend (no-op)  -----+              |   +-->DrawText
+        #      |                                 |
+        #      +-->DrawRRect                     +->Blend (no-op)
+        #      |                                     |
+        #      +-->DrawText                          +-->DrawRRect
+        #                                            |
+        #                                            +-->DrawText
+
+        # cacheable(可缓存的)绘制command, 例如display list中的PaintCommand,
+        # 没有任何effect的"Blend" command(no-op "Blend" command), 如下所示：
+        #
+        #   Blend (NOT cacheable!)          [0]
+        #    |
+        #    +->Blend (opacity: 0.5) (NOT cacheable!)   [1]
+        #    |   |
+        #    |   +-->DrawRRect  (cacheable) [2]
+        #    |   |
+        #    |   +-->DrawText   (cacheable)
+        #    |
+        #    |
+        #    +->Blend (no-op) (cacheable)   [3]
+        #    |   |
+        #    |   +-->DrawRRect  (cached by parent!)     [4]
+        #    |   |
+        #    |   +-->DrawText   (cached by parent!)
+        #    |
+        #    |
+        #    +->Blend (no-op) (cacheable)
+        #        |
+        #        +-->DrawRRect  (cached by parent!)
+        #        |
+        #        +-->DrawText   (cached by parent!)
+        #
+        # 对于Blend, 如果没有任何effect而且children中也没有effect,那么Blend及其children的绘制将被缓存，且children不再单独缓存.
+        # 只要有effect或者children中任意一个有effect, 那么Blend将不会被缓存.
+        # 例如:
+        # [2]和[4]: [1]由于opacity将不被缓存, 但[2]可以被缓存，所以[2]将单独创建一个"CompositedLayer"。
+        #          但是[3]由于没有effect, 且children也没有effect,因此[3]可以被缓存, [4]作为[3]的children之一，因此无需再单独创建"CompositedLayer",
+        #          否则将产生重复绘制
+        # [0]: 由于[1]将不被缓存，那么[0]也不会被缓存
+        #
+        # display list的树形结构中，如果某个结点不被缓存，那么该结点的直接子结点(无effect)可被缓存并单独创建"CompositedLayer", 间接子结点(无effect)
+        # 不必再被缓存(在下面的循环中由"cmd.parent.needs_compositing"条件控制).
+        # 树形结构中，缓存的结点与非缓存的结点是整个树的子树
+        non_composited_commands = [
+            cmd
+            for cmd in all_commands
+            if isinstance(cmd, PaintCommand) or not cmd.needs_compositing
+            if not cmd.parent or cmd.parent.needs_compositing
+        ]
+
+        # 根据cacheable commands创建layer. 具有相同parent的layer可合并为同一个layer
+        # 对于上面注释中的display结构，将创建下面的layer:
+        #
+        # [display list]                                                       [draw list]
+        #
+        #     Blend                                                              Blend
+        #      |                                                                  |
+        #      +->Blend (opacity)        +--> layer                               +->Blend (opacity)
+        #      |   |                     |      |                                 |   |
+        #      |   +-->DrawRRect  ---+---+      +-->DrawRRect                     |   +--> layer
+        #      |   |                 |          |                                 |          |
+        #      |   +-->DrawText   ---+          +-->DrawText                      |          +-->DrawRRect
+        #      |                                                                  |          |
+        #      |                                                                  |          +-->DrawText
+        #      +->Blend (no-op)  -----+------> layer                ------->      +-> layer
+        #      |   |                  |          |                                      |
+        #      |   +-->DrawRRect      |          +->Blend (no-op)                       +->Blend (no-op)
+        #      |   |                  |          |   |                                  |   |
+        #      |   +-->DrawText       |          |   +-->DrawRRect                      |   +-->DrawRRect
+        #      |                      |          |   |                                  |   |
+        #      +->Blend (no-op)  -----+          |   +-->DrawText                       |   +-->DrawText
+        #          |                             |                                      |
+        #          +-->DrawRRect                 +->Blend (no-op)                       +->Blend (no-op)
+        #          |                                 |                                      |
+        #          +-->DrawText                      +-->DrawRRect                          +-->DrawRRect
+        #                                            |                                      |
+        #                                            +-->DrawText                           +-->DrawText
+        #
+        for cmd in non_composited_commands:
+            for layer in reversed(self.composited_layers):
+                if layer.can_merge(cmd):
+                    layer.add(cmd)
+                    break
+            else:
+                # 如果command与当前的每一个layer都不属于同一个parent,
+                # 那么新建一个layer
+
+                layer = CompositedLayer(self.skia_context, cmd)
+                self.composited_layers.append(layer)
 
     # 用DrawCompositedLayer代替PaintCommand,
     # 并根据所有的"CompositedLayer"创建允许缓存绘制结果的display list("draw_list")

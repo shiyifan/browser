@@ -11,8 +11,12 @@ div {
   font-size: 45px;
   background-color: #ffa500;
   border-radius: 40px;
-  opacity: 1;
+  opacity: 0.5;
   transition: opacity 5s;
+}
+
+button {
+  background-color: #444444;
 }
 
 p {

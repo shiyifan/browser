@@ -1,4 +1,6 @@
 from skia import *
+import const
+from commands import DrawOutline
 
 
 # 用于单一PaintCommand绘制时单独的Surface
@@ -28,6 +30,13 @@ class CompositedLayer:
 
         canvas.clear(ColorTRANSPARENT)
         canvas.save()
+
+        if const.SHOW_COMPOSITED_LAYER_BORDERS:
+            # 如果启用，则绘制layer的边界以便于调试
+
+            border_rect = Rect.MakeXYWH(1, 1, irect.width() - 2, irect.height() - 2)
+            DrawOutline(border_rect, "red", 1).execute(canvas)
+
         canvas.translate(-bounds.left(), -bounds.top())
         for item in self.display_items:
             item.execute(canvas)
@@ -40,3 +49,9 @@ class CompositedLayer:
             rect.join(item.rect)
         rect.outset(1, 1)  # for some tricky cornor cases
         return rect
+
+    def add(self, display_item):
+        self.display_items.append(display_item)
+
+    def can_merge(self, display_item):
+        return display_item.parent == self.display_items[0].parent
