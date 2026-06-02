@@ -249,6 +249,9 @@ class Blend(VisualEffect):
             return bounds
         else:
             return rect
+    
+    def unmap(self, rect):
+        return rect
 
     # 创建当前Blend对象的副本，但采用不同的子结点
     def clone(self, child):
@@ -302,6 +305,9 @@ class Transform(VisualEffect):
 
     def map(self, rect):
         return map_translation(rect, self.translation)
+    
+    def unmap(self, rect):
+        return map_translation(rect, self.translation, True)
 
     def clone(self, child):
         return Transform(self.translation, self.self_rect, self.node, [child])

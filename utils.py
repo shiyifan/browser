@@ -88,18 +88,32 @@ def parse_transform(transform_str):
 # 按command在display list树状结构中的位置，依次向上遍历各parent的css"translation"效果,
 # 计算出command的实际绘制矩形区域
 def local_to_absolute(display_item, rect):
+    # TODO: 如果'map'之后的矩形超出窗口的可视区域，还需要减掉rect中超出范围的区域
     while display_item.parent:
         rect = display_item.parent.map(rect)
         display_item = display_item.parent
     return rect
 
 
+def absolute_to_local(display_item, rect):
+    parent_chain = []
+    while display_item.parent:
+        parent_chain.append(display_item.parent)
+        display_item = display_item.parent
+    for parent in reversed(parent_chain):
+        rect = parent.unmap(rect)
+    return rect
+
+
 # 将矩形区域按照既定的"translation"返回转换后的矩形区域
-def map_translation(rect, translation):
+def map_translation(rect, translation, reversed=False):
     if not translation:
         return rect
     else:
         x, y = translation
         matrix = Matrix()
-        matrix.setTranslate(x, y)
+        if reversed:
+            matrix.setTranslate(-x, -y)
+        else:
+            matrix.setTranslate(x, y)
         return matrix.mapRect(rect)

@@ -1,7 +1,7 @@
 from skia import *
 import const
 from commands import DrawOutline
-from utils import local_to_absolute
+from utils import local_to_absolute, absolute_to_local
 
 
 # 用于单一PaintCommand绘制时单独的Surface
@@ -47,7 +47,9 @@ class CompositedLayer:
     def composited_bounds(self):
         rect = Rect.MakeEmpty()
         for item in self.display_items:
-            rect.join(item.rect)
+            absolute = local_to_absolute(item, item.rect)
+            local = absolute_to_local(item, absolute)
+            rect.join(local)
         rect.outset(1, 1)  # for some tricky corner cases
         return rect
 
