@@ -6,7 +6,7 @@ from layout import DocumentLayout
 from tags import Element, Text
 from css_parser import CSSParser
 from jscontext import JSContext
-from utils import tree_to_list, log, print_tree, parse_transform
+from utils import tree_to_list, log, print_tree, parse_transform, map_translation
 from url import URL
 from task import Task, TaskRunner
 from commit import CommitData
@@ -339,6 +339,9 @@ class Tab:
                         return self.submit_form(elt)
                     elt = elt.parent
                 break  # 如果是一个独立的"<button>",不在任何"<form>"中，则仅触发"click"事件
+            elif elt.tag == "div":
+                if self.js.dispatch_event("click", elt):
+                    return
             elt = elt.parent
         self.set_needs_render()
 
@@ -505,18 +508,7 @@ def parse_transition(value):
     return properties
 
 
-# 将矩形区域按照既定的"translation"返回转换后的矩形区域
-def map_translation(rect, translation):
-    if not translation:
-        return rect
-    else:
-        x, y = translation
-        matrix = Matrix()
-        matrix.setTranslation(x, y)
-        return matrix.mapRect(rect)
-
-
-# 计算layout object的absolute绘制区域
+# 计算layout object在应用css"transform"之后的绝对绘制区域
 def absolute_bounds_for_obj(obj):
     rect = Rect.MakeXYWH(obj.x, obj.y, obj.width, obj.height)
 

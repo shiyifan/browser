@@ -13,7 +13,7 @@ from watchdog import Watchdog
 import random
 import sys
 import OpenGL.GL
-from utils import tree_to_list
+from utils import tree_to_list, local_to_absolute
 from commands import PaintCommand, DrawCompositedLayer, Blend
 from layer import CompositedLayer
 
@@ -198,29 +198,6 @@ class Browser:
         for cmd in self.active_tab_display_list:
             all_commands = tree_to_list(cmd, all_commands)
 
-        # Blend
-        #  |
-        #  +->Blend (opacity)              +-> layer
-        #  |   |                           |     |
-        #  |   +-->DrawRRect  ---+---------+     +-->DrawRRect
-        #  |   |                 |               |
-        #  |   +-->DrawText   ---+               +-->DrawText
-        #  |
-        #  |
-        #  +->Blend (no-op)  -----+----------> layer
-        #  |   |                  |              |
-        #  |   +-->DrawRRect      |              +->Blend (no-op)
-        #  |   |                  |              |   |
-        #  |   +-->DrawText       |              |   +-->DrawRRect
-        #  |                      |              |   |
-        #  +->Blend (no-op)  -----+              |   +-->DrawText
-        #      |                                 |
-        #      +-->DrawRRect                     +->Blend (no-op)
-        #      |                                     |
-        #      +-->DrawText                          +-->DrawRRect
-        #                                            |
-        #                                            +-->DrawText
-
         # cacheable(可缓存的)绘制command, 例如display list中的PaintCommand,
         # 没有任何effect的"Blend" command(no-op "Blend" command), 如下所示：
         #
@@ -297,7 +274,7 @@ class Browser:
                 if layer.can_merge(cmd):
                     layer.add(cmd)
                     break
-                elif Rect.Intersects(layer.composited_bounds(), cmd.rect):
+                elif Rect.Intersects(layer.absolute_bounds(), local_to_absolute(cmd, cmd.rect)):
                     layer = CompositedLayer(self.skia_context, cmd)
                     self.composited_layers.append(layer)
                     break

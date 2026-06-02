@@ -1,6 +1,6 @@
 """Some Utils functions"""
 
-from skia import Color, ColorBLACK
+from skia import Color, ColorBLACK, Matrix
 from const import NAMED_COLORS
 
 
@@ -74,6 +74,7 @@ def print_tree(node, indent=0):
         print_tree(child, indent + 2)
 
 
+# 解析css"transform"语法，目前仅支持解析"translate()"
 def parse_transform(transform_str):
     if transform_str.find("translate(") < 0:
         return None
@@ -82,3 +83,23 @@ def parse_transform(transform_str):
     x_px, y_px = transform_str[left_paren + 1 : right_paren].split(",")
 
     return (float(x_px[:-2]), float(y_px[:-2]))
+
+
+# 按command在display list树状结构中的位置，依次向上遍历各parent的css"translation"效果,
+# 计算出command的实际绘制矩形区域
+def local_to_absolute(display_item, rect):
+    while display_item.parent:
+        rect = display_item.parent.map(rect)
+        display_item = display_item.parent
+    return rect
+
+
+# 将矩形区域按照既定的"translation"返回转换后的矩形区域
+def map_translation(rect, translation):
+    if not translation:
+        return rect
+    else:
+        x, y = translation
+        matrix = Matrix()
+        matrix.setTranslate(x, y)
+        return matrix.mapRect(rect)

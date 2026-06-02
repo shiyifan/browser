@@ -4,7 +4,7 @@
 """
 
 from skia import Path, Paint, Rect, RRect, BlendMode
-from utils import parse_color
+from utils import parse_color, map_translation
 from font import linespace
 
 
@@ -38,6 +38,34 @@ class VisualEffect:
         )
 
         # effect本身的应用区域合并所有子命令的区域,最终该区域为effect实际影响区域
+        #
+        # 对于'Transform'command而言，在实例化时先translate由layout object计算的初始矩形区域作为
+        # 自己的绘制区域，然后将其传入基类VisualEffect的构造函数。在VisualEffect构造函数中'self.rect'
+        # 表示当前command自身以及所有children整体的绘制区域。由于children仍位于初始矩形区域, 只有
+        # Transform位于translated的矩形，两个区域取并集(join)后便是'Transform'整体所在的区域.
+        # 在raster 'CompositedLayer'时，这个整体的区域可正确地反映Transform所占据的区域，如下所示：
+        #
+        #
+        #             calculated by layout object
+        #        +-  +-------------------------+
+        #        |   | Transform's children    | [no transform applied]
+        #        |   |  rect                   |
+        #        |   |                         |
+        #        |   |    +--------------------------+
+        #        |   |    |                    |     |
+        #        |   |    |                    |     |
+        #        |   +----|--------------------+     |
+        #        |        |                          |
+        #        |        |                          |
+        #        |        |         'Transform' rect | [translated applied]
+        #        +-       +--------------------------+
+        #
+        #            |                               |
+        #            +-------------------------------+
+        #             the whole composited layer area
+        #
+        #
+        #
         for child in self.children:
             self.rect.join(child.rect)
 
@@ -210,6 +238,18 @@ class Blend(VisualEffect):
         if self.should_save:
             canvas.restore()
 
+    def map(self, rect):
+        if (
+            self.children
+            and isinstance(self.children[-1], Blend)
+            and self.children[-1].blend_mode == "destination-in"
+        ):
+            bounds = rect.makeOffset(0.0, 0.0)
+            bounds.intersect(self.children[-1].rect)
+            return bounds
+        else:
+            return rect
+
     # 创建当前Blend对象的副本，但采用不同的子结点
     def clone(self, child):
         return Blend(self.opacity, self.blend_mode, self.node, [child])
@@ -228,8 +268,22 @@ class Blend(VisualEffect):
 # "transfrom"效果的绘制命令
 class Transform(VisualEffect):
     def __init__(self, translation, rect, node, children):
-        super().__init__(rect, children, node)
-        self.self_rect = rect
+        # 将由layout object计算的矩形区域转换为"translate"之后的矩形区域。
+        # 如果这里直接采用layout object计算的矩形，那么在raster过程中'CompositedLayer'计算
+        # surface的大小时（通过'CompositedLayer.composited_bound()'）, 'Transform.rect'无法正确
+        # 反应translate之后的绘制区域，导致translated的内容在surface上仅能绘制出一部分.
+        #
+        # 注意：当某个html元素没有'opacity'以及'blend'效果时，会出现这种部分绘制的错误, 否则不会出现。因为
+        # 有opacity以及'blend'的效果的元素在'composite'时，'CompositedLayer'中保存的是'Draw***'命令，
+        # 'Draw***'的所有parent command均由'browser.draw()'调用绘制，而不是'CompositedLayer'绘制，
+        # 所以不会出现这个问题。
+        # 而没有上述效果的元素在'CompositedLayer'中保存的可能是'Transform'. 'Transform'以及children
+        # 是由'CompositedLayer'绘制的，所以会出现这个问题。
+        # 'CompositedLayer'内部的surface的大小尽可能要包含所有在屏幕上可显示的children
+        trans_rect = map_translation(rect, translation)
+
+        super().__init__(trans_rect, children, node)
+        self.self_rect = trans_rect
         self.translation = translation
 
     def execute(self, canvas):
@@ -243,6 +297,9 @@ class Transform(VisualEffect):
 
         if self.translation:
             canvas.restore()
+
+    def map(self, rect):
+        return map_translation(rect, self.translation)
 
     def clone(self, child):
         return Transform(self.translation, self.self_rect, self.node, [child])
