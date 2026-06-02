@@ -274,11 +274,13 @@ class Transform(VisualEffect):
         # 反应translate之后的绘制区域，导致translated的内容在surface上仅能绘制出一部分.
         #
         # 注意：当某个html元素没有'opacity'以及'blend'效果时，会出现这种部分绘制的错误, 否则不会出现。因为
-        # 有opacity以及'blend'的效果的元素在'composite'时，'CompositedLayer'中保存的是'Draw***'命令，
-        # 'Draw***'的所有parent command均由'browser.draw()'调用绘制，而不是'CompositedLayer'绘制，
-        # 所以不会出现这个问题。
-        # 而没有上述效果的元素在'CompositedLayer'中保存的可能是'Transform'. 'Transform'以及children
-        # 是由'CompositedLayer'绘制的，所以会出现这个问题。
+        # 有opacity以及'blend'效果的元素在'composite'时，'CompositedLayer'中缓存的是'Draw***'命令，
+        # 'Draw***'的所有parent command均由'browser.draw()'调用绘制，且每次重绘时（非composite-raster重绘）将按照parent command
+        # 中的'Transform'在root canvas中translate元素。所以不会出现这个问题。
+        # 而没有上述效果的元素在'CompositedLayer'中缓存的可能是整个'Transform'. 重绘时（非composite-raster重绘）将整个
+        # Transform的结果复制到root canvas上，且复制时没有translate操作（因为复制操作由'DrawCompositedLayer'完成）,
+        # 所以会出现这个问题。
+        #
         # 'CompositedLayer'内部的surface的大小尽可能要包含所有在屏幕上可显示的children
         trans_rect = map_translation(rect, translation)
 
