@@ -85,10 +85,11 @@ def parse_transform(transform_str):
     return (float(x_px[:-2]), float(y_px[:-2]))
 
 
-# 按command在display list树状结构中的位置，依次向上遍历各parent的css"translation"效果,
-# 计算出command的实际绘制矩形区域
+# 按'display_item'在display list树状结构中的位置，依次向上遍历各parent的css"translation"效果,
+# 计算出'rect'相对于"窗口可视区域"的实际绘制矩形区域.
+# 如果计算之后的实际绘制矩形超出窗口的可视区域，还需要去掉超出范围的区域,仅保留两个区域的交集
 def local_to_absolute(display_item, rect):
-    # TODO: 如果'map'之后的矩形超出窗口的可视区域，还需要减掉rect中超出范围的区域
+    # 计算窗口的可视区域
     vp_width = const.WIDTH - 2 * const.HSTEP
     vp_height = const.HEIGHT - 2 * const.VSTEP
     vp_rect = Rect.MakeXYWH(const.HSTEP, const.VSTEP, vp_width, vp_height)
@@ -96,9 +97,8 @@ def local_to_absolute(display_item, rect):
     while display_item.parent:
         rect = display_item.parent.map(rect)
         display_item = display_item.parent
-    
-    intersect = vp_rect.intersect(rect)
-    return intersect
+
+    return reasonable_intersect(vp_rect, rect)
 
 
 def absolute_to_local(display_item, rect):
@@ -123,3 +123,21 @@ def map_translation(rect, translation, reversed=False):
         else:
             matrix.setTranslate(x, y)
         return matrix.mapRect(rect)
+
+
+def reasonable_intersect(r0, r1):
+    """计算两个矩形的交集矩形区域，当且仅当两个矩形完全不相交时才返回'None',
+    对于只有'边相邻'的情况将返回宽度或者高度为0的矩形"""
+
+    # 计算两个矩形中，最大的左上角坐标与最小的右下角坐标
+    left = max(r0.left(), r1.left())
+    top = max(r0.top(), r1.top())
+    right = min(r0.right(), r1.right())
+    bottom = min(r0.bottom(), r1.bottom())
+
+    if left > right or top > bottom:
+        # 两个矩形区域完全不相交，边也不相邻
+
+        return None
+
+    return Rect.MakeLTRB(left, top, right, bottom)
