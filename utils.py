@@ -1,7 +1,7 @@
 """Some Utils functions"""
 
-from skia import Color, ColorBLACK, Matrix
-from const import NAMED_COLORS
+from skia import Color, ColorBLACK, Matrix, Rect
+import const
 
 
 # 树状结构转为扁平的list结构
@@ -32,8 +32,8 @@ def parse_color(color):
         a = int(color[7:9], 16)
         return Color(r, g, b, a)
 
-    elif color in NAMED_COLORS:
-        return parse_color(NAMED_COLORS[color])
+    elif color in const.NAMED_COLORS:
+        return parse_color(const.NAMED_COLORS[color])
 
     else:
         return ColorBLACK
@@ -89,10 +89,16 @@ def parse_transform(transform_str):
 # 计算出command的实际绘制矩形区域
 def local_to_absolute(display_item, rect):
     # TODO: 如果'map'之后的矩形超出窗口的可视区域，还需要减掉rect中超出范围的区域
+    vp_width = const.WIDTH - 2 * const.HSTEP
+    vp_height = const.HEIGHT - 2 * const.VSTEP
+    vp_rect = Rect.MakeXYWH(const.HSTEP, const.VSTEP, vp_width, vp_height)
+
     while display_item.parent:
         rect = display_item.parent.map(rect)
         display_item = display_item.parent
-    return rect
+    
+    intersect = vp_rect.intersect(rect)
+    return intersect
 
 
 def absolute_to_local(display_item, rect):
