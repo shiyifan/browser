@@ -2,7 +2,7 @@ from font import *
 from tags import Text, Element
 from commands import DrawText, DrawRect, DrawRRect, DrawLine, Opacity, Blend, Transform
 import const
-from utils import parse_transform
+from utils import parse_transform, dpx
 
 # <input>的固定宽度
 INPUT_WIDTH_PX = 200
@@ -35,6 +35,8 @@ class BlockLayout:
 
     # 根据绘制方式创建layout tree
     def layout(self):
+        self.zoom = self.parent.zoom
+
         # 根据layout tree中的父结点以及previous计算当前结点的x坐标、y坐标以及宽度width.
         self.x = self.parent.x  # 子结点的绘制起始点的x坐标继承自父结点的x坐标
         self.width = self.parent.width
@@ -118,7 +120,7 @@ class BlockLayout:
             style = "italic"
 
         # 将字体大小的"px"单位转换为"pt"单位
-        size = int(float(node.style["font-size"][:-2]) * 0.75)
+        size = dpx(float(node.style["font-size"][:-2]) * 0.75, self.zoom)
 
         font = get_font(size, weight, style)
         w = font.measureText(word)
@@ -136,7 +138,7 @@ class BlockLayout:
 
     # 与"word()"方法相似，将<input>和<button>以与纯文本相似的方式添加至LineLayout中
     def input(self, node):
-        w = INPUT_WIDTH_PX
+        w = dpx(INPUT_WIDTH_PX, self.zoom)
         if self.cursor_x + w > self.width:
             self.new_line()
         line = self.children[-1]
@@ -148,7 +150,7 @@ class BlockLayout:
         style = node.style["font-style"]
         if style == "normal":
             style = "roman"
-        size = int(float(node.style["font-size"][:-2]) * 0.75)
+        size = dps(float(node.style["font-size"][:-2]) * 0.75, self.zoom)
         font = get_font(size, weight, style)
 
         self.cursor_x += w + font.measureText(" ")
@@ -236,10 +238,11 @@ class DocumentLayout:
     # 对整个HTML文档内容布局
     #
     # 布局时额外添加四周的空白边距
-    def layout(self):
-        self.width = const.WIDTH - 2 * const.HSTEP  # "HSTEP"作为左右的空白边距
-        self.x = const.HSTEP
-        self.y = const.VSTEP  # "VSTEP"作为上下的空白边距
+    def layout(self, zoom):
+        self.zoom = zoom
+        self.width = const.WIDTH - 2 * dpx(const.HSTEP, self.zoom)  # "HSTEP"作为左右的空白边距
+        self.x = dpx(const.HSTEP, self.zoom)
+        self.y = dpx(const.VSTEP, self.zoom)  # "VSTEP"作为上下的空白边距
 
         child = BlockLayout(self.node, self, None)
         self.children.append(child)
@@ -282,6 +285,8 @@ class LineLayout:
 
     # 计算baseline位置、确定行高
     def layout(self):
+        self.zoom = self.parent.zoom
+
         self.width = self.parent.width
         self.x = self.parent.x
 
@@ -341,11 +346,13 @@ class TextLayout:
         self.width = None
 
     def layout(self):
+        self.zoom = self.parent.zoom
+
         weight = self.node.style["font-weight"]
         style = self.node.style["font-style"]
         if style == "normal":
             style = "roman"
-        size = int(float(self.node.style["font-size"][:-2]) * 0.75)
+        size = dpx(float(self.node.style["font-size"][:-2]) * 0.75, self.zoom)
         self.font = get_font(size, weight, style)
 
         self.width = self.font.measureText(self.word)
@@ -379,11 +386,13 @@ class InputLayout:
         self.width = None
 
     def layout(self):
+        self.zoom = self.parent.zoom
+
         weight = self.node.style["font-weight"]
         style = self.node.style["font-style"]
         if style == "normal":
             style = "roman"
-        size = int(float(self.node.style["font-size"][:-2]) * 0.75)
+        size = dpx(float(self.node.style["font-size"][:-2]) * 0.75, self.zoom)
         self.font = get_font(size, weight, style)
 
         self.width = INPUT_WIDTH_PX

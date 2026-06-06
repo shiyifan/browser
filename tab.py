@@ -49,9 +49,12 @@ class Tab:
 
         self.browser = browser
 
+        # 重绘时("run_animation_frame")时，scroll值是被browser更新(上下滚动页面)还是被tab更新(重新layout后导致scroll更新)
         self.scroll_changed_in_tab = False
 
         self.composited_updates = []  # 保存执行animation frame的node
+
+        self.zoom = 1
 
     def set_needs_render(self):
         self.needs_style = True
@@ -66,6 +69,7 @@ class Tab:
         self.browser.set_needs_animation_frame(self)
 
     def load(self, url, payload=None):
+        self.zoom = 1
         self.history.append(url)
 
         headers, body = url.request(self.url, payload)
@@ -166,7 +170,7 @@ class Tab:
             self.browser.measure.time("layout")
 
             self.document = DocumentLayout(self.nodes)
-            self.document.layout()  # 构建layout tree
+            self.document.layout(self.zoom)  # 构建layout tree
 
             self.needs_paint = True
             self.needs_layout = False
@@ -392,6 +396,22 @@ class Tab:
         height = math.ceil(self.document.height + 2 * const.VSTEP)
         maxscroll = height - self.tab_height
         return max(0, min(scroll, maxscroll))
+
+    def zoom_by(self, increment):
+        if increment:
+            self.zoom *= 1.1
+            self.scroll *= 1.1
+        else:
+            self.zoom *= 1 / 1.1
+            self.scroll *= 1 / 1.1
+        self.scroll_changed_in_tab = True
+        self.set_needs_render()
+
+    def reset_zoom(self):
+        self.scroll /= self.zoom
+        self.zoom = 1
+        self.scroll_changed_in_tab = True
+        self.set_needs_render()
 
     def destroy(self):
         self.js.destroy()

@@ -138,6 +138,9 @@ def reasonable_intersect(r0, r1):
     if left > right or top > bottom:
         # 两个矩形区域完全不相交，边也不相邻
 
-        return None
+        return Rect.MakeEmpty()
 
     return Rect.MakeLTRB(left, top, right, bottom)
+
+def dpx(css_px, zoom):
+    return css_px * zoom

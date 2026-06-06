@@ -400,6 +400,12 @@ class Browser:
 
         self.lock.release()
 
+    def increment_zoom(self, increment):
+        self.active_tab.task_runner.schedule_task(Task(self.active_tab.zoom_by, increment))
+
+    def reset_zoom(self):
+        self.active_tab.task_runner.schedule_task(Task(self.active_tab.reset_zoom))
+
     def handle_down(self):
         self.lock.acquire(blocking=True)
 
@@ -670,6 +676,7 @@ def mainloop(browser):
     event = SDL_Event()
     dog = Watchdog(5)
 
+    ctrl_down = False
     # 使用SDL GUI框架需要用户自己轮询并捕获事件
     while True:
         if SDL_PollEvent(ctypes.byref(event)) != 0:
@@ -690,6 +697,16 @@ def mainloop(browser):
             elif event.type == SDL_KEYDOWN:
                 # 键盘事件
 
+                if ctrl_down:
+                    # ctrl的组合快捷键
+
+                    if event.key.keysym.sym == SDLK_EQUALS:
+                        browser.increment_zoom(True)
+                    elif event.key.keysym.sym == SDLK_MINUS:
+                        browser.increment_zoom(False)
+                    elif event.key.keysym.sym == SDLK_0:
+                        browser.reset_zoom()
+
                 if event.key.keysym.sym == SDLK_RETURN:
                     # 回车
                     browser.handle_enter()
@@ -702,6 +719,14 @@ def mainloop(browser):
                 elif event.key.keysym.sym == SDLK_UP:
                     # 按下向上按键
                     browser.handle_up()
+                elif event.key.keysym.sym == SDLK_RCTRL or event.key.keysym.sym == SDLK_LCTRL:
+                    # 按下ctrl键
+                    ctrl_down = True
+
+            elif event.type == SDL_KEYUP:
+                if event.key.keysym.sym == SDLK_RCTRL or event.key.keysym.sym == SDLK_LCTRL:
+                    # 松开ctrl键
+                    ctrl_down = False
 
             elif event.type == SDL_TEXTINPUT:
                 # 文字输入事件
