@@ -98,7 +98,63 @@ def local_to_absolute(display_item, rect):
         rect = display_item.parent.map(rect)
         display_item = display_item.parent
 
-    return reasonable_intersect(vp_rect, rect)
+    # 这里暂时不再返回交集区域，直接返回完整的surface绘制区域。
+    #
+    # 对于某些surface的绘制区域，左边界位于viewport的左侧, 或者上边界位于viewport的上侧.
+    # 那么在绘制交集区域时需要先按照x、y的偏移量绘制, 即"canvas.translate(-x, -y)",这样才能保证
+    # surface中正确的部分显示在viewport中,否则位于surface中原点附近的内容将被绘制在viewport的原点位置
+    #
+    #     surface 1
+    #    paint origin--->O----------------------------+-+-
+    #                    |                            | |
+    #                    |                            | |
+    #                    |                            |offset y
+    #                    |                            | |
+    #                    |             +-------------------------------+
+    #                    |             |     -------- |                |
+    #                    |             |  --------    |                |
+    #                    |             |   intersect  |                |
+    #                    |             | ----------   |                |
+    #                    | surface 1   |     -------  |                |
+    #                    +-------------|--------------+                |
+    #                    |             |                               |
+    #                    +-- offset x -|                               |
+    #                                  |                               |
+    #                                  |                               |
+    #                                  | viewport                      |
+    #                                  +-------------------------------+
+    #
+    #
+    # 如果页面发生了滚动，同样需要在y的偏移量的基础上加上滚动距离，如下图所示：
+    #
+    #     surface 1
+    #    paint origin--->O----------------------------+-+-
+    #                    |                            | |
+    #                    |                            |scroll
+    #                 ^  |                            | |
+    #                 |  |----------------------------|-+-
+    #                 |  |                            | |
+    #          scroll |  |                            | |
+    #                 |  |                            |offset y
+    #                 |  |                            | |
+    #                    |             +----------------------------+
+    #                    | surface 1   |  intersect   |             |
+    #                    +-------------|--------------+             |
+    #                    |             |                            |
+    #                    +-- offset x -|                            |
+    #                                  |                            |
+    #                                  |                            |
+    #                                  |                            |
+    #                                  | viewport                   |
+    #                                  +----------------------------+
+    #
+    #
+    # 所以，如果仅渲染交集的部分, 除了交集区域的矩形，还需要返回偏移量。而且，滚动的时候browser还需要重新"raster"而不是"draw",
+    # 因为surface需要重新根据scroll计算绘制原点的偏移量.
+    # 修改所需的工作量比较多，这里暂时返回完整的surface大小并全部绘制出来
+    #
+    # return reasonable_intersect(vp_rect, rect)
+    return rect
 
 
 def absolute_to_local(display_item, rect):
@@ -126,7 +182,7 @@ def map_translation(rect, translation, reversed=False):
 
 
 def reasonable_intersect(r0, r1):
-    """计算两个矩形的交集矩形区域，当且仅当两个矩形完全不相交时才返回'None',
+    """计算两个矩形的交集矩形区域，当且仅当两个矩形完全不相交时才返回'Rect(0, 0, 0, 0)',
     对于只有'边相邻'的情况将返回宽度或者高度为0的矩形"""
 
     # 计算两个矩形中，最大的左上角坐标与最小的右下角坐标
@@ -141,6 +197,7 @@ def reasonable_intersect(r0, r1):
         return Rect.MakeEmpty()
 
     return Rect.MakeLTRB(left, top, right, bottom)
+
 
 def dpx(css_px, zoom):
     return css_px * zoom
