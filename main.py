@@ -212,6 +212,9 @@ class Browser:
         for cmd in self.active_tab_display_list:
             all_commands = tree_to_list(cmd, all_commands)
 
+        # 扁平化后的"all_commands"的结构大体为:
+        # [<html transform>, <head transform>, ...(<head transform> children)..., <body transform>, ...(<body transform> children)...]
+
         # cacheable(可缓存的)绘制command, 例如display list中的PaintCommand,
         # 没有任何effect的"Blend" command(no-op "Blend" command), 如下所示：
         #
@@ -255,6 +258,15 @@ class Browser:
             if not cmd.parent or cmd.parent.needs_compositing
         ]
 
+        # "non_composited_commands"的结构大体为：
+        #
+        # [<transform no-op>, <draw text>, <draw rrect>, <transform no-op>, ...]
+        #  -----------------  -------------------------  -----------------
+        #        <div>                 <div>                   <div>
+        #      no effect           opacity: 0.5              no effect
+        #
+        #
+
         # 根据cacheable commands创建layer. 具有相同parent的layer可合并为同一个layer
         # 对于上面注释中的display结构，将创建下面的layer:
         #
@@ -289,11 +301,47 @@ class Browser:
                     layer.add(cmd)
                     break
                 elif Rect.Intersects(layer.absolute_bounds(), local_to_absolute(cmd, cmd.rect)):
+                    #
+                    # 在逆向遍历"composited_layers"的情况下，
+                    # 如果command与前面的某一layer的绘制区域有交集,那么根据这个command新建一个layer.
+                    # 避免该command与后面的循环中遇到的某个layer merge，而导致该command先于有交集的layer
+                    # 绘制，产生视觉上的错误.
+                    #
+                    # 假设:
+                    #
+                    #      display list
+                    #
+                    #    Blend
+                    #      |
+                    #      +->Blend1 (no-op)
+                    #      |   |
+                    #      |   +->DrawText                           composited layers
+                    #      |
+                    #      |                                        [layer1,   layer2, ]
+                    #      +->Blend2 (opacity: 0.5)    ----->          |         |
+                    #      |   |                                       v         v
+                    #      |   +->DrawRect                          [Blend1]  [DrawRect]
+                    #      |
+                    #      |
+                    #      +->Blend3 (no-op)
+                    #          |
+                    #          +->DrawText
+                    #
+                    # 此时循环执行至'Blend3', 且Blend3与DrawRect的绘制区域有交集.
+                    #
+                    # 在反向遍历"composited layers"的情况下，
+                    #   如果不考虑交集，那么Blend3将随后合并至Blend1所在的layer1中，绘制composited layers时，Blend3将先于DrawRect绘制，
+                    #   可能导致视觉上的错误(例如不透明色的叠加等)。
+                    #   如果考虑交集，那么Blend3遍历至layer2时判断有交集，那么Blend3将新建一个layer添加至composited layers中，绘制时
+                    #   Blend3将后于DrawRect绘制，确保了正确的绘制顺序
+                    #
                     layer = CompositedLayer(self.skia_context, cmd)
                     self.composited_layers.append(layer)
                     break
 
             else:
+                # (仅当"for"结束循环且没有执行"break"时, 才会执行"else"代码段)
+                #
                 # 如果command与当前的每一个layer都不属于同一个parent,
                 # 那么新建一个layer
 
