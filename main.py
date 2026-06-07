@@ -112,6 +112,8 @@ class Browser:
         # 保存由"tab.commit()"传递来的"已更新animation frame"的node结点
         self.composited_updates = {}
 
+        self.dark_mode = False
+
     def set_needs_composite(self):
         self.needs_composite = True
         self.needs_raster = True
@@ -133,6 +135,10 @@ class Browser:
         self.needs_animation_frame = True
         self.animation_timer = None
         self.clear_data()
+
+        # 设置主题颜色
+        task = Task(self.active_tab.set_dark_mode, self.dark_mode)
+        self.active_tab.task_runner.schedule_task(task)
 
     def clamp_scroll(self, scroll):
         height = self.active_tab_height + 2 * const.VSTEP  # 需要包含上下空白边距
@@ -163,10 +169,14 @@ class Browser:
         new_tab.task_runner.start_thread()
         self.set_active_tab(new_tab)
         self.tabs.append(new_tab)
-        self.schedule_load(url)
+        self.schedule_load(url, first_load=True)
 
-    def schedule_load(self, url, body=None):
-        self.active_tab.task_runner.clear_pending_tasks()
+    # 在active tab中安排一个加载新url的task
+    # first_load: 是否是在新建tab页时第一次的load
+    def schedule_load(self, url, body=None, first_load=False):
+        if not first_load:
+            # 新tab第一次load时不清空queue,避免意外删除了“set_dark_mode”的task
+            self.active_tab.task_runner.clear_pending_tasks()
         task = Task(self.active_tab.load, url, body)
         self.active_tab.task_runner.schedule_task(task)
 
@@ -179,8 +189,12 @@ class Browser:
     def raster_chrome(self):
         """在chrome canvas上清空并重新绘制chrome"""
 
+        if self.dark_mode:
+            background_color = ColorBLACK
+        else:
+            background_color = ColorWHITE
         canvas = self.chrome_surface.getCanvas()
-        canvas.clear(ColorWHITE)
+        canvas.clear(background_color)
 
         # 绘制browser chrome
         for cmd in self.chrome.paint():
@@ -327,7 +341,10 @@ class Browser:
 
     def draw(self):
         canvas = self.root_surface.getCanvas()
-        canvas.clear(ColorWHITE)
+        if self.dark_mode:
+            canvas.clear(ColorBLACK)
+        else:
+            canvas.clear(ColorWHITE)
 
         # 将tab_surface的内容绘制到"root surface"的canvas上
         tab_offset = self.chrome.bottom - self.active_tab_scroll
@@ -671,6 +688,12 @@ class Browser:
         self.composited_layers = []
         self.composited_updates = {}
 
+    def toggle_dark_mode(self):
+        self.dark_mode = not self.dark_mode
+
+        task = Task(self.active_tab.set_dark_mode, self.dark_mode)
+        self.active_tab.task_runner.schedule_task(task)
+
 
 def mainloop(browser):
     event = SDL_Event()
@@ -701,11 +724,17 @@ def mainloop(browser):
                     # ctrl的组合快捷键
 
                     if event.key.keysym.sym == SDLK_EQUALS:
+                        # "ctrl_="放大页面
                         browser.increment_zoom(True)
                     elif event.key.keysym.sym == SDLK_MINUS:
+                        # "ctrl_-"缩小页面
                         browser.increment_zoom(False)
                     elif event.key.keysym.sym == SDLK_0:
+                        # "ctrl_0"重置页面缩放
                         browser.reset_zoom()
+                    elif event.key.keysym.sym == SDLK_d:
+                        # "ctrl_d"深色/浅色主题切换
+                        browser.toggle_dark_mode()
 
                 if event.key.keysym.sym == SDLK_RETURN:
                     # 回车

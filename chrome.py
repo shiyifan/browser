@@ -88,22 +88,24 @@ class Chrome:
                     break
 
     def paint(self):
+        if self.browser.dark_mode:
+            color = "white"
+        else:
+            color = "black"
         cmds = []
 
-        # 绘制背景以凸显按钮、tab标签之类的内容
-        cmds.append(DrawRect(Rect(0, 0, const.WIDTH, self.bottom), "white"))
         # chrome的底部边缘可能与当前tab的底部边缘冲突
-        cmds.append(DrawLine(0, self.bottom, const.WIDTH, self.bottom, "black", 1))
+        cmds.append(DrawLine(0, self.bottom, const.WIDTH, self.bottom, color, 1))
 
         # 绘制"+"按钮与按钮边框
-        cmds.append(DrawOutline(self.newtab_rect, "black", 1))
+        cmds.append(DrawOutline(self.newtab_rect, color, 1))
         cmds.append(
             DrawText(
                 self.newtab_rect.left() + self.padding,
                 self.newtab_rect.top(),
                 "+",
                 self.font,
-                "black",
+                color,
             )
         )
 
@@ -112,15 +114,15 @@ class Chrome:
             bounds = self.tab_rect(i)  # 计算每个tab标签绘制的矩形区域
 
             # 不绘制完整的矩形轮廓，仅根据"tab_rect"计算得到的矩形区域绘制矩形的左侧垂直边以及tab标签文字
-            cmds.append(DrawLine(bounds.left(), 0, bounds.left(), bounds.bottom(), "black", 1))
-            cmds.append(DrawLine(bounds.right(), 0, bounds.right(), bounds.bottom(), "black", 1))
+            cmds.append(DrawLine(bounds.left(), 0, bounds.left(), bounds.bottom(), color, 1))
+            cmds.append(DrawLine(bounds.right(), 0, bounds.right(), bounds.bottom(), color, 1))
             cmds.append(
                 DrawText(
                     bounds.left() + self.padding,
                     bounds.top() + self.padding,
                     "TAB {}".format(i),
                     self.font,
-                    "black",
+                    color,
                 )
             )
 
@@ -140,19 +142,19 @@ class Chrome:
                 )
 
         # 绘制"<"按钮
-        cmds.append(DrawOutline(self.back_rect, "black", 1))
+        cmds.append(DrawOutline(self.back_rect, color, 1))
         cmds.append(
             DrawText(
                 self.back_rect.left() + self.padding,
                 self.back_rect.top(),
                 "<",
                 self.font,
-                "black",
+                color,
             )
         )
 
         # 绘制地址栏
-        cmds.append(DrawOutline(self.address_rect, "black", 1))
+        cmds.append(DrawOutline(self.address_rect, color, 1))
         url = str(self.browser.active_tab_url)
         if self.focus == "address bar":
             # 地址栏获取了焦点，绘制待输入的url
@@ -163,7 +165,7 @@ class Chrome:
                     self.address_rect.top(),
                     self.address_bar,
                     self.font,
-                    "black",
+                    color,
                 )
             )
             # 绘制光标
@@ -188,7 +190,7 @@ class Chrome:
                     self.address_rect.top(),
                     url,
                     self.font,
-                    "black",
+                    color,
                 )
             )
 

@@ -56,6 +56,8 @@ class Tab:
 
         self.zoom = 1
 
+        self.dark_mode = False
+
     def set_needs_render(self):
         self.needs_style = True
         self.browser.set_needs_animation_frame(self)
@@ -157,6 +159,12 @@ class Tab:
 
         if self.needs_style:
             self.browser.measure.time("style")
+
+            # 根据当前theme修改绘制HTML element的默认前景色color
+            if self.dark_mode:
+                const.INHERITED_PROPERTIES["color"] = "white"
+            else:
+                const.INHERITED_PROPERTIES["color"] = "black"
 
             # 将css rules全部赋值至DOM结点的"style"属性上
             style(self.nodes, sorted(self.rules if self.rules else [], key=cascade_priority), self)
@@ -411,6 +419,11 @@ class Tab:
         self.scroll /= self.zoom
         self.zoom = 1
         self.scroll_changed_in_tab = True
+        self.set_needs_render()
+
+    # 设置颜色主题
+    def set_dark_mode(self, val):
+        self.dark_mode = val
         self.set_needs_render()
 
     def destroy(self):
