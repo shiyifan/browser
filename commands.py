@@ -3,7 +3,7 @@
 将display list中各个绘制信息转换为绘制命令
 """
 
-from skia import Path, Paint, Rect, RRect, BlendMode
+from skia import *
 from utils import parse_color, map_translation
 from font import linespace
 
@@ -152,11 +152,12 @@ class DrawRRect(PaintCommand):
 class DrawOutline(PaintCommand):
     """绘制矩形区域，仅有边框，没有内部填充颜色"""
 
-    def __init__(self, rect, color, thickness):
+    def __init__(self, rect, color, thickness, dashed=False):
         super().__init__(rect)
 
         self.color = color
         self.thickness = thickness
+        self.dashed = dashed
 
     def execute(self, canvas):
         paint = Paint(
@@ -164,6 +165,10 @@ class DrawOutline(PaintCommand):
             StrokeWidth=self.thickness,
             Style=Paint.kStroke_Style,
         )
+
+        if self.dashed:
+            paint.setPathEffect(DashPathEffect.Make([6, 10], 0))
+
         canvas.drawRect(self.rect, paint)
 
 

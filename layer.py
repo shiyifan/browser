@@ -36,7 +36,7 @@ class CompositedLayer:
             # 如果启用，则绘制layer的边界以便于调试
 
             border_rect = Rect.MakeXYWH(1, 1, irect.width() - 2, irect.height() - 2)
-            DrawOutline(border_rect, "red", 1).execute(canvas)
+            DrawOutline(border_rect, "#ff4747", 1, dashed=True).execute(canvas)
 
         canvas.translate(-bounds.left(), -bounds.top())
         for item in self.display_items:
