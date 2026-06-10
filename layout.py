@@ -150,7 +150,7 @@ class BlockLayout:
         style = node.style["font-style"]
         if style == "normal":
             style = "roman"
-        size = dps(float(node.style["font-size"][:-2]) * 0.75, self.zoom)
+        size = dpx(float(node.style["font-size"][:-2]) * 0.75, self.zoom)
         font = get_font(size, weight, style)
 
         self.cursor_x += w + font.measureText(" ")
