@@ -742,6 +742,19 @@ class Browser:
         task = Task(self.active_tab.set_dark_mode, self.dark_mode)
         self.active_tab.task_runner.schedule_task(task)
 
+    def focus_addressbar(self):
+        self.lock.acquire(blocking=True)
+        self.chrome.focus_addressbar()
+        self.set_needs_raster()
+        self.lock.release()
+
+    def cycle_tabs(self):
+        self.lock.acquire(blocking=True)
+        active_idx = self.tabs.index(self.active_tab)
+        new_active_idx = (active_idx + 1) % len(self.tabs)
+        self.set_active_tab(self.tabs[new_active_idx])
+        self.lock.release()
+
 
 def mainloop(browser):
     event = SDL_Event()
@@ -783,6 +796,24 @@ def mainloop(browser):
                     elif event.key.keysym.sym == SDLK_d:
                         # "ctrl_d"深色/浅色主题切换
                         browser.toggle_dark_mode()
+                    elif event.key.keysym.sym == SDLK_LEFT:
+                        # "ctrl_<"返回上一个网页
+                        browser.go_back()
+                    elif event.key.keysym.sym == SDLK_l:
+                        # "ctrl_l"地址栏获取焦点
+                        browser.focus_addressbar()
+                    elif event.key.keysym.sym == SDLK_t:
+                        # "ctrl_t"新建tab页
+                        browser.new_tab(URL(const.HTTP_URL))
+                    elif event.key.keysym.sym == SDLK_TAB:
+                        # "ctrl_tab"切换tab页
+                        browser.cycle_tabs()
+                    elif event.key.keysym.sym == SDLK_q:
+                        # "ctrl_q"退出浏览器
+                        browser.handle_quit()
+                        dog.dismiss()
+                        SDL_Quit()
+                        sys.exit()
 
                 if event.key.keysym.sym == SDLK_RETURN:
                     # 回车
