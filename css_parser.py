@@ -9,10 +9,22 @@ class CSSParser:
         self.s = s  # css字符串
         self.i = 0  # css字符串中，当前正在解析的位置
 
-    # 跳过当前位置的连续空白字符
+    # 跳过当前位置的连续空白字符以及注释
     def whitespace(self):
-        while self.i < len(self.s) and self.s[self.i].isspace():
-            self.i += 1
+        while self.i < len(self.s):
+            if self.s[self.i].isspace():
+                self.i += 1
+
+            elif self.is_comment_start():
+                # 当前位置是注释开头"/*"，则忽略字符至注释结束"*/"
+
+                self.i += 2
+                while not self.is_comment_end():
+                    self.i += 1
+                self.i += 2
+
+            else:
+                break
 
     # 截取css属性名称、属性值（数字、百分比、颜色等），并返回截取后的值
     def word(self):
@@ -104,15 +116,38 @@ class CSSParser:
 
     def parse(self):
         rules = []
+        media = None
         while self.i < len(self.s):
             try:
-                self.whitespace()
-                selector = self.selector()
-                self.literal("{")
-                self.whitespace()
-                body = self.body()  # body中的异常已在函数内捕获并处理
-                self.literal("}")
-                rules.append((selector, body))
+                if self.s[self.i] == "@" and not media:
+                    # 开始解析"@media"语法
+
+                    prop, val = self.media_query()
+                    if prop == "prefers-color-scheme" and val in ["dark", "light"]:
+                        media = val
+                    self.whitespace()
+                    self.literal("{")
+                    self.whitespace()
+
+                elif self.s[self.i] == "}" and media:
+                    # 解析"@media"语法结束
+
+                    self.literal("}")
+                    media = None
+                    self.whitespace()
+
+                else:
+                    # 解析css的"property: value"格式的样式声明
+
+                    self.whitespace()
+                    selector = self.selector()
+                    self.literal("{")
+                    self.whitespace()
+                    body = self.body()  # body中的异常已在函数内捕获并处理
+                    self.literal("}")
+                    rules.append((media, selector, body))
+                    self.whitespace()
+
             except Exception as e:
                 # 解析selector时发生异常，忽略后续字符直到"}"
                 why = self.ignore_until(["}"])
@@ -129,3 +164,26 @@ class CSSParser:
         while self.i < len(self.s) and self.s[self.i] not in chars:
             self.i += 1
         return self.s[start : self.i]
+
+    def media_query(self):
+        self.literal("@")
+        assert self.word() == "media"
+        self.whitespace()
+        self.literal("(")
+        self.whitespace()
+        prop, val = self.pair([")"])
+        self.whitespace()
+        self.literal(")")
+        return prop, val
+
+    def is_comment_start(self):
+        if self.i + 1 >= len(self.s):
+            return False
+
+        return self.s[self.i] == "/" and self.s[self.i + 1] == "*"
+
+    def is_comment_end(self):
+        if self.i + 1 >= len(self.s):
+            return False
+
+        return self.s[self.i] == "*" and self.s[self.i + 1] == "/"

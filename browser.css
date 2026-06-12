@@ -34,3 +34,17 @@ button {
   font-style: normal;
   background-color: orange;
 }
+
+@media (prefers-color-scheme: dark) {
+  a {
+    color: #add8e6;
+  }
+
+  input {
+    background-color: #2222ff;
+  }
+
+  button {
+    background-color: #992500;
+  }
+}

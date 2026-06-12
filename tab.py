@@ -443,7 +443,11 @@ def style(node, rules, tab):
             node.style[property] = default_value
 
     # 解析css代码中与当前节点匹配的rule并应用至当前节点
-    for selector, body in rules:
+    for media, selector, body in rules:
+        if media:
+            if (media == "dark") != tab.dark_mode:
+                # 如果"@media(prefers-color-scheme)"声明的主题与当前不符，则忽略其中的style
+                continue
         if not selector.matches(node):
             continue
         for property, value in body.items():
@@ -503,7 +507,7 @@ def paint_tree(layout_object, display_list):
 
 
 def cascade_priority(rule):
-    selector, rule = rule
+    _, selector, rule = rule
     return selector.priority
 
 
