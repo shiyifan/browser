@@ -38,7 +38,7 @@ class Tab:
         self.nodes = None  # HTML解析后的DOM Tree
         self.rules = None  # css解析后的rules
 
-        self.focus = None  # 点击后，获取到焦点的'<input>'DOM对象
+        self.focus = None  # 获取到焦点的DOM对象. 或者是通过点击获取焦点，或者是通过tab获取焦点
 
         # 在tab页加载新的url前后，task queue不变
         self.task_runner = TaskRunner(self)
@@ -73,6 +73,8 @@ class Tab:
     def load(self, url, payload=None):
         self.zoom = 1
         self.history.append(url)
+
+        self.focus = None
 
         headers, body = url.request(self.url, payload)
         self.url = url
@@ -287,7 +289,10 @@ class Tab:
         self.scroll = min(self.scroll + const.SCROLL_STEP, max_y)
 
     def keypress(self, char):
-        if self.focus:
+        if self.focus and self.focus.tag == "input":
+            if not "value" in self.focus.attributes:
+                self.activate_element(self.focus)
+
             self.js.dispatch_event("keydown", self.focus)
             self.focus.attributes["value"] += char
             self.set_needs_render()
@@ -324,33 +329,17 @@ class Tab:
             return
         elt = objs[-1].node  # 获取最上层被点击的layout object对应的DOM node
 
-        # 根据最上层的object,依次向上查找第一个"<a>"
+        # 根据最上层的object,依次向上查找第一个clickable html element
         while elt:
             if isinstance(elt, Text):
                 pass
-            elif elt.tag == "a" and "href" in elt.attributes:
-                if self.js.dispatch_event("click", elt):
-                    return
-                # 找到最上层的"<a>"，加载"href"指向的链接
-                url = self.url.resolve(elt.attributes["href"])
-                return self.load(url)
-            elif elt.tag == "input":
+            elif is_focusable(elt):
                 if self.js.dispatch_event("click", elt):
                     return
                 self.focus = elt
-                elt.attributes["value"] = ""
                 elt.is_focused = True
-                return self.set_needs_render()
-            elif elt.tag == "button":
-                if self.js.dispatch_event("click", elt):
-                    return
-                # 被点击的是"<button>"，准备提交表单
-                while elt:
-                    # 寻找上层的"<form>"
-                    if elt.tag == "form" and "action" in elt.attributes:
-                        return self.submit_form(elt)
-                    elt = elt.parent
-                break  # 如果是一个独立的"<button>",不在任何"<form>"中，则仅触发"click"事件
+                self.activate_element(elt)
+                return
             elif elt.tag == "div":
                 if self.js.dispatch_event("click", elt):
                     return
@@ -426,8 +415,67 @@ class Tab:
         self.dark_mode = val
         self.set_needs_render()
 
+    # 在网页中通过"tab"按键浏览, 将焦点置于下一个focusable的元素
+    def advance_tab(self):
+        focusable_nodes = [
+            node
+            for node in tree_to_list(self.nodes, [])
+            if isinstance(node, Element) and is_focusable(node)
+        ]
+        focusable_nodes.sort(key=get_tabindex)  # 根据HTML的属性"tabindex"排序
+
+        if self.focus:
+            self.focus.is_focused = False
+
+        if self.focus in focusable_nodes:
+            idx = focusable_nodes.index(self.focus) + 1
+        else:
+            idx = 0
+
+        if idx < len(focusable_nodes):
+            self.focus = focusable_nodes[idx]
+            self.focus.is_focused = True
+        else:
+            # tab内的focusable元素均已遍历，此时将焦点移动至chrome中
+
+            self.focus = None
+            self.browser.focus_addressbar()
+
+        # 由于移动焦点可能影响某些DOM结点的绘制（例如相比起无焦点状态，有焦点时需要多绘制一个光标、边框等）,
+        # 所以不能使用之前缓存的"CompositedLayer"中的绘制结果，"browser"中需要重新"composite"
+        self.set_needs_render()
+
+    def enter(self):
+        if not self.focus:
+            return
+
+        if self.js.dispatch_event("click", self.focus):
+            return
+        self.activate_element(self.focus)
+
+    # 当html元素已获取了焦点，此时按下enter，执行不同的动作, 或者点击focusable元素时，执行不同的动作
+    def activate_element(self, elt):
+        if elt.tag == "input":
+            elt.attributes["value"] = ""
+            self.set_needs_render()
+        elif elt.tag == "a" and "href" in elt.attributes:
+            url = self.url.resolve(elt.attributes["href"])
+            self.load(url)
+        elif elt.tag == "button":
+            while elt:
+                if elt.tag == "form" and "action" in elt.attributes:
+                    self.submit_form(elt)
+                    break
+                elt = elt.parent
+
     def destroy(self):
         self.js.destroy()
+
+    def blur(self):
+        if self.focus:
+            self.focus.is_focused = False
+            self.focus = None
+            self.set_needs_render()
 
 
 # 根据DOM结点上"style"属性、css文件的代码创建CSS对象并赋值为"style"属性
@@ -556,3 +604,21 @@ def absolute_bounds_for_obj(obj):
         cur = cur.parent
 
     return rect
+
+
+# DOM结点是否是focusable
+def is_focusable(node):
+    if get_tabindex(node) < 0:
+        # "tabindex" < 0
+        return False
+    elif "tabindex" in node.attributes:
+        # 有"tabindex"HTML属性
+        return True
+    else:
+        return node.tag in ["input", "button", "a"]
+
+
+def get_tabindex(node):
+    # 如果没有tabindex属性，则默认为"999999",是其在排序后位于"tabindex"的DOM结点后面
+    tabindex = int(node.attributes.get("tabindex", "999999"))
+    return 999999 if tabindex == 0 else tabindex

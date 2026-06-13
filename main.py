@@ -64,8 +64,6 @@ class Browser:
             ImageInfo.MakeN32Premul(const.WIDTH, math.ceil(self.chrome.bottom)),
         )
 
-        self.tab_surface = None
-
         # 点击之后焦点位于chrome中还是tab页中
         # None表示位于chrome,"content"表示位于tab中
         self.focus = None
@@ -394,7 +392,7 @@ class Browser:
         else:
             canvas.clear(ColorWHITE)
 
-        # 将tab_surface的内容绘制到"root surface"的canvas上
+        # 将"draw_list"的内容绘制到"root surface"的canvas上
         tab_offset = self.chrome.bottom - self.active_tab_scroll
         canvas.save()
         canvas.translate(0, tab_offset)  # 绘制时tab页内容相对于chrome的偏移量
@@ -508,6 +506,10 @@ class Browser:
         if e.y < self.chrome.bottom:
             # 点击位置位于chrome中
 
+            if self.focus == "content":
+                # 如果焦点已位于tab中，则先取消tab中的焦点
+                self.active_tab.task_runner.schedule_task(Task(self.active_tab.blur))
+
             self.focus = None
             old_tab = self.active_tab
             self.chrome.click(e.x, e.y)
@@ -567,9 +569,24 @@ class Browser:
         self.lock.acquire(blocking=True)
 
         if self.chrome.enter():
+            # 如果焦点位于chrome中
             self.set_needs_raster()
+        elif self.focus == "content":
+            # 如果当前焦点位于网页中
+            task = Task(self.active_tab.enter)
+            self.active_tab.task_runner.schedule_task(task)
 
         self.lock.release()
+
+    # 按下tab时，将焦点设置在网页中，开始在网页中的focusable item中循环浏览
+    def handle_tab(self):
+        if not self.focus:
+            # 如果焦点已经位于chrome中，则先取消这个焦点
+            self.chrome.blur()
+
+        self.focus = "content"
+        task = Task(self.active_tab.advance_tab)
+        self.active_tab.task_runner.schedule_task(task)
 
     def handle_backspace(self):
         self.lock.acquire(blocking=True)
@@ -744,6 +761,7 @@ class Browser:
 
     def focus_addressbar(self):
         self.lock.acquire(blocking=True)
+        self.focus = None
         self.chrome.focus_addressbar()
         self.set_needs_raster()
         self.lock.release()
@@ -754,6 +772,9 @@ class Browser:
         new_active_idx = (active_idx + 1) % len(self.tabs)
         self.set_active_tab(self.tabs[new_active_idx])
         self.lock.release()
+
+    def go_back(self):
+        self.active_tab.task_runner.schedule_task(Task(self.active_tab.go_back))
 
 
 def mainloop(browser):
@@ -783,41 +804,14 @@ def mainloop(browser):
 
                 if ctrl_down:
                     # ctrl的组合快捷键
+                    handle_ctrl(event, browser, dog)
 
-                    if event.key.keysym.sym == SDLK_EQUALS:
-                        # "ctrl_="放大页面
-                        browser.increment_zoom(True)
-                    elif event.key.keysym.sym == SDLK_MINUS:
-                        # "ctrl_-"缩小页面
-                        browser.increment_zoom(False)
-                    elif event.key.keysym.sym == SDLK_0:
-                        # "ctrl_0"重置页面缩放
-                        browser.reset_zoom()
-                    elif event.key.keysym.sym == SDLK_d:
-                        # "ctrl_d"深色/浅色主题切换
-                        browser.toggle_dark_mode()
-                    elif event.key.keysym.sym == SDLK_LEFT:
-                        # "ctrl_<"返回上一个网页
-                        browser.go_back()
-                    elif event.key.keysym.sym == SDLK_l:
-                        # "ctrl_l"地址栏获取焦点
-                        browser.focus_addressbar()
-                    elif event.key.keysym.sym == SDLK_t:
-                        # "ctrl_t"新建tab页
-                        browser.new_tab(URL(const.HTTP_URL))
-                    elif event.key.keysym.sym == SDLK_TAB:
-                        # "ctrl_tab"切换tab页
-                        browser.cycle_tabs()
-                    elif event.key.keysym.sym == SDLK_q:
-                        # "ctrl_q"退出浏览器
-                        browser.handle_quit()
-                        dog.dismiss()
-                        SDL_Quit()
-                        sys.exit()
-
-                if event.key.keysym.sym == SDLK_RETURN:
+                elif event.key.keysym.sym == SDLK_RETURN:
                     # 回车
                     browser.handle_enter()
+                elif event.key.keysym.sym == SDLK_TAB:
+                    # tab
+                    browser.handle_tab()
                 elif event.key.keysym.sym == SDLK_BACKSPACE:
                     # 按下"Backspace"
                     browser.handle_backspace()
@@ -892,6 +886,39 @@ def add_parent_pointers(nodes, parent=None):
     for node in nodes:
         node.parent = parent
         add_parent_pointers(node.children, node)
+
+
+def handle_ctrl(event, browser, dog):
+    if event.key.keysym.sym == SDLK_EQUALS:
+        # "ctrl_="放大页面
+        browser.increment_zoom(True)
+    elif event.key.keysym.sym == SDLK_MINUS:
+        # "ctrl_-"缩小页面
+        browser.increment_zoom(False)
+    elif event.key.keysym.sym == SDLK_0:
+        # "ctrl_0"重置页面缩放
+        browser.reset_zoom()
+    elif event.key.keysym.sym == SDLK_d:
+        # "ctrl_d"深色/浅色主题切换
+        browser.toggle_dark_mode()
+    elif event.key.keysym.sym == SDLK_LEFT:
+        # "ctrl_<"返回上一个网页
+        browser.go_back()
+    elif event.key.keysym.sym == SDLK_l:
+        # "ctrl_l"地址栏获取焦点
+        browser.focus_addressbar()
+    elif event.key.keysym.sym == SDLK_t:
+        # "ctrl_t"新建tab页
+        browser.new_tab(URL(const.HTTP_URL))
+    elif event.key.keysym.sym == SDLK_TAB:
+        # "ctrl_tab"切换tab页
+        browser.cycle_tabs()
+    elif event.key.keysym.sym == SDLK_q:
+        # "ctrl_q"退出浏览器
+        browser.handle_quit()
+        dog.dismiss()
+        SDL_Quit()
+        sys.exit()
 
 
 # keep this being the last statement

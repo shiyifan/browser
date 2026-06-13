@@ -93,6 +93,8 @@ class BlockLayout:
         else:
             return "block"
 
+    # 递归地访问以"inline"方式layout的DOM结点, 根据结点中的Text以及其他结点创建TextLayout或者InputLayout.
+    # 由于递归调用，这里的"node"参数可能与"self.node"不同
     def recurse(self, node):
         if isinstance(node, Text):
             for word in node.text.split():
@@ -333,7 +335,21 @@ class LineLayout:
 # 表示LineLayout中的每一个word
 class TextLayout:
     def __init__(self, node, word, parent, previous):
-        self.node = node  # 与所在的LineLayout的node相同
+        # 与LineLayout中保存的node不同，这个是HTML DOM中的"Text"结点,例如：
+        #
+        #    DOM Tree                        Layout Tree
+        #
+        #
+        #                                    BlockLayout (node: <body>)
+        #    <body> layout mode:               |
+        #     |        inline                  |
+        #     |                                +-->LineLayout (node: <body>)
+        #     +-><a>             ------->             |
+        #         |                                   |
+        #         +>Text                              +->TextLayout (node: Text)
+        #
+        self.node = node
+
         self.word = word
         self.parent = parent
         self.previous = previous  # 上一个word
@@ -371,10 +387,10 @@ class TextLayout:
         return True
 
 
-# <input>对应的layout object
+# <input>或者<button>对应的layout object
 class InputLayout:
     def __init__(self, node, parent, previous):
-        self.node = node  # 与所在的LineLayout的node相同
+        self.node = node  # 表示"<input>"或者"<button>"的DOM结点
         self.parent = parent
         self.previous = previous  # 上一个word
         self.children = []
@@ -427,7 +443,7 @@ class InputLayout:
         cmds.append(DrawText(self.x, self.y, text, self.font, color))
 
         # 如果当前"<input>"已获取焦点，则绘制光标
-        if self.node.is_focused:
+        if self.node.is_focused and self.node.tag == "input":
             cx = self.x + self.font.measureText(text)
             cmds.append(DrawLine(cx, self.y, cx, self.y + self.height, "black", 1))
 
