@@ -1,6 +1,6 @@
 from font import *
 from tags import Text, Element
-from commands import DrawText, DrawRect, DrawRRect, DrawLine, Opacity, Blend, Transform
+from commands import *
 import const
 from utils import parse_transform, dpx
 
@@ -103,14 +103,18 @@ class BlockLayout:
             if node.tag == "br":
                 self.new_line()
             elif node.tag == "input" or node.tag == "button":
+                # 注意，这里创建的"InputLayout"对象中的"InputLayout.node"属性
+                # 是"<input>"或者"<button>"结点,而不是结点下的"Text"结点.
                 self.input(node)
             else:
+                # 与"<input>"或者"<button>"不同，对于"<a>"这样的DOM结点，没有为其创建专用的Layout,
+                # 而采用"TextLayout", 因此"TextLayout"中的"TextLayout.node"值为DOM结点下的"Text"结点
                 for child in node.children:
                     self.recurse(child)
 
     # 对以"inline"方式绘制的DOM节点在layout tree上创建LineLayout与TextLayout节点。
     # 计算每个word的宽度，并根据宽度判断是否超出一行。
-    # 这里仅用于创建layout tree结构，计算baseline、确定行高的流程由LineLayout负责完成
+    # 这里仅用于创建layout tree结构，而计算baseline、确定行高的流程由LineLayout负责完成
     def word(self, node, word):
         weight = node.style["font-weight"]
         style = node.style["font-style"]
@@ -132,7 +136,6 @@ class BlockLayout:
             self.new_line()
         self.cursor_x += w + font.measureText(" ")
 
-        # 将未超出一行的word添加至当前行中
         line = self.children[-1]
         previous_word = line.children[-1] if line.children else None
         text = TextLayout(node, word, line, previous_word)
@@ -191,6 +194,9 @@ class BlockLayout:
         """
 
         cmds = paint_visual_effects(self.node, cmds, self.self_rect())
+        if "tabindex" in self.node.attributes:
+            # 如果html element有"tabindex"属性，那么该element也可以获得焦点并绘制该焦点.
+            paint_outline(self.node, cmds, self.self_rect(), self.zoom)
         return cmds
 
     def self_rect(self):
@@ -331,6 +337,27 @@ class LineLayout:
     def should_paint(self):
         return True
 
+    def paint_effects(self, cmds):
+        outline_rect = Rect.MakeEmpty()
+        outline_node = None
+
+        # 遍历所有children(TextLayout, InputLayout)，根据layout对应的HTML DOM结点
+        # 判断是否获取了焦点，如果获取了焦点则计算其矩形区域
+        for child in self.children:
+            is_inputlayout = isinstance(child, InputLayout)
+            # "InputLayout.node"为DOM结点，而"TextLayout.node"为DOM结点下的"Text",
+            # 因此这里需要区分一下
+            if (is_inputlayout and child.node.is_focused) or (
+                not is_inputlayout and child.node.parent.is_focused
+            ):
+                outline_rect.join(child.self_rect())
+                outline_node = child.node.parent
+
+        if outline_node:
+            paint_outline(outline_node, cmds, outline_rect, self.zoom)
+
+        return cmds
+
 
 # 表示LineLayout中的每一个word
 class TextLayout:
@@ -385,6 +412,9 @@ class TextLayout:
 
     def should_paint(self):
         return True
+
+    def self_rect(self):
+        return Rect(self.x, self.y, self.x + self.width, self.y + self.height)
 
 
 # <input>或者<button>对应的layout object
@@ -455,6 +485,11 @@ class InputLayout:
     def should_paint(self):
         return True
 
+    def paint_effects(self, cmds):
+        cmds = paint_visual_effects(self.node, cmds, self.self_rect())
+        paint_outline(self.node, cmds, self.self_rect(), self.zoom)
+        return cmds
+
 
 def paint_visual_effects(node, cmds, rect):
     opacity = float(node.style.get("opacity", "1.0"))
@@ -474,3 +509,9 @@ def paint_visual_effects(node, cmds, rect):
     blend_op = Blend(opacity, blend_mode, node, cmds)
     node.blend_op = blend_op
     return [Transform(translation, rect, node, [blend_op])]
+
+
+def paint_outline(node, cmds, rect, zoom):
+    if not node.is_focused:
+        return
+    cmds.append(DrawOutline(rect, "black", 1))

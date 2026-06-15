@@ -74,7 +74,7 @@ class Tab:
         self.zoom = 1
         self.history.append(url)
 
-        self.focus = None
+        self.focus_element(None)
 
         headers, body = url.request(self.url, payload)
         self.url = url
@@ -306,8 +306,7 @@ class Tab:
 
         # 判断点击位置之前先重置焦点
         if self.focus:
-            self.focus.is_focused = False
-            self.focus = None
+            self.focus_element(None)
             focus_lost = True
 
         y += self.scroll  # 使纵坐标y为相对于网页绘制内容的坐标
@@ -336,8 +335,7 @@ class Tab:
             elif is_focusable(elt):
                 if self.js.dispatch_event("click", elt):
                     return
-                self.focus = elt
-                elt.is_focused = True
+                self.focus_element(elt)
                 self.activate_element(elt)
                 return
             elif elt.tag == "div":
@@ -424,21 +422,17 @@ class Tab:
         ]
         focusable_nodes.sort(key=get_tabindex)  # 根据HTML的属性"tabindex"排序
 
-        if self.focus:
-            self.focus.is_focused = False
-
         if self.focus in focusable_nodes:
             idx = focusable_nodes.index(self.focus) + 1
         else:
             idx = 0
 
         if idx < len(focusable_nodes):
-            self.focus = focusable_nodes[idx]
-            self.focus.is_focused = True
+            self.focus_element(focusable_nodes[idx])
         else:
             # tab内的focusable元素均已遍历，此时将焦点移动至chrome中
 
-            self.focus = None
+            self.focus_element(None)
             self.browser.focus_addressbar()
 
         # 由于移动焦点可能影响某些DOM结点的绘制（例如相比起无焦点状态，有焦点时需要多绘制一个光标、边框等）,
@@ -472,10 +466,15 @@ class Tab:
         self.js.destroy()
 
     def blur(self):
+        self.focus_element(None)
+        self.set_needs_render()
+
+    def focus_element(self, node):
         if self.focus:
             self.focus.is_focused = False
-            self.focus = None
-            self.set_needs_render()
+        self.focus = node
+        if node:
+            node.is_focused = True
 
 
 # 根据DOM结点上"style"属性、css文件的代码创建CSS对象并赋值为"style"属性
@@ -547,6 +546,8 @@ def paint_tree(layout_object, display_list):
     # "layout_object"的子节点的绘制命令
     for child in layout_object.children:
         paint_tree(child, cmds)
+
+    # 此时"cmds"中已包含"layout_object"以及所有子结点的绘制命令
 
     if layout_object.should_paint() and hasattr(layout_object, "paint_effects"):
         cmds = layout_object.paint_effects(cmds)
