@@ -58,6 +58,8 @@ class Tab:
 
         self.dark_mode = False
 
+        self.needs_focus_scroll = False
+
     def set_needs_render(self):
         self.needs_style = True
         self.browser.set_needs_animation_frame(self)
@@ -213,6 +215,10 @@ class Tab:
             args={"tab": self.id, "changed": self.scroll_changed_in_tab, "rand": rand},
         )
 
+        if self.needs_focus_scroll and self.focus:
+            self.scroll_to(self.focus)
+        self.needs_focus_scroll = False
+
         if not self.scroll_changed_in_tab:
             self.scroll = scroll
 
@@ -276,17 +282,6 @@ class Tab:
         # 根据偏移量和滚动距离调整。因此绘制时不需要考虑滚动以及相对于chrome的偏移量
         for cmd in display_list:
             cmd.execute(canvas)
-
-    def scrollup(self):
-        if self.scroll <= 0:
-            return
-
-        self.scroll -= const.SCROLL_STEP
-
-    def scrolldown(self):
-        # 已显示最后一行内容后，不再继续向下滚动
-        max_y = max(self.document.height + 2 * const.VSTEP - self.tab_height, 0)
-        self.scroll = min(self.scroll + const.SCROLL_STEP, max_y)
 
     def keypress(self, char):
         if self.focus and self.focus.tag == "input":
@@ -422,6 +417,7 @@ class Tab:
         ]
         focusable_nodes.sort(key=get_tabindex)  # 根据HTML的属性"tabindex"排序
 
+        # 找到下一个待获取焦点的element
         if self.focus in focusable_nodes:
             idx = focusable_nodes.index(self.focus) + 1
         else:
@@ -472,9 +468,26 @@ class Tab:
     def focus_element(self, node):
         if self.focus:
             self.focus.is_focused = False
+        if node and node != self.focus:
+            self.needs_focus_scroll = True
         self.focus = node
         if node:
             node.is_focused = True
+
+    def scroll_to(self, elt):
+        objs = [obj for obj in tree_to_list(self.document, []) if obj.node == elt]
+        if not objs:
+            return
+        obj = objs[0]
+
+        if self.scroll < obj.y < self.scroll + self.tab_height:
+            # 位于viewport中的焦点元素无需滚动
+            return
+
+        document_height = math.ceil(self.document.height + 2 * const.VSTEP)
+        new_scroll = obj.y - const.SCROLL_STEP
+        self.scroll = self.clamp_scroll(new_scroll)
+        self.scroll_changed_in_tab = True
 
 
 # 根据DOM结点上"style"属性、css文件的代码创建CSS对象并赋值为"style"属性
