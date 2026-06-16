@@ -58,7 +58,7 @@ class Tab:
 
         self.dark_mode = False
 
-        self.needs_focus_scroll = False
+        self.needs_focus_scroll = False # 是否由于"tab"键轮换焦点而触发了animation frame
 
     def set_needs_render(self):
         self.needs_style = True
@@ -215,6 +215,7 @@ class Tab:
             args={"tab": self.id, "changed": self.scroll_changed_in_tab, "rand": rand},
         )
 
+        # 如果由"tab"键轮换焦点引起的animation frame, 那么需要适当地滚动以确保新焦点位于窗口可视区域中
         if self.needs_focus_scroll and self.focus:
             self.scroll_to(self.focus)
         self.needs_focus_scroll = False
