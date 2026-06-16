@@ -341,18 +341,21 @@ class LineLayout:
         outline_rect = Rect.MakeEmpty()
         outline_node = None
 
-        # 遍历所有children(TextLayout, InputLayout)，根据layout对应的HTML DOM结点
-        # 判断是否获取了焦点，如果获取了焦点则计算其矩形区域
         for child in self.children:
-            is_inputlayout = isinstance(child, InputLayout)
             # "InputLayout.node"为DOM结点，而"TextLayout.node"为DOM结点下的"Text",
             # 因此这里需要区分一下
-            if (is_inputlayout and child.node.is_focused) or (
-                not is_inputlayout and child.node.parent.is_focused
-            ):
-                outline_rect.join(child.self_rect())
-                outline_node = child.node.parent
+            is_inputlayout = isinstance(child, InputLayout)
 
+            # layout object对应的DOM结点
+            effect_node = child.node if is_inputlayout else child.node.parent
+
+            outline_str = effect_node.style.get("outline")
+            if parse_outline(outline_str):
+                outline_rect.join(child.self_rect())
+                outline_node = effect_node
+
+        # 同一时刻仅能有一个DOM结点获取焦点，所以上面的"for"循环时，"outline_node"变量只能被相同的DOM结点赋值一次或者多次.
+        # （当"child"是TextLayout时，同样成立。注意：是以layout object对应的DOM结点的样式来绘制焦点的）
         if outline_node:
             paint_outline(outline_node, cmds, outline_rect, self.zoom)
 
@@ -511,7 +514,25 @@ def paint_visual_effects(node, cmds, rect):
     return [Transform(translation, rect, node, [blend_op])]
 
 
+# 解析css"outline"的语法, 仅支持"1px solid red"这样的语法结构
+def parse_outline(outline_str):
+    if not outline_str:
+        return None
+
+    values = outline_str.split(" ")
+    if len(values) != 3:
+        return None
+    if values[1] != "solid":
+        return None
+
+    # 返回"thickness"以及"color"
+    return int(values[0][:-2]), values[2]
+
+
 def paint_outline(node, cmds, rect, zoom):
-    if not node.is_focused:
+    outline = parse_outline(node.style.get("outline"))
+    if not outline:
         return
-    cmds.append(DrawOutline(rect, "black", 1))
+
+    thickness, color = outline
+    cmds.append(DrawOutline(rect, color, dpx(thickness, zoom)))

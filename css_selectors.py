@@ -2,6 +2,7 @@
 # 例如："span", "div span", "div header p"
 from tags import Element
 
+
 class TagSelector:
     def __init__(self, tag):
         self.tag = tag
@@ -30,3 +31,19 @@ class DescendantSelector:
             node = node.parent  # 继续向上访问父结点
 
         return False  # 没有DOM父结点满足高位selector,匹配失败
+
+
+class PseudoclassSelector:
+    def __init__(self, pseudoclass, base):
+        self.pseudoclass = pseudoclass
+        self.base = base
+        self.priority = base.priority
+
+    def matches(self, node):
+        if not self.base.matches(node):
+            return False
+        if self.pseudoclass == "focus":
+            return node.is_focused
+        else:
+            # 目前仅支持解析":focus"pseudo class
+            return False

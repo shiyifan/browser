@@ -1,4 +1,4 @@
-from css_selectors import TagSelector, DescendantSelector
+from css_selectors import *
 
 
 # html element "style"属性值解析与".css"文件解析
@@ -26,7 +26,7 @@ class CSSParser:
             else:
                 break
 
-    # 截取css属性名称、属性值（数字、百分比、颜色等），并返回截取后的值
+    # 截取css属性名称、属性值（数字、百分比、颜色等）、selector等标识符，并返回截取后的值
     def word(self):
         start = self.i
         while self.i < len(self.s):
@@ -104,7 +104,7 @@ class CSSParser:
     # |                                                   |
     # +---------------------------------------------------+
     def selector(self):
-        out = TagSelector(self.word().casefold())
+        out = self.simple_selector()
         self.whitespace()
         while self.i < len(self.s) and self.s[self.i] != "{":
             # tag selector之后还有其他selector,说明这是一个descendant selector，继续解析
@@ -187,3 +187,15 @@ class CSSParser:
             return False
 
         return self.s[self.i] == "*" and self.s[self.i + 1] == "/"
+
+    def simple_selector(self):
+        out = TagSelector(self.word().casefold())  # 先截取不包含pseudo部分的selector
+
+        if self.i < len(self.s) and self.s[self.i] == ":":
+            # 如果下一个字符为":", 那么该selector中包含pseudo class, 继续解析
+
+            self.literal(":")
+            pseudoclass = self.word().casefold()
+            out = PseudoclassSelector(pseudoclass, out)
+
+        return out

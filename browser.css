@@ -48,3 +48,31 @@ button {
     background-color: #992500;
   }
 }
+
+input:focus {
+  outline: 2px solid red;
+}
+button:focus {
+  outline: 2px solid black;
+}
+div:focus {
+  outline: 2px solid black;
+}
+a:focus {
+  outline: 2px solid black;
+}
+
+@media (prefers-color-scheme: dark) {
+  input:focus {
+    outline: 2px solid white;
+  }
+  button:focus {
+    outline: 2px solid white;
+  }
+  div:focus {
+    outline: 2px solid white;
+  }
+  a:focus {
+    outline: 2px solid white;
+  }
+}
