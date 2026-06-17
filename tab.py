@@ -6,12 +6,13 @@ from layout import DocumentLayout
 from tags import Element, Text
 from css_parser import CSSParser
 from jscontext import JSContext
-from utils import tree_to_list, log, print_tree, parse_transform, map_translation
+from utils import *
 from url import URL
 from task import Task, TaskRunner
 from commit import CommitData
 from animation import NumericAnimation
 import math
+from accessbility import AccessibilityNode
 
 # 浏览器默认样式，user agent style
 DEFAULT_STYLE_SHEET = CSSParser(open("browser.css").read()).parse()
@@ -58,7 +59,10 @@ class Tab:
 
         self.dark_mode = False
 
-        self.needs_focus_scroll = False # 是否由于"tab"键轮换焦点而触发了animation frame
+        self.needs_focus_scroll = False  # 是否由于"tab"键轮换焦点而触发了animation frame
+
+        self.needs_accessibility = False
+        self.accessiblity_tree = None
 
     def set_needs_render(self):
         self.needs_style = True
@@ -184,10 +188,16 @@ class Tab:
             self.document = DocumentLayout(self.nodes)
             self.document.layout(self.zoom)  # 构建layout tree
 
+            self.needs_accessibility = True
             self.needs_paint = True
             self.needs_layout = False
 
             self.browser.measure.stop("layout")
+
+        if self.needs_accessibility:
+            self.accessiblity_tree = AccessibilityNode(self.nodes)
+            self.accessiblity_tree.build()  # 通过DOM Tree构建Accessbility Tree
+            self.needs_accessibility = False
 
         if self.needs_paint:
             # 收集layout tree上每个layout object生成的绘制command
@@ -619,21 +629,3 @@ def absolute_bounds_for_obj(obj):
         cur = cur.parent
 
     return rect
-
-
-# DOM结点是否是focusable
-def is_focusable(node):
-    if get_tabindex(node) < 0:
-        # "tabindex" < 0
-        return False
-    elif "tabindex" in node.attributes:
-        # 有"tabindex"HTML属性
-        return True
-    else:
-        return node.tag in ["input", "button", "a"]
-
-
-def get_tabindex(node):
-    # 如果没有tabindex属性，则默认为"999999",是其在排序后位于"tabindex"的DOM结点后面
-    tabindex = int(node.attributes.get("tabindex", "999999"))
-    return 999999 if tabindex == 0 else tabindex

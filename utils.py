@@ -201,3 +201,21 @@ def reasonable_intersect(r0, r1):
 
 def dpx(css_px, zoom):
     return css_px * zoom
+
+
+# DOM结点是否是focusable
+def is_focusable(node):
+    if get_tabindex(node) < 0:
+        # "tabindex" < 0
+        return False
+    elif "tabindex" in node.attributes:
+        # 有"tabindex"HTML属性
+        return True
+    else:
+        return node.tag in ["input", "button", "a"]
+
+
+def get_tabindex(node):
+    # 如果没有tabindex属性，则默认为"999999",是其在排序后位于"tabindex"的DOM结点后面
+    tabindex = int(node.attributes.get("tabindex", "999999"))
+    return 999999 if tabindex == 0 else tabindex
