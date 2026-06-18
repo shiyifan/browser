@@ -70,6 +70,10 @@ Node.prototype.dispatchEvent = function (evt) {
   return evt.do_default;
 };
 
+Node.prototype.setAttribute = function (attr, value) {
+  return call_python('setAttribute', this.handle, attr, value);
+};
+
 Object.defineProperty(Node.prototype, 'innerHTML', {
   set: function (s) {
     call_python('innerHTML_set', this.handle, s.toString());
@@ -77,10 +81,10 @@ Object.defineProperty(Node.prototype, 'innerHTML', {
 });
 
 Object.defineProperty(Node.prototype, 'style', {
-  set: function(s) {
-    call_python('style_set', this.handle, s.toString())
-  }
-})
+  set: function (s) {
+    call_python('style_set', this.handle, s.toString());
+  },
+});
 
 function Event(type) {
   this.type = type;

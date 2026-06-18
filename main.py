@@ -117,6 +117,7 @@ class Browser:
         self.has_spoken_document = False
         self.tab_focus = None
         self.last_tab_focus = None
+        self.spoken_alerts = []
 
     def set_needs_composite(self):
         self.needs_composite = True
@@ -796,6 +797,29 @@ class Browser:
         if not self.has_spoken_document:
             self.speak_document()
             self.has_spoken_document = True
+
+        # 根据新的"self.accessibility_tree"更新"self.spoken_alert"
+        new_spoken_alerts = []
+        for old_node in self.spoken_alerts:
+            new_nodes = [
+                node
+                for node in tree_to_list(self.accessibility_tree, [])
+                # 原"spoken_alerts"中的结点在新的"accessibility_tree"中依然存在, 保留这些结点.
+                # 这里根据a11y node中的"node"属性值判断与DOM node对应关系
+                if node.node == old_node.node and node.role == "alert"
+            ]
+            if new_nodes:
+                new_spoken_alerts.append(new_nodes[0])
+        self.spoken_alerts = new_spoken_alerts
+
+        self.active_alerts = [
+            node for node in tree_to_list(self.accessibility_tree, []) if node.role == "alert"
+        ]
+        for alert in self.active_alerts:
+            if alert not in self.spoken_alerts:
+                # 找到不在"spoken_alerts"中的"alert"a11y node, 并speak
+                self.speak_node(alert, "New Alert: ")
+                self.spoken_alerts.append(alert)
 
         if self.tab_focus and self.tab_focus != self.last_tab_focus:
             # 寻找当前tab焦点对应的a11y的结点

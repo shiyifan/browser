@@ -17,6 +17,7 @@ XHR_ONLOAD_JS = "__runXHROnload(dukpy.out, dukpy.handle)"
 
 TIMEOUT_TIMERS = []
 
+
 class JSContext:
     """Javascript运行时"""
 
@@ -40,6 +41,7 @@ class JSContext:
         self.interp.export_function("XMLHttpRequest_send", self.XMLHttpRequest_send)
         self.interp.export_function("requestAnimationFrame", self.requestAnimationFrame)
         self.interp.export_function("style_set", self.style_set)
+        self.interp.export_function("setAttribute", self.setAttribute)
 
         # python的DOM node与Javascript DOM node间的映射
         #
@@ -180,7 +182,12 @@ class JSContext:
         node = self.handle_to_node[handle]
         node.attributes["style"] = s
         self.tab.set_needs_render()
-    
+
+    def setAttribute(self, handle, attr, value):
+        elt = self.handle_to_node[handle]
+        elt.attributes[attr] = value
+        self.tab.set_needs_render()
+
     def destroy(self):
         for t in TIMEOUT_TIMERS:
             t.cancel()
