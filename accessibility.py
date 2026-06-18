@@ -7,6 +7,7 @@ class AccessibilityNode:
     def __init__(self, node):
         self.node = node
         self.children = []
+        self.text = ""
 
         if isinstance(node, Text):
             if is_focusable(node.parent):
@@ -33,6 +34,43 @@ class AccessibilityNode:
     def build(self):
         for child_node in self.node.children:
             self.build_internal(child_node)
+
+        match self.role:
+            case "StaticText":
+                self.text = repr(self.node.text)
+            case "focusable text":
+                self.text = f"Focusable text: {self.node.text}"
+            case "focusable":
+                self.text = "Focusable element"
+            case "textbox":
+                if "value" in self.node.attributes:
+                    value = self.node.attributes["value"]
+                elif (
+                    self.node.tag != "input"
+                    and self.node.children
+                    and isinstance(self.node.children[0], Text)
+                ):
+                    value = self.node.children[0].text
+                else:
+                    value = ""
+                self.text = f"Input box: {value}"
+            case "button":
+                self.text = "Button"
+            case "link":
+                self.text = "Link"
+            case "alert":
+                self.text = "Alert"
+            case "document":
+                self.text = "Document"
+
+        if self.node.is_focused:
+            self.text = f"{self.text} is focused"
+
+        # if self.role == "StaticText":
+        #     self.text = repr(self.node.text)
+        # elif self.role == "focusable text":
+        #     self.text = f"Focusable text: {self.node.text}"
+        # elif self.role == "focusable":
 
     # 根据DOM结点下的DOM Tree结构构建a11y tree. 对于非a11y的DOM结点将不创建对应的a11y tree node.
     # 如下图所示：
@@ -66,4 +104,4 @@ class AccessibilityNode:
                 self.build_internal(grandchild_node)
 
     def __repr__(self):
-        return f"role={self.role}"
+        return f"role={self.role}, text={self.text}"

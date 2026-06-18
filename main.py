@@ -112,6 +112,9 @@ class Browser:
 
         self.dark_mode = False
 
+        self.needs_accessibility = False
+        self.accessibility_is_on = False
+
     def set_needs_composite(self):
         self.needs_composite = True
         self.needs_raster = True
@@ -122,6 +125,12 @@ class Browser:
         self.needs_draw = True
 
     def set_needs_draw(self):
+        self.needs_draw = True
+
+    def set_needs_accessibility(self):
+        if not self.accessibility_is_on:
+            return
+        self.needs_accessibility = True
         self.needs_draw = True
 
     # 设置当前active tab
@@ -450,6 +459,13 @@ class Browser:
 
             self.measure.stop("raster")
 
+        if self.needs_accessibility:
+            self.measure.time("accessibility")
+
+            self.update_accessibility()
+
+            self.measure.stop("accessibility")
+
         if self.needs_draw:
             self.measure.time("draw")
 
@@ -707,6 +723,7 @@ class Browser:
         self.lock.acquire(blocking=True)
 
         if tab == self.active_tab:
+            self.accessibility_tree = data.accessibility_tree
             self.active_tab_url = data.url
             self.active_tab_scroll = data.scroll
             self.measure.instant(
@@ -752,12 +769,22 @@ class Browser:
         self.draw_list = []
         self.composited_layers = []
         self.composited_updates = {}
+        self.accessibility_tree = None
 
     def toggle_dark_mode(self):
         self.dark_mode = not self.dark_mode
 
         task = Task(self.active_tab.set_dark_mode, self.dark_mode)
         self.active_tab.task_runner.schedule_task(task)
+
+    def toggle_accessibility(self):
+        self.lock.acquire(blocking=True)
+        self.accessibility_is_on = not self.accessibility_is_on
+        self.set_needs_accessibility()
+        self.lock.release()
+
+    def update_accessibility(self):
+        pass
 
     def focus_addressbar(self):
         self.lock.acquire(blocking=True)
@@ -919,6 +946,8 @@ def handle_ctrl(event, browser, dog):
         dog.dismiss()
         SDL_Quit()
         sys.exit()
+    elif event.key.keysym.sym == SDLK_a:
+        browser.toggle_accessibility()
 
 
 # keep this being the last statement

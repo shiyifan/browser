@@ -219,3 +219,7 @@ def get_tabindex(node):
     # 如果没有tabindex属性，则默认为"999999",是其在排序后位于"tabindex"的DOM结点后面
     tabindex = int(node.attributes.get("tabindex", "999999"))
     return 999999 if tabindex == 0 else tabindex
+
+
+def speak_text(text):
+    print(f"SPEAK: {text}")

@@ -12,7 +12,7 @@ from task import Task, TaskRunner
 from commit import CommitData
 from animation import NumericAnimation
 import math
-from accessbility import AccessibilityNode
+from accessibility import AccessibilityNode
 
 # 浏览器默认样式，user agent style
 DEFAULT_STYLE_SHEET = CSSParser(open("browser.css").read()).parse()
@@ -275,9 +275,15 @@ class Tab:
         self.composited_updates = []
 
         commit_data = CommitData(
-            self.url, self.scroll, self.document.height, self.display_list, composited_updates
+            self.url,
+            self.scroll,
+            self.document.height,
+            self.display_list,
+            composited_updates,
+            self.accessibility_tree,
         )
         self.display_list = None
+        self.accessibility_tree = None
         self.browser.commit(self, commit_data, rand)
 
         self.scroll_changed_in_tab = False
