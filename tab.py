@@ -62,7 +62,7 @@ class Tab:
         self.needs_focus_scroll = False  # 是否由于"tab"键轮换焦点而触发了animation frame
 
         self.needs_accessibility = False
-        self.accessiblity_tree = None
+        self.accessibility_tree = None
 
     def set_needs_render(self):
         self.needs_style = True
@@ -195,8 +195,8 @@ class Tab:
             self.browser.measure.stop("layout")
 
         if self.needs_accessibility:
-            self.accessiblity_tree = AccessibilityNode(self.nodes)
-            self.accessiblity_tree.build()  # 通过DOM Tree构建Accessbility Tree
+            self.accessibility_tree = AccessibilityNode(self.nodes)
+            self.accessibility_tree.build()  # 通过DOM Tree构建Accessbility Tree
             self.needs_accessibility = False
 
         if self.needs_paint:
