@@ -281,6 +281,7 @@ class Tab:
             self.display_list,
             composited_updates,
             self.accessibility_tree,
+            self.focus
         )
         self.display_list = None
         self.accessibility_tree = None

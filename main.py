@@ -13,7 +13,7 @@ from watchdog import Watchdog
 import random
 import sys
 import OpenGL.GL
-from utils import tree_to_list, local_to_absolute
+from utils import tree_to_list, local_to_absolute, speak_text
 from commands import PaintCommand, DrawCompositedLayer, Blend
 from layer import CompositedLayer
 
@@ -114,6 +114,9 @@ class Browser:
 
         self.needs_accessibility = False
         self.accessibility_is_on = False
+        self.has_spoken_document = False
+        self.tab_focus = None
+        self.last_tab_focus = None
 
     def set_needs_composite(self):
         self.needs_composite = True
@@ -129,6 +132,9 @@ class Browser:
 
     def set_needs_accessibility(self):
         if not self.accessibility_is_on:
+            self.needs_accessibility = False
+            self.has_spoken_document = False
+            self.last_tab_focus = None
             return
         self.needs_accessibility = True
         self.needs_draw = True
@@ -461,9 +467,7 @@ class Browser:
 
         if self.needs_accessibility:
             self.measure.time("accessibility")
-
             self.update_accessibility()
-
             self.measure.stop("accessibility")
 
         if self.needs_draw:
@@ -723,9 +727,11 @@ class Browser:
         self.lock.acquire(blocking=True)
 
         if tab == self.active_tab:
-            self.accessibility_tree = data.accessibility_tree
             self.active_tab_url = data.url
             self.active_tab_scroll = data.scroll
+            self.accessibility_tree = data.accessibility_tree
+            self.tab_focus = data.focus
+
             self.measure.instant(
                 "commit", cat="debug", args={"tab": self.active_tab.id, "rand": rand}
             )
@@ -784,7 +790,43 @@ class Browser:
         self.lock.release()
 
     def update_accessibility(self):
-        pass
+        if not self.accessibility_tree:
+            return
+
+        if not self.has_spoken_document:
+            self.speak_document()
+            self.has_spoken_document = True
+
+        if self.tab_focus and self.tab_focus != self.last_tab_focus:
+            # 寻找当前tab焦点对应的a11y的结点
+            nodes = [
+                node
+                for node in tree_to_list(self.accessibility_tree, [])
+                if node.node == self.tab_focus
+            ]
+            if nodes:
+                self.focus_a11y_node = nodes[0]
+                self.speak_node(self.focus_a11y_node, "element focused: ")
+            self.last_tab_focus = self.tab_focus
+
+    def speak_document(self):
+        text = "Here are the document contents:"
+        tree_list = tree_to_list(self.accessibility_tree, [])
+        for accessibility_node in tree_list:
+            new_text = accessibility_node.text
+            if new_text:
+                text += f"\n{new_text}"
+        speak_text(text)
+
+    # 将 a11y "node" 打印出来.
+    # "node": a11y tree中的node
+    def speak_node(self, node, text):
+        text += node.text
+        if text and node.children and node.children[0].role == "StaticText":
+            text += f" {node.children[0].text}"
+
+        if text:
+            speak_text(text)
 
     def focus_addressbar(self):
         self.lock.acquire(blocking=True)
