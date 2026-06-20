@@ -166,6 +166,17 @@ def absolute_to_local(display_item, rect):
         rect = parent.unmap(rect)
     return rect
 
+# 计算layout object在应用css"transform"之后的绝对绘制区域
+def absolute_bounds_for_obj(obj):
+    rect = Rect.MakeXYWH(obj.x, obj.y, obj.width, obj.height)
+
+    # 顺着DOM Tree向上依次应用所有parent node上的"transform"
+    cur = obj.node
+    while cur:
+        rect = map_translation(rect, parse_transform(cur.style.get("transform", "")))
+        cur = cur.parent
+
+    return rect
 
 # 将矩形区域按照既定的"translation"返回转换后的矩形区域
 def map_translation(rect, translation, reversed=False):

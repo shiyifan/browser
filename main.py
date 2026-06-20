@@ -14,7 +14,7 @@ import random
 import sys
 import OpenGL.GL
 from utils import tree_to_list, local_to_absolute, speak_text
-from commands import PaintCommand, DrawCompositedLayer, Blend
+from commands import PaintCommand, DrawCompositedLayer, Blend, DrawOutline
 from layer import CompositedLayer
 
 
@@ -112,12 +112,16 @@ class Browser:
 
         self.dark_mode = False
 
+        # accessibility flags
         self.needs_accessibility = False
         self.accessibility_is_on = False
         self.has_spoken_document = False
         self.tab_focus = None
         self.last_tab_focus = None
         self.spoken_alerts = []
+        self.hovered_a11y_node = None
+        self.needs_speak_hovered_node = False
+        self.pending_hover = None
 
     def set_needs_composite(self):
         self.needs_composite = True
@@ -136,6 +140,11 @@ class Browser:
             self.needs_accessibility = False
             self.has_spoken_document = False
             self.last_tab_focus = None
+            self.spoken_alerts = []
+            self.hovered_a11y_node = None
+            self.needs_speak_hovered_node = False
+            self.pending_hover = None
+            self.set_needs_draw()
             return
         self.needs_accessibility = True
         self.needs_draw = True
@@ -401,6 +410,24 @@ class Browser:
             if not parent:
                 self.draw_list.append(current_effect)
 
+        # 在Accessibility模式下，对光标悬停下的元素执行相关操作并绘制边框
+
+        if self.pending_hover:
+            x, y = self.pending_hover
+            y += self.active_tab_scroll
+            a11y_node = self.accessibility_tree.hit_test(x, y)
+
+            if a11y_node:
+                if not self.hovered_a11y_node or a11y_node.node != self.hovered_a11y_node:
+                    self.hovered_a11y_node = a11y_node
+                    self.needs_speak_hovered_node = True
+            self.pending_hover = None
+
+        if self.hovered_a11y_node:
+            # 已找到光标悬停的accessibility node
+            for bound in self.hovered_a11y_node.bounds:
+                self.draw_list.append(DrawOutline(bound, "white" if self.dark_mode else "black", 2))
+
     def draw(self):
         canvas = self.root_surface.getCanvas()
         if self.dark_mode:
@@ -620,6 +647,12 @@ class Browser:
 
         self.lock.release()
 
+    def handle_hover(self, event):
+        if not self.accessibility_is_on or not self.accessibility_tree:
+            return
+        self.pending_hover = (event.x, event.y - self.chrome.bottom)
+        self.set_needs_accessibility()
+
     def handle_quit(self):
         SDL_GL_DeleteContext(self.gl_context)
         SDL_DestroyWindow(self.sdl_window)
@@ -833,6 +866,10 @@ class Browser:
                 self.speak_node(self.focus_a11y_node, "element focused: ")
             self.last_tab_focus = self.tab_focus
 
+        if self.needs_speak_hovered_node:
+            self.speak_node(self.hovered_a11y_node, "Hit test: ")
+        self.needs_speak_hovered_node = False
+
     def speak_document(self):
         text = "Here are the document contents:"
         tree_list = tree_to_list(self.accessibility_tree, [])
@@ -926,6 +963,9 @@ def mainloop(browser):
             elif event.type == SDL_TEXTINPUT:
                 # 文字输入事件
                 browser.handle_key(event.text.text.decode("utf8"))
+
+            elif event.type == SDL_MOUSEMOTION:
+                browser.handle_hover(event.motion)
 
         # 在canvas上重绘
         browser.composite_raster_and_draw()

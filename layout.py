@@ -33,6 +33,8 @@ class BlockLayout:
         # 所以子结点的绝对坐标等于"self.x + self.cursor_x"
         self.cursor_x = None
 
+        node.layout_object = self
+
     # 根据绘制方式创建layout tree
     def layout(self):
         self.zoom = self.parent.zoom
@@ -243,6 +245,8 @@ class DocumentLayout:
         self.width = None
         self.height = None
 
+        node.layout_object = self
+
     # 对整个HTML文档内容布局
     #
     # 布局时额外添加四周的空白边距
@@ -290,6 +294,8 @@ class LineLayout:
         self.parent = parent
         self.previous = previous  # 上一行
         self.children = []
+
+        node.layout_object = self
 
     # 计算baseline位置、确定行高
     def layout(self):
@@ -391,6 +397,8 @@ class TextLayout:
         self.height = None
         self.width = None
 
+        # "Text"DOM nodes don't have the layout object reference
+
     def layout(self):
         self.zoom = self.parent.zoom
 
@@ -433,6 +441,8 @@ class InputLayout:
         self.y = None
         self.height = None
         self.width = None
+
+        node.layout_object = self
 
     def layout(self):
         self.zoom = self.parent.zoom

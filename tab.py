@@ -195,9 +195,11 @@ class Tab:
             self.browser.measure.stop("layout")
 
         if self.needs_accessibility:
+            self.browser.measure.time("accessibility")
             self.accessibility_tree = AccessibilityNode(self.nodes)
             self.accessibility_tree.build()  # 通过DOM Tree构建Accessbility Tree
             self.needs_accessibility = False
+            self.browser.measure.stop("accessibility")
 
         if self.needs_paint:
             # 收集layout tree上每个layout object生成的绘制command
@@ -281,7 +283,7 @@ class Tab:
             self.display_list,
             composited_updates,
             self.accessibility_tree,
-            self.focus
+            self.focus,
         )
         self.display_list = None
         self.accessibility_tree = None
@@ -623,16 +625,3 @@ def parse_transition(value):
         properties[property] = frames
 
     return properties
-
-
-# 计算layout object在应用css"transform"之后的绝对绘制区域
-def absolute_bounds_for_obj(obj):
-    rect = Rect.MakeXYWH(obj.x, obj.y, obj.width, obj.height)
-
-    # 顺着DOM Tree向上依次应用所有parent node上的"transform"
-    cur = obj.node
-    while cur:
-        rect = map_translation(rect, parse_transform(cur.style.get("transform", "")))
-        cur = cur.parent
-
-    return rect

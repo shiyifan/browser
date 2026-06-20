@@ -9,6 +9,10 @@ class Text:
         # 是否获取到焦点.纯文本DOM结点无法获取焦点,该值始终为"False"
         self.is_focused = False
 
+        # 在layout tree中对应的layout object, 但对于"Text"node而言,由于无法获取
+        # 焦点，因此这个值始终为"None"
+        self.layout_object = None
+
     def __repr__(self):
         return repr(self.text)
 
@@ -22,6 +26,11 @@ class Element:
         self.parent = parent
         self.is_focused = False  # 是否获取到焦点
         self.animations = {}  # 保存结点的animations、transitions
+
+        # 在layout tree中对应的layout object, 不过有的DOM node在layout tree中没有对应的layout object,
+        # 例如在"inline"layout方式的BlockLayout中的DOM node. 不过"<input>"与"<button>"会单独创建"InputLayout",
+        # 所以这两者有对应的layout object.
+        self.layout_object = None
 
     def __repr__(self):
         return "<" + self.tag + ">"
