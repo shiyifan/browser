@@ -1,10 +1,16 @@
-var beneath = document.getElementById('beneath');
-var top = document.getElementById('top');
+var b = document.getElementById('clickme');
 
-beneath.addEventListener('click', function () {
-  console.log('beneath clicked');
+b.addEventListener('click', function () {
+  console.log('x clicked');
 });
 
-top.addEventListener('click', function () {
-  console.log('top clicked');
-});
+// var beneath = document.getElementById('beneath');
+// var top = document.getElementById('top');
+
+// beneath.addEventListener('click', function () {
+//   console.log('beneath clicked');
+// });
+
+// top.addEventListener('click', function () {
+//   console.log('top clicked');
+// });
