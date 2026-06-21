@@ -83,6 +83,7 @@ class Tab:
         self.focus_element(None)
 
         headers, body = url.request(self.url, payload)
+        body = body.decode("utf8", "replace")
         self.url = url
         self.nodes = HTMLParser(body).parse()  # 将HTML代码解析为DOM tree
 
@@ -121,6 +122,7 @@ class Tab:
 
             try:
                 _, body = script_url.request(url)
+                body = body.decode("utf8", "replace")
             except:
                 continue
 
@@ -148,6 +150,7 @@ class Tab:
 
             try:
                 _, body = style_url.request(url)
+                body = body.decode("utf8", "replace")
             except:
                 continue
             rules.extend(CSSParser(body).parse())  # 获取author stylesheet

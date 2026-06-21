@@ -30,9 +30,7 @@ class URL:
     # referer: 发起请求的页面所在的URL
     def request(self, referer, payload=None):
 
-        s = socket.socket(
-            family=socket.AF_INET, type=socket.SOCK_STREAM, proto=socket.IPPROTO_TCP
-        )
+        s = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM, proto=socket.IPPROTO_TCP)
 
         method = "POST" if payload else "GET"
 
@@ -70,10 +68,10 @@ class URL:
 
         s.send(request.encode("utf8"))
 
-        response = s.makefile("r", encoding="utf8", newline="\r\n")  # 获取HTTP响应报文
+        response = s.makefile("b")  # 获取HTTP响应报文
 
         # 读取响应报文第一行
-        statusline = response.readline()
+        statusline = response.readline().decode("utf8")
         version, status, explanation = statusline.split(" ", 2)
 
         print(f"{self.path}: {status}")
@@ -81,7 +79,7 @@ class URL:
         # 读取响应报文中所有的Response Header
         response_headers = {}
         while True:
-            line = response.readline()
+            line = response.readline().decode("utf8")
             if line == "\r\n":
                 break
 
@@ -105,7 +103,7 @@ class URL:
                     params[param.strip().casefold()] = value.casefold()
             COOKIE_JAR[self.host] = (cookie, params)
 
-        # 读取Response Body
+        # 读取Response Body, 这里既可能读取textual data,也可能读取binary data
         content = response.read()
         s.close()
         return response_headers, content

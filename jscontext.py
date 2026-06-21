@@ -128,6 +128,7 @@ class JSContext:
 
         def run_load():
             headers, response = full_url.request(self.tab.url, body)
+            response = response.decode("utf8", "replace")
             task = Task(self.dispatch_xhr_onload, response, handle)
             self.tab.task_runner.schedule_task(task)
             return response
