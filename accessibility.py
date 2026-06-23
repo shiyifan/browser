@@ -20,15 +20,26 @@ class AccessibilityNode:
         else:
             if "role" in node.attributes:
                 self.role = node.attributes["role"]
-            elif node.tag == "a":
-                self.role = "link"
-            elif node.tag == "input":
-                self.role = "textbox"
-            elif node.tag == "button":
-                self.role = "button"
-            elif node.tag == "html":
-                self.role = "document"
-            elif is_focusable(node):
+                return
+
+            match node.tag:
+                case "a":
+                    self.role = "link"
+                    return
+                case "input":
+                    self.role = "textbox"
+                    return
+                case "button":
+                    self.role = "button"
+                    return
+                case "img":
+                    self.role = "image"
+                    return
+                case "html":
+                    self.role = "document"
+                    return
+
+            if is_focusable(node):
                 self.role = "focusable"
             else:
                 self.role = "none"
@@ -59,6 +70,11 @@ class AccessibilityNode:
                 self.text = f"Input box: {value}"
             case "button":
                 self.text = "Button"
+            case "image":
+                if "alt" in self.node.attributes:
+                    self.text = f"Image: {self.node.attributes['alt']}"
+                else:
+                    self.text = "Image"
             case "link":
                 self.text = "Link"
             case "alert":

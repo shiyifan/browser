@@ -166,6 +166,7 @@ def absolute_to_local(display_item, rect):
         rect = parent.unmap(rect)
     return rect
 
+
 # 计算layout object在应用css"transform"之后的绝对绘制区域
 def absolute_bounds_for_obj(obj):
     rect = Rect.MakeXYWH(obj.x, obj.y, obj.width, obj.height)
@@ -177,6 +178,7 @@ def absolute_bounds_for_obj(obj):
         cur = cur.parent
 
     return rect
+
 
 # 将矩形区域按照既定的"translation"返回转换后的矩形区域
 def map_translation(rect, translation, reversed=False):
@@ -211,6 +213,7 @@ def reasonable_intersect(r0, r1):
 
 
 def dpx(css_px, zoom):
+    """将css中的"px"长度按照当前的缩放值转换为实际的长度"""
     return css_px * zoom
 
 

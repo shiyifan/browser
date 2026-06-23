@@ -17,6 +17,9 @@ from accessibility import AccessibilityNode
 # 浏览器默认样式，user agent style
 DEFAULT_STYLE_SHEET = CSSParser(open("browser.css").read()).parse()
 
+# 当图片加载失败时的placeholder
+BROKEN_IMAGE = Image.open("Broken_Image.png")
+
 tab_counter = 0  # tab id
 
 
@@ -155,6 +158,26 @@ class Tab:
                 continue
             rules.extend(CSSParser(body).parse())  # 获取author stylesheet
         self.rules = rules
+
+        # 加载所有"<img>"标签
+        images = [
+            node
+            for node in tree_to_list(self.nodes, [])
+            if isinstance(node, Element) and node.tag == "img"
+        ]
+        for img in images:
+            try:
+                src = img.attributes.get("src", "")
+                image_url = url.resolve(src)
+                assert self.allowed_request(image_url), f"Block load of {str(image_url)} due to CSP"
+                header, body = image_url.request(url)
+                img.encoded_data = body  # a bit of hack to avoid body being recycled by GC
+                data = Data.MakeWithoutCopy(body)
+                img.image = Image.MakeFromEncoded(data)  # 将图片object附加至<img> DOM object中
+                assert img.image, f"Failed to recognize image format for {str(image_url)}"
+            except Exception as e:
+                log.e(f"Image {img.attributes.get('src', '')} crashed", e)
+                img.image = BROKEN_IMAGE
 
         self.set_needs_render()
 

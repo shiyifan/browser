@@ -254,7 +254,7 @@ class Blend(VisualEffect):
             return bounds
         else:
             return rect
-    
+
     def unmap(self, rect):
         return rect
 
@@ -310,7 +310,7 @@ class Transform(VisualEffect):
 
     def map(self, rect):
         return map_translation(rect, self.translation)
-    
+
     def unmap(self, rect):
         return map_translation(rect, self.translation, True)
 
@@ -339,6 +339,17 @@ class DrawCompositedLayer(PaintCommand):
         return "DrawCompositedLayer()"
 
 
+# 绘制"<img>"的命令
+class DrawImage(PaintCommand):
+    def __init__(self, image, rect, quality):
+        super().__init__(rect)
+        self.image = image
+        self.quality = parse_image_rendering(quality)
+
+    def execute(self, canvas):
+        canvas.drawImageRect(self.image, self.rect, self.quality)
+
+
 # 将CSS中的"mix-blend-mode"属性值转换为skia中的枚举值
 def parse_blend_mode(blend_mode):
     if blend_mode == "multiply":
@@ -351,3 +362,13 @@ def parse_blend_mode(blend_mode):
         return BlendMode.kSrcOver
     else:
         return BlendMode.kSrcOver
+
+
+def parse_image_rendering(quality):
+    match quality:
+        case "high-quality":
+            return SamplingOptions(CubicResampler.Mitchell())
+        case "crisp-edges":
+            return SamplingOptions(FilterMode.kNearest, MipmapMode.kNone)
+        case _:
+            return SamplingOptions(FilterMode.kLinear, MipmapMode.kLinear)

@@ -88,7 +88,7 @@ class BlockLayout:
             # DOM tree中，如果Element结点的子结点中，至少有一个是block Html Element，
             # 那么在layout tree中，该结点作为非叶子结点，不计算绘制信息,仅将子结点添加至"children"数组中
             return "block"
-        elif self.node.children or self.node.tag == "input":
+        elif self.node.children or self.node.tag in ["input", "img"]:
             # 在DOM tree中，该结点的子结点中只有inline Html Element,那么将该结点视为纯文本结点，
             # 在layout tree中，所有子结点的文本绘制信息（TextLayout, LineLayout）由当前结点负责创建
             return "inline"
@@ -99,6 +99,7 @@ class BlockLayout:
     # 由于递归调用，这里的"node"参数可能与"self.node"不同
     def recurse(self, node):
         if isinstance(node, Text):
+            # FIXME: 下面仅简单地通过"text.split()"分词, 但无法正确对CJK字符分词.
             for word in node.text.split():
                 self.word(node, word)
         else:
@@ -108,6 +109,8 @@ class BlockLayout:
                 # 注意，这里创建的"InputLayout"对象中的"InputLayout.node"属性
                 # 是"<input>"或者"<button>"结点,而不是结点下的"Text"结点.
                 self.input(node)
+            elif node.tag == "img":
+                self.image(node)
             else:
                 # 与"<input>"或者"<button>"不同，对于"<a>"这样的DOM结点，没有为其创建专用的Layout,
                 # 而采用"TextLayout", 因此"TextLayout"中的"TextLayout.node"值为DOM结点下的"Text"结点
@@ -118,49 +121,37 @@ class BlockLayout:
     # 计算每个word的宽度，并根据宽度判断是否超出一行。
     # 这里仅用于创建layout tree结构，而计算baseline、确定行高的流程由LineLayout负责完成
     def word(self, node, word):
-        weight = node.style["font-weight"]
-        style = node.style["font-style"]
-        color = node.style["color"]
-        if style == "normal":
-            style = "roman"
-        elif style == "oblique":
-            # 通过"tkinter.font.Font()"获取"oblique"字体时抛出异常，所以改用"italic"替代
-            style = "italic"
-
-        # 将字体大小的"px"单位转换为"pt"单位
-        size = dpx(float(node.style["font-size"][:-2]) * 0.75, self.zoom)
-
-        font = get_font(size, weight, style)
-        w = font.measureText(word)
-
-        if self.cursor_x + w > self.width:
-            # 根据BlockLayout宽度，已超出一行时，新建一行
-            self.new_line()
-        self.cursor_x += w + font.measureText(" ")
-
-        line = self.children[-1]
-        previous_word = line.children[-1] if line.children else None
-        text = TextLayout(node, word, line, previous_word)
-        line.children.append(text)
+        node_font = font(node.style, self.zoom)
+        w = node_font.measureText(word)
+        self.add_inline_child(node, w, TextLayout, word)
 
     # 与"word()"方法相似，将<input>和<button>以与纯文本相似的方式添加至LineLayout中
     def input(self, node):
-        w = dpx(INPUT_WIDTH_PX, self.zoom)
+        w = dpx(INPUT_WIDTH_PX, self.zoom)  # "<input>"布局时采用固定宽度
+        self.add_inline_child(node, w, InputLayout)
+
+    # 将<img>添加至LineLayout中
+    def image(self, node):
+        w = dpx(node.image.width(), self.zoom)  # "<img>"布局时采用图片原始宽度
+        self.add_inline_child(node, w, ImageLayout)
+
+    # 添加inline layout object至LineLayout中
+    def add_inline_child(self, node, w, child_class, word=None):
         if self.cursor_x + w > self.width:
+            # 根据BlockLayout宽度，已超出一行时，新建一行
             self.new_line()
+
         line = self.children[-1]
         previous_word = line.children[-1] if line.children else None
-        input = InputLayout(node, line, previous_word)
-        line.children.append(input)
+        if word:
+            # 此时添加的是"TextLayout"
+            child = child_class(node, word, line, previous_word)
+        else:
+            child = child_class(node, line, previous_word)
+        line.children.append(child)
 
-        weight = node.style["font-weight"]
-        style = node.style["font-style"]
-        if style == "normal":
-            style = "roman"
-        size = dpx(float(node.style["font-size"][:-2]) * 0.75, self.zoom)
-        font = get_font(size, weight, style)
-
-        self.cursor_x += w + font.measureText(" ")
+        # 更新x坐标，作为同一line中下一个inline element的布局x坐标
+        self.cursor_x += w + font(node.style, self.zoom).measureText(" ")
 
     def new_line(self):
         self.cursor_x = 0
@@ -227,9 +218,7 @@ class BlockLayout:
     # 调用"paint_tree()"绘制时，由于BlockLayout与InputLayout都将绘制<button>的背景色，因此为避免重复绘制，BlockLayout
     # 不再绘制背景色，由InputLayout绘制
     def should_paint(self):
-        return isinstance(self.node, Text) or (
-            self.node.tag != "input" and self.node.tag != "button"
-        )
+        return isinstance(self.node, Text) or (self.node.tag not in ["input", "button", "img"])
 
 
 # 对应于DOM根结点的layout object。
@@ -314,27 +303,32 @@ class LineLayout:
             self.height = 0
             return
 
-        # 让每个TextLayout自己计算x绘制坐标、宽度、高度以及字体
+        # 让每个TextLayout自己计算x绘制坐标、宽度、高度以及字体.
+        # 仅当所有子结点完成layout之后，才能计算出当前line的baseline位置、高度等
         for word in self.children:
             word.layout()
 
         # 行内的所有TextLayout均以计算完成，然后确定baseline的位置以及每个TextLayout的y绘制坐标
 
         # 计算一行中最大的ascent
-        max_ascent = max([-word.font.getMetrics().fAscent for word in self.children])
+        max_ascent = max([-child.ascent for child in self.children])
 
         # 可以直接以"max_ascent"作为baseline的位置，或者在这个基础上、在最大字符的ascent与descent之外再
         # 添加一些leading（空白区域），ascent上面添加一半leading, descent下面添加一半leading,
         # 这样，lineheight = (ascent + descent) + ascent_leading + descent_leading
         # 这里在最大ascent上面与最大descent下面各添加25%的leading
-        baseline = self.y + max_ascent * 1.25
+        baseline = self.y + max_ascent
 
-        # 确定y绘制坐标
-        for word in self.children:
-            word.y = baseline - -word.font.getMetrics().fAscent
+        # 确定各个子结点的y绘制坐标
+        for child in self.children:
+            if isinstance(child, TextLayout):
+                child.y = baseline - (-child.ascent / 1.25)
+            else:
+                # 对于"InputLayout, ImageLayout"等其他inline layout object
+                child.y = baseline - -child.ascent
 
-        max_descent = max([word.font.getMetrics().fDescent for word in self.children])
-        self.height = 1.25 * (max_ascent + max_descent)
+        max_descent = max([child.descent for child in self.children])
+        self.height = max_ascent + max_descent
 
     def paint(self):
         # 由TextLayout负责绘制字符
@@ -409,6 +403,9 @@ class TextLayout:
         size = dpx(float(self.node.style["font-size"][:-2]) * 0.75, self.zoom)
         self.font = get_font(size, weight, style)
 
+        self.ascent = self.font.getMetrics().fAscent * 1.25
+        self.descent = self.font.getMetrics().fDescent * 1.25
+
         self.width = self.font.measureText(self.word)
         if self.previous:
             space = self.previous.font.measureText(" ")
@@ -428,12 +425,13 @@ class TextLayout:
         return Rect(self.x, self.y, self.x + self.width, self.y + self.height)
 
 
-# <input>或者<button>对应的layout object
-class InputLayout:
-    def __init__(self, node, parent, previous):
-        self.node = node  # 表示"<input>"或者"<button>"的DOM结点
+# <input>, <button>以及<img>等inline html element的layout object的父类, 包含一些通用的属性以及布局流程
+class EmbedLayout:
+    def __init__(self, node, parent, previous, frame=None):
+        self.node = node
         self.parent = parent
-        self.previous = previous  # 上一个word
+        self.previous = previous
+        self.frame = frame
         self.children = []
 
         # 绘制所需的绝对坐标
@@ -444,23 +442,40 @@ class InputLayout:
 
         node.layout_object = self
 
+    # 根据前一个inline element计算当前layout object的x坐标
     def layout(self):
         self.zoom = self.parent.zoom
+        self.font = font(self.node.style, self.zoom)
 
-        weight = self.node.style["font-weight"]
-        style = self.node.style["font-style"]
-        if style == "normal":
-            style = "roman"
-        size = dpx(float(self.node.style["font-size"][:-2]) * 0.75, self.zoom)
-        self.font = get_font(size, weight, style)
-
-        self.width = INPUT_WIDTH_PX
         if self.previous:
+            # 使用相邻的前一个layout object的font计算两者间距
             space = self.previous.font.measureText(" ")
+
             self.x = self.previous.x + self.previous.width + space
         else:
             self.x = self.parent.x
+
+        # 计算"self.width"时，不同的inline element有不同的计算方法,所以将这个计算委托至子类中完成
+
+    def should_paint(self):
+        return True
+
+    def self_rect(self):
+        return Rect(self.x, self.y, self.x + self.width, self.y + self.height)
+
+
+# <input>或者<button>对应的layout object
+class InputLayout(EmbedLayout):
+    def __init__(self, node, parent, previous):
+        super().__init__(node, parent, previous)  # "self.node"表示"<input>"或者"<button>"的DOM结点
+
+    def layout(self):
+        super().layout()
+
+        self.width = dpx(INPUT_WIDTH_PX, self.zoom)
         self.height = linespace(self.font)
+        self.ascent = -self.height
+        self.descent = 0
 
     def paint(self):
         cmds = []
@@ -492,15 +507,45 @@ class InputLayout:
 
         return cmds
 
-    def self_rect(self):
-        return Rect(self.x, self.y, self.x + self.width, self.y + self.height)
-
-    def should_paint(self):
-        return True
-
     def paint_effects(self, cmds):
         cmds = paint_visual_effects(self.node, cmds, self.self_rect())
         paint_outline(self.node, cmds, self.self_rect(), self.zoom)
+        return cmds
+
+
+# "<img>"对应的layout object
+class ImageLayout(EmbedLayout):
+    def __init__(self, node, parent, previous):
+        super().__init__(node, parent, previous)
+
+    def layout(self):
+        super().layout()
+
+        # 图片原始宽度, 采用该原始宽度作为layout object的宽度
+        self.width = dpx(self.node.image.width(), self.zoom)
+
+        self.img_height = dpx(self.node.image.height(), self.zoom)  # 图片原始高度
+
+        # 图片的高度可能会基于"<img>"的"font"
+        self.height = max(self.img_height, linespace(self.font))
+
+        self.ascent = -self.height
+        self.descent = 0
+
+    def paint(self):
+        cmds = []
+
+        rect = Rect.MakeLTRB(
+            self.x,
+            # 对于第二个参数，如果图片高于font lineheight, 那么图片的顶部与font的ascent对齐，图片
+            # 的上下边界充满整个line. 如果图片低于font lineheight, 那么图片的底部与font的descent对齐，
+            # 图片的上面与font ascent之间会留出一小块空白区域
+            self.y + self.height - self.img_height,
+            self.x + self.width,
+            self.y + self.height,
+        )
+        quality = self.node.style.get("image-rendering", "auto")
+        cmds.append(DrawImage(self.node.image, rect, quality))
         return cmds
 
 
@@ -546,3 +591,13 @@ def paint_outline(node, cmds, rect, zoom):
 
     thickness, color = outline
     cmds.append(DrawOutline(rect, color, dpx(thickness, zoom)))
+
+
+def font(style, zoom):
+    weight = style["font-weight"]
+    variant = style["font-style"]
+    if variant == "normal":
+        variant = "roman"
+    size = float(style["font-size"][:-2]) * 0.75
+    font_size = dpx(size, zoom)
+    return get_font(font_size, weight, variant)
