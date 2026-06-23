@@ -132,7 +132,12 @@ class BlockLayout:
 
     # 将<img>添加至LineLayout中
     def image(self, node):
-        w = dpx(node.image.width(), self.zoom)  # "<img>"布局时采用图片原始宽度
+        if "width" in node.attributes:
+            # 如果以"<img width=''>"的方式指定了宽度
+            w = dpx(int(node.attributes["width"]), self.zoom)
+        else:
+            w = dpx(node.image.width(), self.zoom)  # 默认情况下，"<img>"布局时采用图片原始宽度
+
         self.add_inline_child(node, w, ImageLayout)
 
     # 添加inline layout object至LineLayout中
@@ -521,10 +526,19 @@ class ImageLayout(EmbedLayout):
     def layout(self):
         super().layout()
 
-        # 图片原始宽度, 采用该原始宽度作为layout object的宽度
-        self.width = dpx(self.node.image.width(), self.zoom)
+        width_attr = self.node.attributes.get("width")
+        height_attr = self.node.attributes.get("height")
+        image_width = self.node.image.width()
+        image_height = self.node.image.height()
 
-        self.img_height = dpx(self.node.image.height(), self.zoom)  # 图片原始高度
+        if width_attr and height_attr:
+            # 如果同时设置了"width"与"height"HTML属性, 那么就采用设置的大小渲染
+            self.width = dpx(int(width_attr), self.zoom)
+            self.img_height = dpx(int(height_attr), self.zoom)
+        else:
+            # 图片原始宽度, 采用该原始宽度作为layout object的宽度
+            self.width = dpx(image_width, self.zoom)
+            self.img_height = dpx(image_height, self.zoom)  # 图片原始高度
 
         # 图片的高度可能会基于"<img>"的"font"
         self.height = max(self.img_height, linespace(self.font))
