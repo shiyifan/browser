@@ -132,15 +132,24 @@ class BlockLayout:
 
     # 将<img>添加至LineLayout中
     def image(self, node):
+        aspect_ratio = node.image.width() / node.image.height()
+
         if "width" in node.attributes:
             # 如果以"<img width=''>"的方式指定了宽度
             w = dpx(int(node.attributes["width"]), self.zoom)
+        elif "height" in node.attributes:
+            # 如果以"<img height=''>"的方式指定了高度且没有指定宽度，那么根据宽高比计算宽度
+            h = dpx(int(node.attributes["height"]), self.zoom)
+            w = h * aspect_ratio
         else:
             w = dpx(node.image.width(), self.zoom)  # 默认情况下，"<img>"布局时采用图片原始宽度
 
         self.add_inline_child(node, w, ImageLayout)
 
     # 添加inline layout object至LineLayout中
+    #
+    # "w": 待加入的inline layout object的宽度，已在调用该函数前根据计算得到.
+    #      用于计算是否换行以及更新下一个layout object的x坐标
     def add_inline_child(self, node, w, child_class, word=None):
         if self.cursor_x + w > self.width:
             # 根据BlockLayout宽度，已超出一行时，新建一行
@@ -531,10 +540,19 @@ class ImageLayout(EmbedLayout):
         image_width = self.node.image.width()
         image_height = self.node.image.height()
 
+        aspect_ratio = image_width / image_height  # 图片原始的宽高比
+
         if width_attr and height_attr:
             # 如果同时设置了"width"与"height"HTML属性, 那么就采用设置的大小渲染
             self.width = dpx(int(width_attr), self.zoom)
             self.img_height = dpx(int(height_attr), self.zoom)
+        elif width_attr:
+            # 当仅设置"width"或者"height"时，用原始的宽高比计算另一个
+            self.width = dpx(int(width_attr), self.zoom)
+            self.img_height = self.width / aspect_ratio
+        elif height_attr:
+            self.img_height = dpx(int(height_attr), self.zoom)
+            self.width = self.img_height * aspect_ratio
         else:
             # 图片原始宽度, 采用该原始宽度作为layout object的宽度
             self.width = dpx(image_width, self.zoom)
