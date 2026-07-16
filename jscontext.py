@@ -168,6 +168,10 @@ class JSContext:
         self.interp.evaljs(XHR_ONLOAD_JS, out=out, handle=handle)
         self.tab.browser.measure.stop("XHR_ONLOAD_JS")
 
+    def dispatch_RAF(self, window_id):
+        # self.interp.evaljs("window.__runRAFHandlers()") # FIXME
+        self.interp.evaljs("__runRAFHandlers()")
+
     def requestAnimationFrame(self):
 
         # mainloop中已经实现了以固定频率schedule render task。这里如果

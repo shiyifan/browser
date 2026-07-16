@@ -1,4 +1,6 @@
-var b = document.getElementById('clickme');
+var b = document.getElementById('other');
+
+console.log("b: ", b)
 
 b.addEventListener('click', function () {
   console.log('x clicked');

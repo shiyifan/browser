@@ -124,7 +124,6 @@ class DrawRect(PaintCommand):
 
         self.color = color
 
-    # scroll: 已向上滚动的距离
     def execute(self, canvas):
         paint = Paint(Color=parse_color(self.color))
         canvas.drawRect(self.rect, paint)
@@ -279,7 +278,7 @@ class Transform(VisualEffect):
         # 将由layout object计算的矩形区域转换为"translate"之后的矩形区域。
         # 如果这里直接采用layout object计算的矩形，那么在raster过程中'CompositedLayer'计算
         # surface的大小时（通过'CompositedLayer.composited_bound()'）, 'Transform.rect'无法正确
-        # 反应translate之后的绘制区域，导致translated的内容在surface上仅能绘制出一部分.
+        # 反映translate之后的绘制区域，导致translated的内容在surface上仅能绘制出一部分.
         #
         # 注意：当某个html元素没有'opacity'以及'blend'效果时，会出现这种部分绘制的错误, 否则不会出现。因为
         # 有opacity以及'blend'效果的元素在'composite'时，'CompositedLayer'中缓存的是'Draw***'命令，

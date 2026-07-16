@@ -2,7 +2,7 @@ from skia import *
 from html_parser import HTMLParser
 import const
 import urllib.parse
-from layout import DocumentLayout
+from layout import DocumentLayout, IframeLayout
 from tags import Element, Text
 from css_parser import CSSParser
 from jscontext import JSContext
@@ -13,12 +13,7 @@ from commit import CommitData
 from animation import NumericAnimation
 import math
 from accessibility import AccessibilityNode
-
-# 浏览器默认样式，user agent style
-DEFAULT_STYLE_SHEET = CSSParser(open("browser.css").read()).parse()
-
-# 当图片加载失败时的placeholder
-BROKEN_IMAGE = Image.open("Broken_Image.png")
+from frame import Frame
 
 tab_counter = 0  # tab id
 
@@ -31,30 +26,21 @@ class Tab:
         self.id = tab_counter
         tab_counter += 1
 
-        self.scroll = 0  # 当前已向上滑动的距离
-
         # tab页的高度，即"canvas高度" - "canvas顶部chrome所占据的高度"
         self.tab_height = tab_height
 
         self.url = None
         self.history = []  # 保存访问过的url，并且当前tab页显示的网页url位于数组末尾
 
-        self.nodes = None  # HTML解析后的DOM Tree
-        self.rules = None  # css解析后的rules
-
         self.focus = None  # 获取到焦点的DOM对象. 或者是通过点击获取焦点，或者是通过tab获取焦点
+        self.focused_frame = None  # 获取到焦点的DOM对象所在的"Frame"
 
         # 在tab页加载新的url前后，task queue不变
         self.task_runner = TaskRunner(self)
 
-        self.needs_style = False  # 是否需要重新计算css style
-        self.needs_layout = False  # 是否需要重新计算layout
         self.needs_paint = False  # 是否需要重新收集绘制命令
 
         self.browser = browser
-
-        # 重绘时("run_animation_frame")时，scroll值是被browser更新(上下滚动页面)还是被tab更新(重新layout后导致scroll更新)
-        self.scroll_changed_in_tab = False
 
         self.composited_updates = []  # 保存执行animation frame的node
 
@@ -67,13 +53,16 @@ class Tab:
         self.needs_accessibility = False
         self.accessibility_tree = None
 
-    def set_needs_render(self):
-        self.needs_style = True
-        self.browser.set_needs_animation_frame(self)
+        self.root_frame = None
 
-    def set_needs_layout(self):
-        self.needs_layout = True
-        self.browser.set_needs_animation_frame(self)
+        # tab中每个"Frame"对象与frame id的关系映射.
+        # Python中"dictionary"的item按照插入时的顺序排列,因此遍历时的顺序恰好对应了iframe的层次嵌套关系.
+        # 先被访问的是后被访问的父结点或者同级结点，不可能是子结点
+        self.window_id_to_frame = {}
+
+    def set_needs_render_all_frames(self):
+        for id, frame in self.window_id_to_frame.items():
+            frame.set_needs_render()
 
     def set_needs_paint(self):
         self.needs_paint = True
@@ -82,107 +71,17 @@ class Tab:
     def load(self, url, payload=None):
         self.zoom = 1
         self.history.append(url)
-
-        self.focus_element(None)
-
-        headers, body = url.request(self.url, payload)
-        body = body.decode("utf8", "replace")
         self.url = url
-        self.nodes = HTMLParser(body).parse()  # 将HTML代码解析为DOM tree
 
-        # 添加对"Content-Security-Policy" Response Header的支持
-        # 仅支持 "default-src" directive
-        self.allowed_origins = None
-        if "content-security-policy" in headers:
-            csp = headers["content-security-policy"].split()
-            if len(csp) > 0 and csp[0] == "default-src":
-                self.allowed_origins = []
-                for origin in csp[1:]:
-                    self.allowed_origins.append(URL(origin).origin())
+        # 创建"root_frame"作为其他"<iframe>"的根结点, 同时也是tab的默认第一个frame
+        self.root_frame = Frame(self, None, None)
+        self.root_frame.frame_width = const.WIDTH
+        self.root_frame.frame_height = self.tab_height
+        self.root_frame.load(url, payload)
 
-        # HTML代码中，加载所有"<script src=''>"的标签
-        #
-        # 注意：该浏览器不实现类似于"<script>...js code...</script>"的内嵌功能，因为
-        # 解析时区分HTML与js中的"<"以及">"符号较为复杂
-        scripts = [
-            node.attributes["src"]
-            for node in tree_to_list(self.nodes, [])
-            if isinstance(node, Element) and node.tag == "script" and "src" in node.attributes
-        ]
+        self.root_frame.focus_element(None)
 
-        if hasattr(self, "js") and self.js:
-            # 废弃旧的js context, 避免后续执行queue中的旧task
-            self.js.discarded = True
-        self.js = JSContext(self)
-
-        for script in scripts:
-            script_url = url.resolve(script)
-
-            # <script>的"src"是否满足ContentSecurityPolicy
-            if not self.allowed_request(script_url):
-                log.e(f"CSP script block: {script_url}")
-                continue
-
-            try:
-                _, body = script_url.request(url)
-                body = body.decode("utf8", "replace")
-            except:
-                continue
-
-            # 将运行javascript的任务添加至任务队列，待后续执行(依赖于mainloop)
-            task = Task(self.js.run, body)
-            self.task_runner.schedule_task(task)
-
-        # 加载并解析所有"<link rel=stylesheet>"的css
-        rules = DEFAULT_STYLE_SHEET.copy()  # 解析user agent stylesheet
-        # HTML代码中，所有的"<link rel=stylesheet>"标签中的css url
-        links = [
-            node.attributes["href"]
-            for node in tree_to_list(self.nodes, [])
-            if isinstance(node, Element)
-            and node.tag == "link"
-            and node.attributes.get("rel") == "stylesheet"
-            and "href" in node.attributes
-        ]
-        for link in links:
-            style_url = url.resolve(link)
-
-            if not self.allowed_request(style_url):
-                log.e(f"CSP style block: {style_url}")
-                continue
-
-            try:
-                _, body = style_url.request(url)
-                body = body.decode("utf8", "replace")
-            except:
-                continue
-            rules.extend(CSSParser(body).parse())  # 获取author stylesheet
-        self.rules = rules
-
-        # 加载所有"<img>"标签
-        images = [
-            node
-            for node in tree_to_list(self.nodes, [])
-            if isinstance(node, Element) and node.tag == "img"
-        ]
-        for img in images:
-            try:
-                src = img.attributes.get("src", "")
-                image_url = url.resolve(src)
-                assert self.allowed_request(image_url), f"Block load of {str(image_url)} due to CSP"
-                header, body = image_url.request(url)
-                img.encoded_data = body  # a bit of hack to avoid body being recycled by GC
-                data = Data.MakeWithoutCopy(body)
-                img.image = Image.MakeFromEncoded(data)  # 将图片object附加至<img> DOM object中
-                assert img.image, f"Failed to recognize image format for {str(image_url)}"
-            except Exception as e:
-                log.e(f"Image {img.attributes.get('src', '')} crashed", e)
-                img.image = BROKEN_IMAGE
-
-        self.set_needs_render()
-
-        self.scroll = 0
-        self.scroll_changed_in_tab = True
+        self.set_needs_render_all_frames()
 
     # 计算layout并收集每个layout对象的绘制命令
     # 多数情况下由Browser的animation timer添加至task队列中，并在event loop中调用。
@@ -191,38 +90,13 @@ class Tab:
 
         self.browser.measure.time("render")
 
-        if self.needs_style:
-            self.browser.measure.time("style")
-
-            # 根据当前theme修改绘制HTML element的默认前景色color
-            if self.dark_mode:
-                const.INHERITED_PROPERTIES["color"] = "white"
-            else:
-                const.INHERITED_PROPERTIES["color"] = "black"
-
-            # 将css rules全部赋值至DOM结点的"style"属性上
-            style(self.nodes, sorted(self.rules if self.rules else [], key=cascade_priority), self)
-
-            self.needs_layout = True
-            self.needs_style = False
-
-            self.browser.measure.stop("style")
-
-        if self.needs_layout:
-            self.browser.measure.time("layout")
-
-            self.document = DocumentLayout(self.nodes)
-            self.document.layout(self.zoom)  # 构建layout tree
-
-            self.needs_accessibility = True
-            self.needs_paint = True
-            self.needs_layout = False
-
-            self.browser.measure.stop("layout")
+        for _, frame in self.window_id_to_frame.items():
+            if frame.loaded:
+                frame.render()
 
         if self.needs_accessibility:
             self.browser.measure.time("accessibility")
-            self.accessibility_tree = AccessibilityNode(self.nodes)
+            self.accessibility_tree = AccessibilityNode(self.root_frame.nodes)
             self.accessibility_tree.build()  # 通过DOM Tree构建Accessbility Tree
             self.needs_accessibility = False
             self.browser.measure.stop("accessibility")
@@ -233,41 +107,37 @@ class Tab:
             self.browser.measure.time("paint")
 
             self.display_list = []
-            paint_tree(self.document, self.display_list)
+            paint_tree(self.root_frame.document, self.display_list)
 
             self.needs_paint = False
 
             self.browser.measure.stop("paint")
 
-        clamped_scroll = self.clamp_scroll(self.scroll)
-        if clamped_scroll != self.scroll:
-            self.scroll_changed_in_tab = True
-        self.scroll = clamped_scroll
-
         self.browser.measure.stop("render")
 
     def run_animation_frame(self, scroll, rand):
-        self.browser.measure.time(
-            "run animation",
-            cat="debug",
-            args={"tab": self.id, "changed": self.scroll_changed_in_tab, "rand": rand},
-        )
-
         # 如果由"tab"键轮换焦点引起的animation frame, 那么需要适当地滚动以确保新焦点位于窗口可视区域中
         if self.needs_focus_scroll and self.focus:
             self.scroll_to(self.focus)
         self.needs_focus_scroll = False
 
-        if not self.scroll_changed_in_tab:
-            self.scroll = scroll
+        if not self.root_frame.scroll_changed_in_frame:
+            self.root_frame.scroll = scroll
 
         self.browser.measure.time("__runRAFHandlers")
-        # 计算layout之前执行通过"requestAnimationFrame"注册的callback
-        self.js.interp.evaljs("__runRAFHandlers()")
+        # 计算layout之前, 执行通过"requestAnimationFrame"注册的callback
+        for window_id, frame in self.window_id_to_frame.items():
+            if not frame.loaded:
+                continue
+            frame.js.dispatch_RAF(frame.window_id)
         self.browser.measure.stop("__runRAFHandlers")
 
-        # 在"node.style"上更新所有的css"transition"属性的下一帧属性值, 然后保存这个node
-        for node in tree_to_list(self.nodes, []):
+        # 所有的frame中, 在所有的"node.style"上更新所有的css"transition"属性的下一帧属性值, 然后保存这个node
+        loaded_frames = [f for f in list(self.window_id_to_frame.values()) if f.loaded]
+        nodes = []  # all loaded frames' nodes
+        for frame in loaded_frames:
+            tree_to_list(frame.nodes, nodes)
+        for node in nodes:
             for property_name, animation in node.animations.items():
                 value = animation.animate()
                 if value:
@@ -278,9 +148,22 @@ class Tab:
         # 在browser "raster and draw"期间，是否需要从tab display list中提取PaintCommand并创建"CompositedLayer"
         # 如果不需要，那么在"self.render()"前后仅仅是node的animation visual effect发生了变化. browser可以重用之前"CompositedLayer"的绘制结果
         # 如果需要，那么"self.render()"中重新style以及layout, browser需要重新提取PaintCommand
-        needs_composite = self.needs_style or self.needs_layout
+        #
+        # 只要有一个frame需要重新"style"或者"layout",那么就需要重新"composite"
+        needs_style = any([f.needs_style for f in loaded_frames])
+        needs_layout = any([f.needs_layout for f in loaded_frames])
+        needs_composite = needs_style or needs_layout
 
         self.render()
+
+        # 在每个frame render之后，如果有一个frame更新了scroll, 那么browser需要重新"composite"
+        for window_id, frame in self.window_id_to_frame.items():
+            if frame == self.root_frame:
+                continue
+
+            if frame.scroll_changed_in_frame:
+                needs_composite = True
+                frame.scroll_changed_in_frame = False
 
         composited_updates = None  # 保存已执行animation frame的node与新的Blend command
         if not needs_composite:
@@ -302,10 +185,14 @@ class Tab:
                 composited_updates[node] = node.blend_op
         self.composited_updates = []
 
+        # root frame是否获取了焦点。用于实现root frame的threaded scrolling.
+        root_frame_focused = not self.focused_frame or self.focused_frame == self.root_frame
+
         commit_data = CommitData(
             self.url,
-            self.scroll,
-            self.document.height,
+            self.root_frame.scroll,
+            root_frame_focused,
+            self.root_frame.document.height,
             self.display_list,
             composited_updates,
             self.accessibility_tree,
@@ -315,7 +202,7 @@ class Tab:
         self.accessibility_tree = None
         self.browser.commit(self, commit_data, rand)
 
-        self.scroll_changed_in_tab = False
+        self.root_frame.scroll_changed_in_frame = False
 
         self.browser.measure.stop("run animation", cat="debug", args={"tab": self.id, "rand": rand})
 
@@ -331,59 +218,15 @@ class Tab:
 
     def keypress(self, char):
         if self.focus and self.focus.tag == "input":
-            if not "value" in self.focus.attributes:
-                self.activate_element(self.focus)
-
-            self.js.dispatch_event("keydown", self.focus)
-            self.focus.attributes["value"] += char
-            self.set_needs_render()
+            self.focused_frame.keypress(char)
 
     def click(self, x, y):
         self.browser.measure.instant("click")
         self.render()  # 在判断点击位置之前，确保页面布局必须是最新的
 
-        # 如果未找到被点击的layout object, 返回前是否需要重绘
-        focus_lost = False
+        y += self.root_frame.scroll  # 使纵坐标y为相对于网页绘制内容的坐标
 
-        # 判断点击位置之前先重置焦点
-        if self.focus:
-            self.focus_element(None)
-            focus_lost = True
-
-        y += self.scroll  # 使纵坐标y为相对于网页绘制内容的坐标
-
-        # 根据绘制区域与点击坐标，在"layout tree"中找到所有被点击的layout object
-        #
-        # 可能会找到多个被点击的layout object,这些object位于tree中的不同层级
-        # 在实际情况下，也可能出现相同层级的HTML元素被同时点击（例如"margin"为负值时），此时browser还需要
-        # 根据"stacking context"机制判断最上层的被点击元素
-        loc_rect = Rect.MakeXYWH(x, y, 1, 1)
-        objs = [
-            obj
-            for obj in tree_to_list(self.document, [])
-            if absolute_bounds_for_obj(obj).intersects(loc_rect)
-        ]
-        if not objs:
-            if focus_lost:
-                self.set_needs_render()
-            return
-        elt = objs[-1].node  # 获取最上层被点击的layout object对应的DOM node
-
-        # 根据最上层的object,依次向上查找第一个clickable html element
-        while elt:
-            if isinstance(elt, Text):
-                pass
-            elif is_focusable(elt):
-                if self.js.dispatch_event("click", elt):
-                    return
-                self.focus_element(elt)
-                self.activate_element(elt)
-                return
-            elif elt.tag == "div":
-                if self.js.dispatch_event("click", elt):
-                    return
-            elt = elt.parent
-        self.set_needs_render()
+        self.root_frame.click(x, y)
 
     def go_back(self):
         """返回至上一个访问的url"""
@@ -417,21 +260,7 @@ class Tab:
     def backspace(self):
         if not self.focus:
             return
-        value = self.focus.attributes["value"]
-        if not value or len(value) == 0:
-            return
-        self.focus.attributes["value"] = value[:-1]
-        self.js.dispatch_event("keydown", self.focus)
-        self.set_needs_render()
-
-    # 根据CSP,是否允许请求(<script>, <style>, XHR)
-    def allowed_request(self, url):
-        return self.allowed_origins == None or url.origin() in self.allowed_origins
-
-    def clamp_scroll(self, scroll):
-        height = math.ceil(self.document.height + 2 * const.VSTEP)
-        maxscroll = height - self.tab_height
-        return max(0, min(scroll, maxscroll))
+        self.focused_frame.backspace()
 
     def zoom_by(self, increment):
         if increment:
@@ -454,50 +283,33 @@ class Tab:
         self.dark_mode = val
         self.set_needs_render()
 
-    # 在网页中通过"tab"按键浏览, 将焦点置于下一个focusable的元素
     def advance_tab(self):
-        focusable_nodes = [
-            node
-            for node in tree_to_list(self.nodes, [])
-            if isinstance(node, Element) and is_focusable(node)
-        ]
-        focusable_nodes.sort(key=get_tabindex)  # 根据HTML的属性"tabindex"排序
-
-        # 找到下一个待获取焦点的element
-        if self.focus in focusable_nodes:
-            idx = focusable_nodes.index(self.focus) + 1
-        else:
-            idx = 0
-
-        if idx < len(focusable_nodes):
-            self.focus_element(focusable_nodes[idx])
-        else:
-            # tab内的focusable元素均已遍历，此时将焦点移动至chrome中
-
-            self.focus_element(None)
-            self.browser.focus_addressbar()
-
-        # 由于移动焦点可能影响某些DOM结点的绘制（例如相比起无焦点状态，有焦点时需要多绘制一个光标、边框等）,
-        # 所以不能使用之前缓存的"CompositedLayer"中的绘制结果，"browser"中需要重新"composite"
-        self.set_needs_render()
+        frame = self.focused_frame or self.root_frame
+        frame.advance_tab()
 
     def enter(self):
         if not self.focus:
             return
 
-        if self.js.dispatch_event("click", self.focus):
-            return
-        self.activate_element(self.focus)
+        self.focused_frame.enter()
 
     # 当html元素已获取了焦点，此时按下enter，执行不同的动作, 或者点击focusable元素时，执行不同的动作
     def activate_element(self, elt):
         if elt.tag == "input":
+            # "<input>"的动作, 清空已输入的内容
+
             elt.attributes["value"] = ""
-            self.set_needs_render()
+            self.set_needs_render_all_frames()
+
         elif elt.tag == "a" and "href" in elt.attributes:
+            # "<a>"的动作, 访问"href"指向的url
+
             url = self.url.resolve(elt.attributes["href"])
             self.load(url)
+
         elif elt.tag == "button":
+            # "<button>"的动作, 提交"<button>"所在的表单
+
             while elt:
                 if elt.tag == "form" and "action" in elt.attributes:
                     self.submit_form(elt)
@@ -505,93 +317,25 @@ class Tab:
                 elt = elt.parent
 
     def destroy(self):
-        self.js.destroy()
+        for id, frame in self.window_id_to_frame.items():
+            frame.js.destroy()
 
     def blur(self):
-        self.focus_element(None)
-        self.set_needs_render()
-
-    def focus_element(self, node):
-        if self.focus:
-            self.focus.is_focused = False
-        if node and node != self.focus:
-            self.needs_focus_scroll = True
-        self.focus = node
-        if node:
-            node.is_focused = True
+        self.focused_frame.focus_element(None)
+        self.set_needs_render_all_frames()
 
     def scroll_to(self, elt):
-        objs = [obj for obj in tree_to_list(self.document, []) if obj.node == elt]
-        if not objs:
-            return
-        obj = objs[0]
+        self.focused_frame.scroll_to(elt)
 
-        if self.scroll < obj.y < self.scroll + self.tab_height:
-            # 位于viewport中的焦点元素无需滚动
-            return
+    def scrolldown(self):
+        frame = self.focused_frame or self.root_frame
+        frame.scrolldown()
+        self.set_needs_paint()
 
-        document_height = math.ceil(self.document.height + 2 * const.VSTEP)
-        new_scroll = obj.y - const.SCROLL_STEP
-        self.scroll = self.clamp_scroll(new_scroll)
-        self.scroll_changed_in_tab = True
-
-
-# 根据DOM结点上"style"属性、css文件的代码创建CSS对象并赋值为"style"属性
-def style(node, rules, tab):
-    old_style = node.style if hasattr(node, "style") else None
-    node.style = {}  # CSS解析后的对象
-
-    # 先解析当前节点的inherited property的值
-    for property, default_value in const.INHERITED_PROPERTIES.items():
-        if node.parent:
-            node.style[property] = node.parent.style[property]
-        else:
-            node.style[property] = default_value
-
-    # 解析css代码中与当前节点匹配的rule并应用至当前节点
-    for media, selector, body in rules:
-        if media:
-            if (media == "dark") != tab.dark_mode:
-                # 如果"@media(prefers-color-scheme)"声明的主题与当前不符，则忽略其中的style
-                continue
-        if not selector.matches(node):
-            continue
-        for property, value in body.items():
-            node.style[property] = value
-
-    # 解析DOM中"style"属性的样式
-    if isinstance(node, Element) and "style" in node.attributes:
-        pairs = CSSParser(node.attributes["style"]).body()
-        for property, value in pairs.items():
-            node.style[property] = value
-
-    # 如果DOM节点的"font-size"值为百分比数值，则根据父结点的值或者默认值计算具体"px"单位的数值
-    if node.style["font-size"].endswith("%"):
-        if node.parent:
-            parent_font_size = node.parent.style["font-size"]
-        else:
-            parent_font_size = const.INHERITED_PROPERTIES["font-size"]
-        node_pct = float(node.style["font-size"][:-1]) / 100
-        parent_px = float(parent_font_size[:-2])
-        node.style["font-size"] = str(node_pct * parent_px) + "px"
-
-    # 解析并创建子结点的CSS对象
-    for child in node.children:
-        style(child, rules, tab)
-
-    if old_style:
-        # 查找在css中"transition"声明的属性中，哪些属性的值发生了更新,
-        # 并在DOM node上根据更新的属性值创建animation对象，接着触发后续的animation frame
-
-        transitions = diff_styles(old_style, node.style)
-        for property, (old_value, new_value, num_frames) in transitions.items():
-            if property == "opacity":
-                animation = NumericAnimation(float(old_value), float(new_value), num_frames)
-                node.animations[property] = animation
-                node.style[property] = animation.animate()  # animation的第一帧
-
-                # 请求一次browser的animation frame, 以继续渲染animation后面的frame
-                tab.browser.set_needs_animation_frame(tab)
+    def scrollup(self):
+        frame = self.focused_frame or self.root_frame
+        frame.scrollup()
+        self.set_needs_paint()
 
 
 def paint_tree(layout_object, display_list):
@@ -602,9 +346,17 @@ def paint_tree(layout_object, display_list):
     if layout_object.should_paint():
         cmds.extend(layout_object.paint())
 
-    # "layout_object"的子节点的绘制命令
-    for child in layout_object.children:
-        paint_tree(child, cmds)
+    if (
+        isinstance(layout_object, IframeLayout)
+        and layout_object.node.frame
+        and layout_object.node.frame.loaded
+    ):
+        # 绘制"IframeLayout"时，应该绘制它内部的layout tree,而不是它本身
+        paint_tree(layout_object.node.frame.document, cmds)
+    else:
+        # "layout_object"的子节点的绘制命令
+        for child in layout_object.children:
+            paint_tree(child, cmds)
 
     # 此时"cmds"中已包含"layout_object"以及所有子结点的绘制命令
 
@@ -612,42 +364,3 @@ def paint_tree(layout_object, display_list):
         cmds = layout_object.paint_effects(cmds)
 
     display_list.extend(cmds)
-
-
-def cascade_priority(rule):
-    _, selector, rule = rule
-    return selector.priority
-
-
-# 获取在"transition"声明的属性中，render前后属性值不同的属性。返回 "<css property>: (<旧值>, <新值>, <动画帧个数>)" 的键值对
-def diff_styles(old_style, new_style):
-    transitions = {}
-
-    for property, num_frames in parse_transition(new_style.get("transition")).items():
-        if property not in old_style:
-            continue
-        if property not in new_style:
-            continue
-
-        old_value = old_style[property]
-        new_value = new_style[property]
-        if old_value == new_value:
-            continue
-
-        transitions[property] = (old_value, new_value, num_frames)
-
-    return transitions
-
-
-# 解析css"transition"属性值并返回 "<css property>: <动画帧个数>" 键值对
-def parse_transition(value):
-    properties = {}  # { <css property>: <动画帧个数> }
-
-    if not value:
-        return properties
-    for item in value.split(","):
-        property, duration = item.split(" ", 1)
-        frames = int(float(duration[:-1]) / const.REFRESH_RATE_SEC)  # 在预定的时间内的总帧数
-        properties[property] = frames
-
-    return properties

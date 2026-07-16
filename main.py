@@ -91,7 +91,7 @@ class Browser:
 
         # 保存tab传递给browser的绘制信息
         self.active_tab_url = None
-        self.active_tab_scroll = 0  # "Tab.render()"时采用的滚动距离
+        self.active_tab_scroll = 0  # "Tab.render()"时采用的滚动距离, 用于实现"threaded scroll"
         self.active_tab_height = 0  # "Tab.render()"后计算得到的DOM总体高度（不包含上下空白边距）
         self.active_tab_display_list = None
 
@@ -224,7 +224,7 @@ class Browser:
             # 绘制时滚动距离scroll=0，确保chrome始终位于canvas上方
             cmd.execute(canvas)
 
-    # 提取display list中所有的PaintCommand, 并根据每一个PaintCommand创建"CompositedLayer"以便于缓存绘制结果
+    # 提取display list中的command, 并根据command创建"CompositedLayer"用于缓存绘制结果
     def composite(self):
         self.composited_layers = []
 
@@ -396,7 +396,7 @@ class Browser:
             if not composited_layer.display_items:
                 continue
 
-            parent = composited_layer.display_items[0].parent
+            parent = composited_layer.display_items[0].parent  # 同一layer中的command属于同一parent
             while parent:
                 new_parent = self.get_latest(parent)
                 if new_parent in new_effects:
@@ -525,10 +525,22 @@ class Browser:
             self.lock.release()
             return
 
-        # 计算合理的滚动距离。滚动后不能超过tab中html document的顶部与底部
-        self.active_tab_scroll = self.clamp_scroll(self.active_tab_scroll + const.SCROLL_STEP)
-        self.set_needs_draw()
-        self.needs_animation_frame = True
+        if self.root_frame_focused:
+            # root frame当前拥有焦点的话，采用"threaded scroll"
+
+            # 计算合理的滚动距离。滚动后不能超过tab中html document的顶部与底部.
+            #
+            # 这里实现了"threaded scroll": 在browser thread中直接更新"scroll". 在"mainloop"中，"composite & raster & draw"
+            # 过程发生在"schedule animation frame"之前。 所以在scroll被同步至tab之前(通过animation frame同步)，browser已经
+            # 通过"draw"完成了新scroll的重绘.
+            self.active_tab_scroll = self.clamp_scroll(self.active_tab_scroll + const.SCROLL_STEP)
+            self.set_needs_draw()
+            self.needs_animation_frame = True
+        else:
+            # 如果其他frame拥有焦点，那么仅由tab负责scroll, browser不参与scroll流程
+
+            task = Task(self.active_tab.scrolldown)
+            self.active_tab.task_runner.schedule_task(task)
 
         self.lock.release()
 
@@ -540,10 +552,14 @@ class Browser:
             self.lock.release()
             return
 
-        # 计算合理的滚动距离。滚动后不能超过tab中html document的顶部与底部
-        self.active_tab_scroll = self.clamp_scroll(self.active_tab_scroll - const.SCROLL_STEP)
-        self.set_needs_draw()
-        self.needs_animation_frame = True
+        if self.root_frame_focused:
+            # 计算合理的滚动距离。滚动后不能超过tab中html document的顶部与底部
+            self.active_tab_scroll = self.clamp_scroll(self.active_tab_scroll - const.SCROLL_STEP)
+            self.set_needs_draw()
+            self.needs_animation_frame = True
+        else:
+            task = Task(self.active_tab.scrollup)
+            self.active_tab.task_runner.schedule_task(task)
 
         self.lock.release()
 
@@ -576,10 +592,10 @@ class Browser:
 
         if tab_switched == True:
             # 如果切换了tab,切换后的tab需要触发一次"render -> raster"流程
-            self.active_tab.set_needs_render()
+            self.active_tab.set_needs_render_all_frames()
             # 切换tab之后，由于在"Chrome.click()"中重置了"active_tab_*"等变量，
             # 所以Browser需要tab通过"run_animation_frame"回传保存的滚动距离.
-            self.active_tab.scroll_changed_in_tab = True
+            self.active_tab.root_frame.scroll_changed_in_frame = True
             self.measure.instant("tab switched", cat="debug", args={"tab": self.active_tab.id})
 
             # 如果切换后恰好上一个tab设置了"needs_raster_and_draw", 那么取消该次raster
@@ -765,6 +781,7 @@ class Browser:
             self.active_tab_scroll = data.scroll
             self.accessibility_tree = data.accessibility_tree
             self.tab_focus = data.focus
+            self.root_frame_focused = data.root_frame_focused
 
             self.measure.instant(
                 "commit", cat="debug", args={"tab": self.active_tab.id, "rand": rand}

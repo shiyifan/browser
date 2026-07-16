@@ -88,7 +88,7 @@ class BlockLayout:
             # DOM tree中，如果Element结点的子结点中，至少有一个是block Html Element，
             # 那么在layout tree中，该结点作为非叶子结点，不计算绘制信息,仅将子结点添加至"children"数组中
             return "block"
-        elif self.node.children or self.node.tag in ["input", "img"]:
+        elif self.node.children or self.node.tag in ["input", "img", "iframe"]:
             # 在DOM tree中，该结点的子结点中只有inline Html Element,那么将该结点视为纯文本结点，
             # 在layout tree中，所有子结点的文本绘制信息（TextLayout, LineLayout）由当前结点负责创建
             return "inline"
@@ -111,9 +111,11 @@ class BlockLayout:
                 self.input(node)
             elif node.tag == "img":
                 self.image(node)
+            elif node.tag == "iframe" and "src" in node.attributes:
+                self.iframe(node)
             else:
                 # 与"<input>"或者"<button>"不同，对于"<a>"这样的DOM结点，没有为其创建专用的Layout,
-                # 而采用"TextLayout", 因此"TextLayout"中的"TextLayout.node"值为DOM结点下的"Text"结点
+                # 而采用通用的"TextLayout", 因此"TextLayout"中的"TextLayout.node"值为DOM结点下的"Text"结点
                 for child in node.children:
                     self.recurse(child)
 
@@ -146,11 +148,20 @@ class BlockLayout:
 
         self.add_inline_child(node, w, ImageLayout)
 
+    # 将<iframe>添加至LineLayout中
+    def iframe(self, node):
+        if "width" in node.attributes:
+            w = dpx(int(node.attributes["width"]), self.zoom)
+        else:
+            w = const.IFRAME_WIDTH_PX + dpx(2, self.zoom)
+        self.add_inline_child(node, w, IframeLayout, parent_frame=node.frame.parent_frame)
+
     # 添加inline layout object至LineLayout中
     #
     # "w": 待加入的inline layout object的宽度，已在调用该函数前根据计算得到.
     #      用于计算是否换行以及更新下一个layout object的x坐标
-    def add_inline_child(self, node, w, child_class, word=None):
+    # "child_class": inline layout class
+    def add_inline_child(self, node, w, child_class, word=None, parent_frame=None):
         if self.cursor_x + w > self.width:
             # 根据BlockLayout宽度，已超出一行时，新建一行
             self.new_line()
@@ -161,7 +172,10 @@ class BlockLayout:
             # 此时添加的是"TextLayout"
             child = child_class(node, word, line, previous_word)
         else:
-            child = child_class(node, line, previous_word)
+            if child_class == IframeLayout:
+                child = child_class(node, line, previous_word, parent_frame)
+            else:
+                child = child_class(node, line, previous_word)
         line.children.append(child)
 
         # 更新x坐标，作为同一line中下一个inline element的布局x坐标
@@ -232,7 +246,9 @@ class BlockLayout:
     # 调用"paint_tree()"绘制时，由于BlockLayout与InputLayout都将绘制<button>的背景色，因此为避免重复绘制，BlockLayout
     # 不再绘制背景色，由InputLayout绘制
     def should_paint(self):
-        return isinstance(self.node, Text) or (self.node.tag not in ["input", "button", "img"])
+        return isinstance(self.node, Text) or (
+            self.node.tag not in ["input", "button", "img", "iframe"]
+        )
 
 
 # 对应于DOM根结点的layout object。
@@ -253,9 +269,9 @@ class DocumentLayout:
     # 对整个HTML文档内容布局
     #
     # 布局时额外添加四周的空白边距
-    def layout(self, zoom):
+    def layout(self, width, zoom):
         self.zoom = zoom
-        self.width = const.WIDTH - 2 * dpx(const.HSTEP, self.zoom)  # "HSTEP"作为左右的空白边距
+        self.width = width - 2 * dpx(const.HSTEP, self.zoom)  # "HSTEP"作为左右的空白边距
         self.x = dpx(const.HSTEP, self.zoom)
         self.y = dpx(const.VSTEP, self.zoom)  # "VSTEP"作为上下的空白边距
 
@@ -352,7 +368,7 @@ class LineLayout:
         return True
 
     def paint_effects(self, cmds):
-        outline_rect = Rect.MakeEmpty()
+        outline_rect = Rect.MakeEmpty()  # 所有需要绘制outline的TextLayout的矩形区域的并集
         outline_node = None
 
         for child in self.children:
@@ -360,8 +376,44 @@ class LineLayout:
             # 因此这里需要区分一下
             is_inputlayout = isinstance(child, InputLayout)
 
-            # layout object对应的DOM结点
+            # 实际获取焦点的DOM结点
             effect_node = child.node if is_inputlayout else child.node.parent
+
+            if self.node.tag in const.BLOCK_ELEMENTS and effect_node == self.node:
+                # 对于以"inline"(根据"layout_mode()")方式绘制的Block HTML Element(且这个Element可以通过
+                # "tabindex"属性获取焦点), 如果Text作为直接子结点，那么点击这个Text后会重复绘制outline: 一次绘制Text
+                # 的outline(在TextLayout的并集区域上),另一次绘制Element的outline.
+                #
+                # 例如下面两种情况：
+                #
+                # 下面左侧的DOM结构中, 只有"<a>"下面的"Text"渲染了outline，但是渲染右侧的结构时，
+                # <div>以及"Text"将绘制各自的outline.
+                #
+                #    <div>
+                #     |                  click!        <div> (focused)     click!
+                #     +><a>(focused)       |             |                   |
+                #        |                 |             +>ThisIsAnchor <----+
+                #        +>ThisIsAnchor <--+
+                #
+                #                            |
+                #                            |  both can generate same layout tree
+                #                            v
+                #
+                #                 BlockLayout (node: div)
+                #                    |
+                #                    +->LineLayout  (node: div)
+                #                         |
+                #                         +->TextLayout  (node: Text)
+                #
+                # 点击之后，左侧的"<a>"以及右侧的"<div>"分别获取了焦点。
+                # 对于右侧的结构，<div>的LineLayout绘制时，由于根据"TextLayout"获取的"effect_node"变量为<div>,
+                # 因此<div>下的所有TextLayout都将绘制outline, LineLayout绘制结束后，div开始绘制effect("BlockLayout.paint_effects()"),
+                # 这时又绘制了一次outline.
+                #
+                # 在右侧的情况下，当判断出Text是parent element的直接子结点(effect_node == self.node), 而且parent是Block HTML Element时,
+                # 将outline的绘制委托至parent(由"BlockLayout.paint_effects()"负责绘制)
+
+                return cmds
 
             outline_str = effect_node.style.get("outline")
             if parse_outline(outline_str):
@@ -442,8 +494,8 @@ class TextLayout:
 # <input>, <button>以及<img>等inline html element的layout object的父类, 包含一些通用的属性以及布局流程
 class EmbedLayout:
     def __init__(self, node, parent, previous, frame=None):
-        self.node = node
-        self.parent = parent
+        self.node = node  # DOM node
+        self.parent = parent  # layout tree中，当前layout object的parent
         self.previous = previous
         self.frame = frame
         self.children = []
@@ -578,6 +630,74 @@ class ImageLayout(EmbedLayout):
         )
         quality = self.node.style.get("image-rendering", "auto")
         cmds.append(DrawImage(self.node.image, rect, quality))
+        return cmds
+
+
+#'<iframe>'对应的layout object
+class IframeLayout(EmbedLayout):
+    def __init__(self, node, parent, previous, parent_frame):
+        # "self.node"表示"<iframe>" DOM node
+        super().__init__(node, parent, previous, parent_frame)
+
+    def layout(self):
+        super().layout()
+
+        width_attr = self.node.attributes.get("width")
+        height_attr = self.node.attributes.get("height")
+
+        if width_attr:
+            self.width = dpx(int(width_attr) + 2, self.zoom)
+        else:
+            self.width = dpx(const.IFRAME_WIDTH_PX + 2, self.zoom)
+        if height_attr:
+            self.height = dpx(int(height_attr) + 2, self.zoom)
+        else:
+            self.height = dpx(int(const.IFRAME_HEIGHT_PX) + 2, self.zoom)
+
+        self.ascent = -self.height
+        self.descent = 0
+
+        # 将计算得到的width与height赋值给对应的"Frame"对象
+        if self.node.frame and self.node.frame.loaded:
+            self.node.frame.frame_height = self.height - dpx(2, self.zoom)
+            self.node.frame.frame_width = self.width - dpx(2, self.zoom)
+
+    def paint(self):
+        return []
+
+    def paint_effects(self, cmds):
+        rect = self.self_rect()
+
+        # 在这里实现iframe的滚动.
+        #
+        # 不管是root frame的滚动还是其他frame的滚动，均通过"canvas.translate()"实现.
+        #
+        # root frame的滚动是通过browser和tab共同实现的（因为threaded scroll）, 为了方便起见，其他的frame的滚动仅由tab实现.
+        # 绘制滚动时，通过"Transform"先将canvas在y轴上translate一定距离(即frame的已滚动距离"frame.scroll"),
+        # 然后再绘制iframe的内容。(由于后面通过"Blend(destination-in)以及Blend(source-over)去除了iframe的可视区域外
+        # 的内容, 所以不会出现iframe的内容与parent frame重叠的现象")
+        # 不过这样实现时，需要注意"tab.run_animation_frame()"中的"composited_updates"变量. 因为滚动仅需要重新"paint", 所以
+        # "browser.draw()"依然采用旧的"composited_layers".
+        #
+        # 简单起见, 目前在iframe滚动时, 在"frame.scrolldown()"中设置"scroll_changed_in_frame = True"让
+        # browser重新composite. (比较完美的实现方式类似于"animation"的绘制机制，browser无需再次composite. 当前的"animation"
+        # 绘制流程比较单一，缺乏灵活性，无法通过简单地修改使其同样适用于frame scroll)
+        diff = dpx(1, self.zoom)
+        offset = (self.x + diff, self.y + diff - self.node.frame.scroll)
+        cmds = [Transform(offset, rect, self.node, cmds)]
+
+        inner_rect = Rect.MakeLTRB(
+            self.x + diff, self.y + diff, self.x + self.width - diff, self.y + self.height - diff
+        )
+        internal_cmds = cmds
+        internal_cmds.append(
+            Blend(1.0, "destination-in", None, [DrawRRect(inner_rect, 0, "white")])
+        )
+        cmds = [Blend(1.0, "source-over", self.node, internal_cmds)]
+
+        paint_outline(self.node, cmds, rect, self.zoom)
+        cmds = paint_visual_effects(self.node, cmds, rect)
+
         return cmds
 
 

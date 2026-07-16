@@ -1,12 +1,12 @@
 # canvas的大小
-WIDTH, HEIGHT = 1024, 768
+WIDTH, HEIGHT = 1224, 868
 # 在canvas上绘制文字时的间距与行距
 HSTEP, VSTEP = 13, 18
 # 滚动步长
 SCROLL_STEP = 20
 
-HTTP_URL = "https://localhost:3000/a"
-# HTTP_URL = "https://browser.engineering/examples/example14-alert-role.html"
+HTTP_URL = "https://localhost:3000/b"
+# HTTP_URL = "https://browser.engineering/examples/example15-img.html"
 # HTTP_URL = "https://www.baidu.com"
 # HTTP_URL = "https://browser.engineering/index.html"
 # HTTP_URL = "https://localhost:8000"
@@ -107,3 +107,7 @@ REFRESH_RATE_SEC = 0.033
 SCHEDULE_ANIMATION_TIMER_TID = 9999999
 
 SHOW_COMPOSITED_LAYER_BORDERS = True
+
+# <iframe>默认的尺寸
+IFRAME_WIDTH_PX = 300
+IFRAME_HEIGHT_PX = 150

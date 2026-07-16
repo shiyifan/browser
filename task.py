@@ -16,7 +16,7 @@ class Task:
 # 负责管理和执行task的任务队列(Queue)
 #
 # 每个tab页持有一个task runner.
-# 浏览器将某些可推迟执行的操作添加至task runner中。例如在实现setTimeout时，在其他thread中sleep指定之间之后,
+# 浏览器将某些可推迟执行的操作添加至task runner中。例如在实现setTimeout时，在其他thread中sleep指定时间之后,
 # 此时将callback添加至Queue中，等待主线程空闲时执行.
 class TaskRunner:
     def __init__(self, tab):

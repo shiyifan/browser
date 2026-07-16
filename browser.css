@@ -50,16 +50,16 @@ button {
 }
 
 input:focus {
-  outline: 2px solid red;
+  outline: 2px solid #ff0000;
 }
 button:focus {
-  outline: 2px solid black;
+  outline: 2px solid #1028a3;
 }
 div:focus {
-  outline: 2px solid black;
+  outline: 2px solid #000000;
 }
 a:focus {
-  outline: 2px solid black;
+  outline: 2px solid #135c2e;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -75,4 +75,8 @@ a:focus {
   a:focus {
     outline: 2px solid white;
   }
+}
+
+iframe {
+  outline: 2px solid #1e3cb5;
 }

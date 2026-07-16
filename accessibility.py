@@ -1,4 +1,4 @@
-from tags import Text
+from tags import Text, Element
 from utils import is_focusable, absolute_bounds_for_obj
 from skia import Rect
 
@@ -37,6 +37,9 @@ class AccessibilityNode:
                     return
                 case "html":
                     self.role = "document"
+                    return
+                case "iframe":
+                    self.role = "iframe"
                     return
 
             if is_focusable(node):
@@ -112,7 +115,18 @@ class AccessibilityNode:
     #         +-->input (role=textbox)   6
     #
     def build_internal(self, child_node):
-        child = AccessibilityNode(child_node)
+        if (
+            isinstance(child_node, Element)
+            and child_node.tag == "iframe"
+            and child_node.frame
+            and child_node.frame.loaded
+        ):
+            # 如果遇到"<iframe>", 那么直接对'<iframe>'内的DOM tree的root node创建
+            # a11y node, 将每个'<iframe>'的a11y tree合并至root frame的tree中.
+            child = AccessibilityNode(child_node.frame.nodes)
+        else:
+            child = AccessibilityNode(child_node)
+
         if child.role != "none":
             self.children.append(child)
             child.build()
