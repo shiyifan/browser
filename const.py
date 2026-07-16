@@ -111,3 +111,5 @@ SHOW_COMPOSITED_LAYER_BORDERS = True
 # <iframe>默认的尺寸
 IFRAME_WIDTH_PX = 300
 IFRAME_HEIGHT_PX = 150
+
+NO_FOCUS = -1  # 用于标识点击之后没有找到可设置的焦点的情况

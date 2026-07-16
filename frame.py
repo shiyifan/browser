@@ -38,8 +38,6 @@ class Frame:
         self.frame_width = 0
         self.frame_height = 0
 
-        self.focus = None  # 获取到焦点的DOM对象. 或者是通过点击获取焦点，或者是通过tab获取焦点
-
         self.scroll = 0
 
         # 对于root frame：
@@ -233,7 +231,8 @@ class Frame:
 
                 self.tab.focused_frame.set_needs_render()
                 self.focus_element(None)
-            return
+
+            return const.NO_FOCUS
 
         # 已在当前frame中找到被点击的layout object
 
@@ -260,10 +259,12 @@ class Frame:
                 if self.js.dispatch_event("click", elt):
                     return
 
+                # 点击non clickable的div后清除当前焦点
                 if self.tab.focus:
                     self.focus_element(None)
                     self.set_needs_render()
-                return
+
+                return const.NO_FOCUS
 
             elif elt.tag == "iframe":
                 # 点击位置位于"<iframe>"内，需要将点击位置的绝对坐标转换为"<iframe>"内的相对坐标,
@@ -273,8 +274,14 @@ class Frame:
                 border = dpx(1, elt.layout_object.zoom)
                 new_x = x - abs_bounds.left() - border
                 new_y = y - abs_bounds.top() - border
-                elt.frame.click(new_x, new_y)
-                return
+
+                if elt.frame.click(new_x, new_y) == const.NO_FOCUS:
+                    # 当child frame中没有元素可以接受焦点时, 在当前的frame中将该<iframe>置为焦点, 以便于滚动
+
+                    self.focus_element(elt, frame=elt.frame)
+                    self.set_needs_render()
+
+                return  # 返回后不再需要parent frame设置焦点
 
             elt = elt.parent
 
@@ -283,6 +290,8 @@ class Frame:
         if self.tab.focus:
             self.tab.focused_frame.set_needs_render()
             self.focus_element(None)
+
+        return const.NO_FOCUS
 
     # 当html元素已获取了焦点，此时按下enter，执行不同的动作, 或者点击focusable元素时，执行不同的动作
     def activate_element(self, elt):
@@ -328,7 +337,12 @@ class Frame:
         url = self.url.resolve(elt.attributes["action"])
         self.load(url, body)
 
-    def focus_element(self, node):
+    # 设置DOM node为当前焦点。
+    #
+    # node: 接受焦点的DOM node
+    # frame: 默认情况下(None)表示DOM node所在的frame. 但是当设置<iframe>本身为焦点时，DOM node为<iframe>,
+    #       frame应该为<iframe>对应的"Frame"对象.
+    def focus_element(self, node, frame=None):
         focus = self.tab.focus
         focused_frame = self.tab.focused_frame
 
@@ -339,7 +353,7 @@ class Frame:
         if focused_frame and focused_frame != self:
             focused_frame.set_needs_render()
 
-        self.tab.focused_frame = self
+        self.tab.focused_frame = frame if frame else self
         self.tab.focus = node
 
         if node and node != focus:

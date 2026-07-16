@@ -33,7 +33,9 @@ class Tab:
         self.history = []  # 保存访问过的url，并且当前tab页显示的网页url位于数组末尾
 
         self.focus = None  # 获取到焦点的DOM对象. 或者是通过点击获取焦点，或者是通过tab获取焦点
-        self.focused_frame = None  # 获取到焦点的DOM对象所在的"Frame"
+
+        # 大部分情况下，获取到焦点的DOM对象所在的"Frame". 而当焦点为<iframe>时， 表示<iframe>对应的"Frame"对象
+        self.focused_frame = None
 
         # 在tab页加载新的url前后，task queue不变
         self.task_runner = TaskRunner(self)
