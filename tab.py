@@ -265,23 +265,25 @@ class Tab:
     def zoom_by(self, increment):
         if increment:
             self.zoom *= 1.1
-            self.scroll *= 1.1
+            for _, frame in self.window_id_to_frame.items():
+                frame.scroll *= 1.1
         else:
             self.zoom *= 1 / 1.1
-            self.scroll *= 1 / 1.1
-        self.scroll_changed_in_tab = True
-        self.set_needs_render()
+            for _, frame in self.window_id_to_frame.items():
+                frame.scroll *= 1.1
+
+        self.set_needs_render_all_frames()
 
     def reset_zoom(self):
-        self.scroll /= self.zoom
+        for _, frame in self.window_id_to_frame.items():
+            frame.scroll /= self.zoom
         self.zoom = 1
-        self.scroll_changed_in_tab = True
-        self.set_needs_render()
+        self.set_needs_render_all_frames()
 
     # 设置颜色主题
     def set_dark_mode(self, val):
         self.dark_mode = val
-        self.set_needs_render()
+        self.set_needs_render_all_frames()
 
     def advance_tab(self):
         frame = self.focused_frame or self.root_frame
