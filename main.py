@@ -674,54 +674,6 @@ class Browser:
     #
     # 注意：timer超时后仅是将"重新计算layout"的task添加至Tab eventloop中，而不是立刻执行，而task的实际执行时间点则与Queue的长度有关
     def schedule_animation_frame(self):
-        def callback(tab, rand):
-            self.lock.acquire(blocking=True)
-
-            if tab != self.active_tab:
-                # 如果Timer启动时的tab与Timer超时执行时的tab不一致，则本次不会schedule,
-                #
-                # 当上一个tab的Timer（用于自身重绘）未超时的时候，这时切换tab,系统再次创建下一次的Timer(新tab的重绘).
-                # 上一个tab的Timer会错误地将"run_animation_frame"添加至新tab的eventloop中。
-                # 如果在这个"run_animation_frame"调用"commit"之前, 新tab的Timer超时并将又一个新的"run_animation_frame"添加至
-                # 新tab的eventloop中，那么后一次的"frame"将会重置tab的"scroll"属性为0. 导致新tab渲染后的滚动距离为0
-                #
-                #                                                                                       will reset the "tab.scroll" to "0" !!
-                #    old tab   tab     new tab
-                #     Timer  switched   Timer                                   old tab scheduled                new tab scheduled
-                #       |       |         |                                     "animation frame"                "animation frame"
-                #       |       |         |                                +--------------------------+     +-------------------------+
-                #       |       |         |                                |                          |     |                         |
-                #       v       v         v                                v                          v     v                         v
-                # ------+-------+---------+---------------+---------+------+-------------------+------+-----+-------------------------+-------------------
-                #                                         ^         ^                          ^
-                #                                         |         |                          |
-                #                                         |         |                          |
-                #                                         |         |                       old tab
-                #                                      old tab   new tab                     commit
-                #                                       Timer     Timer
-                #                                      timeout   timeout
-                #
-                self.lock.release()
-                return
-
-            scroll = self.active_tab_scroll
-            active_tab = self.active_tab
-            task = Task(active_tab.run_animation_frame, scroll, rand)
-            active_tab.task_runner.schedule_task(task)
-
-            # 创建一个Timer发起的"schedule"的事件。由于Timer每次启动均新建thread,每次的thread id均不一致。因此
-            # 这里记录事件时采用固定id方便日志分析
-            self.measure.instant(
-                "schedule",
-                cat="debug",
-                args={"tab": active_tab.id, "rand": rand},
-                tid=const.SCHEDULE_ANIMATION_TIMER_TID,
-            )
-
-            self.needs_animation_frame = False
-
-            self.lock.release()
-
         self.lock.acquire(blocking=True)
 
         if self.needs_animation_frame and not self.animation_timer:
@@ -753,11 +705,61 @@ class Browser:
             #          process        render
             #                        process
             #
-            self.animation_timer = Timer(const.REFRESH_RATE_SEC, callback, [self.active_tab, r])
+            self.animation_timer = Timer(
+                const.REFRESH_RATE_SEC, self.animation_frame_callback, [self.active_tab, r]
+            )
             self.animation_timer.start()
             self.measure.instant(
                 "timer start", cat="debug", args={"tab": self.active_tab.id, "rand": r}
             )
+
+        self.lock.release()
+
+    def animation_frame_callback(self, tab, rand):
+        self.lock.acquire(blocking=True)
+
+        if tab != self.active_tab:
+            # 如果Timer启动时的tab与Timer超时执行时的tab不一致，则本次不会schedule,
+            #
+            # 当上一个tab的Timer（用于自身重绘）未超时的时候，这时切换tab,系统再次创建下一次的Timer(新tab的重绘).
+            # 上一个tab的Timer会错误地将"run_animation_frame"添加至新tab的eventloop中。
+            # 如果在这个"run_animation_frame"调用"commit"之前, 新tab的Timer超时并将又一个新的"run_animation_frame"添加至
+            # 新tab的eventloop中，那么后一次的"frame"将会重置tab的"scroll"属性为0. 导致新tab渲染后的滚动距离为0
+            #
+            #                                                                                       will reset the "tab.scroll" to "0" !!
+            #    old tab   tab     new tab
+            #     Timer  switched   Timer                                   old tab scheduled                new tab scheduled
+            #       |       |         |                                     "animation frame"                "animation frame"
+            #       |       |         |                                +--------------------------+     +-------------------------+
+            #       |       |         |                                |                          |     |                         |
+            #       v       v         v                                v                          v     v                         v
+            # ------+-------+---------+---------------+---------+------+-------------------+------+-----+-------------------------+-------------------
+            #                                         ^         ^                          ^
+            #                                         |         |                          |
+            #                                         |         |                          |
+            #                                         |         |                       old tab
+            #                                      old tab   new tab                     commit
+            #                                       Timer     Timer
+            #                                      timeout   timeout
+            #
+            self.lock.release()
+            return
+
+        scroll = self.active_tab_scroll
+        active_tab = self.active_tab
+        task = Task(active_tab.run_animation_frame, scroll, rand)
+        active_tab.task_runner.schedule_task(task)
+
+        # 创建一个Timer发起的"schedule"的事件。由于Timer每次启动均新建thread,每次的thread id均不一致。因此
+        # 这里记录事件时采用固定id方便日志分析
+        self.measure.instant(
+            "schedule",
+            cat="debug",
+            args={"tab": active_tab.id, "rand": rand},
+            tid=const.SCHEDULE_ANIMATION_TIMER_TID,
+        )
+
+        self.needs_animation_frame = False
 
         self.lock.release()
 
