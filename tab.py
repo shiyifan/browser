@@ -92,9 +92,11 @@ class Tab:
 
         self.browser.measure.time("render")
 
+        self.browser.measure.time("frames render")
         for _, frame in self.window_id_to_frame.items():
             if frame.loaded:
                 frame.render()
+        self.browser.measure.stop("frames render")
 
         if self.needs_accessibility:
             self.browser.measure.time("accessibility")
