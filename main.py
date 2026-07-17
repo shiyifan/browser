@@ -71,9 +71,6 @@ class Browser:
         # 用于计算layout的timer. 注意：timer超时后仅计算layout(即调用'tab.render()')，不会在canvas中绘制
         self.animation_timer = None
 
-        # 是否需要在canvas中重新绘制
-        # self.needs_composite_raster_and_draw = False
-
         # 该随机数标识由"browser.commit()"调用发起的一次"raster and draw"。
         #
         # 随机数由"browser.schedule_animation_frame"生成，用于标识整个的渲染流程.
@@ -172,7 +169,6 @@ class Browser:
 
     def set_needs_raster_and_draw(self):
         self.lock.acquire(blocking=True)
-        self.needs_composite_raster_and_draw = True
         self.lock.release()
 
     def set_needs_animation_frame(self, tab):
@@ -462,10 +458,6 @@ class Browser:
             self.lock.release()
             return
 
-        # if not self.needs_composite_raster_and_draw:
-        #     self.lock.release()
-        #     return
-
         self.measure.time("raster_draw")
 
         if self.rand_raster_and_draw:
@@ -599,7 +591,6 @@ class Browser:
             self.measure.instant("tab switched", cat="debug", args={"tab": self.active_tab.id})
 
             # 如果切换后恰好上一个tab设置了"needs_raster_and_draw", 那么取消该次raster
-            # self.needs_composite_raster_and_draw = False
             self.needs_composite = self.needs_raster = self.needs_draw = False
         elif tab_switched == False:
             # 由于"mainloop"中"raster and draw"发生在"schedule animation frame"之前,
