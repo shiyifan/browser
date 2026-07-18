@@ -32,9 +32,16 @@ class Tab:
         self.url = None
         self.history = []  # 保存访问过的url，并且当前tab页显示的网页url位于数组末尾
 
-        self.focus = None  # 获取到焦点的DOM对象. 或者是通过点击获取焦点，或者是通过tab获取焦点
-
-        # 大部分情况下，获取到焦点的DOM对象所在的"Frame". 而当焦点为<iframe>时， 表示<iframe>对应的"Frame"对象
+        # focus:
+        #   获取到焦点的DOM对象. 或者是通过点击获取焦点，或者是通过tab获取焦点
+        # focused_frame:
+        #   获取到焦点的DOM对象所在的"Frame". 而当焦点为<iframe>时， 表示<iframe>对应的"Frame"对象, 此时"self.focus"为"None"
+        #
+        # focus与focused_frame为一对有关联的变量:
+        #   focus如果不为空，那么focused_frame一定不为空，且一定是focus所在的frame.
+        #   focus如果为空，那么focused_frame为空时，表示tab内没有frame获取了焦点，默认滚动的frame为root frame. focused_frame不为空时，
+        #       表示某个frame获取了焦点，但是frame内没有DOM元素可以接收焦点。这时滚动的frame为该frame.
+        self.focus = None
         self.focused_frame = None
 
         # 在tab页加载新的url前后，task queue不变

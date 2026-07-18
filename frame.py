@@ -264,13 +264,20 @@ class Frame:
                 return
 
             elif elt.tag == "div":
+                # 点击位于"non clickable"的div中
+
                 if self.js.dispatch_event("click", elt):
                     return
 
-                # 点击non clickable的div后清除当前焦点
+                # 清除当前焦点
                 if self.tab.focus:
                     self.focus_element(None)
-                    self.set_needs_render()
+
+                    # 虽然不需要再次schedule animation frame以更新div的绘制样式，但是更新了"tab.focused_frame",
+                    # 这时需要通过animation frame将"root_frame_focused"状态同步至browser中.
+                    # 如果通过"self.set_needs_render()"触发animation frame可能会产生不必要的style, layout等
+                    # 过程
+                    self.tab.browser.set_needs_animation_frame(self.tab)
 
                 return const.NO_FOCUS
 
@@ -286,18 +293,22 @@ class Frame:
                 if elt.frame.click(new_x, new_y) == const.NO_FOCUS:
                     # 当child frame中没有元素可以接受焦点时, 在当前的frame中将该<iframe>置为焦点, 以便于滚动
 
-                    self.focus_element(elt, frame=elt.frame)
-                    self.set_needs_render()
+                    self.focus_element(None, frame=elt.frame)
+                    # 同上"elif elt.tag == 'div'"
+                    self.tab.browser.set_needs_animation_frame(self.tab)
 
                 return  # 返回后不再需要parent frame设置焦点
 
             elt = elt.parent
 
-        # 虽然找到被点击的layout object,但是没有找到clickable html element。同样需要
-        # 清除当前焦点
-        if self.tab.focus:
-            self.tab.focused_frame.set_needs_render()
-            self.focus_element(None)
+        # 虽然找到被点击的layout object,但是没有找到clickable html element。同样需要清除当前焦点.
+        # 清除焦点由"root parent"完成
+        if self.parent_frame is None:
+            if self.tab.focus:
+                self.tab.focused_frame.set_needs_render()
+                self.focus_element(None)
+            elif self.tab.focused_frame:
+                self.tab.focused_frame = None
 
         return const.NO_FOCUS
 
@@ -345,11 +356,11 @@ class Frame:
         url = self.url.resolve(elt.attributes["action"])
         self.load(url, body)
 
-    # 设置DOM node为当前焦点。
+    # 设置DOM node为当前焦点, 并在某些情况下触发重绘
     #
     # node: 接受焦点的DOM node
-    # frame: 默认情况下(None)表示DOM node所在的frame. 但是当设置<iframe>本身为焦点时，DOM node为<iframe>,
-    #       frame应该为<iframe>对应的"Frame"对象.
+    # frame: 默认情况下(None)表示清空焦点与"tab.focused_frame". 但是当设置<iframe>本身为焦点时（当iframe内没有DOM element
+    # 接收焦点时），frame应该为<iframe>对应的"Frame"对象, 注意，此时node必须为"None".
     def focus_element(self, node, frame=None):
         focus = self.tab.focus
         focused_frame = self.tab.focused_frame
@@ -357,11 +368,25 @@ class Frame:
         if focus:
             focus.is_focused = False
 
-        # 如果焦点所在的frame不是当前的frame, 那么焦点所在的frame也需要"render"以清除焦点
-        if focused_frame and focused_frame != self:
+        if focus and focused_frame:
+            # 只要当前焦点以及焦点所在的frame不为空，那么这个frame就需要重新render.
+            #   在不同frame间切换焦点，旧焦点的frame需要render. 相同的frame间切换不同焦点，
+            #   frame同样需要render。
+            #
+            # 当focus为空focused_frame不为空时，表示某个<iframe>获取了焦点但是没有DOM element可以接收
+            # 焦点。这时的focused_frame不需要render, 即不需要重绘DOM element. 所以这种
+            # 情况下不会进入到该if分支
             focused_frame.set_needs_render()
 
-        self.tab.focused_frame = frame if frame else self
+        if node:
+            # 如果node不为空，那么"tab.focused_frame"一定是node所在的frame, 保证"tab.[focus | focused_frame]"
+            # 保证两个变量的一致性
+            self.tab.focused_frame = self
+        else:
+            # 如果node为空，那么表示清空焦点，但用户可以设置"focused_frame"用于滚动没有clickable element获取焦点的<iframe>
+            self.tab.focused_frame = frame
+
+        # self.tab.focused_frame = frame if frame else self
         self.tab.focus = node
 
         if node and node != focus:
@@ -390,7 +415,7 @@ class Frame:
         else:
             # tab内的focusable元素均已遍历，此时将焦点移动至chrome中
 
-            self.focus_element(None)
+            self.focus_element(None, frame=self)  # 保证chrome循环结束后仍会循环至当前的frame中
             self.tab.browser.focus_addressbar()
 
         # 由于移动焦点可能影响某些DOM结点的绘制（例如相比起无焦点状态，有焦点时需要多绘制一个光标、边框等）,
