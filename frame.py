@@ -53,7 +53,7 @@ class Frame:
     # 加载所有"<link rel=stylesheet href>", 解析并在frame对象中保存css style.
     # 加载所有"<img>", 并在"<img>"DOM对象中保存图片数据.
     # 加载所有"<iframe>", 在"<iframe>"DOM对象中保存新建的"Frame"对象，然后将该iframe的"load()" schedule
-    #   至tab的eventloop中.
+    #   至tab的event queue中.
     def load(self, url, payload=None):
         self.loaded = False
 
