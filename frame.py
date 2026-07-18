@@ -190,7 +190,7 @@ class Frame:
 
     def render(self):
         if self.needs_style:
-            self.tab.browser.measure.time(f"[{self.window_id}]style")
+            self.tab.browser.measure.time(f"[{self.window_id}] style")
 
             # 将css rules全部赋值至DOM结点的"style"属性上
             style(
@@ -200,10 +200,10 @@ class Frame:
             self.needs_layout = True
             self.needs_style = False
 
-            self.tab.browser.measure.stop(f"[{self.window_id}]style")
+            self.tab.browser.measure.stop(f"[{self.window_id}] style")
 
         if self.needs_layout:
-            self.tab.browser.measure.time(f"[{self.window_id}]layout")
+            self.tab.browser.measure.time(f"[{self.window_id}] layout")
 
             self.document = DocumentLayout(self.nodes)
             self.document.layout(self.frame_width, self.tab.zoom)
@@ -212,7 +212,7 @@ class Frame:
             self.tab.set_needs_paint()
             self.needs_layout = False
 
-            self.tab.browser.measure.stop(f"[{self.window_id}]layout")
+            self.tab.browser.measure.stop(f"[{self.window_id}] layout")
 
         clamped_scroll = self.clamp_scroll(self.scroll)
         if clamped_scroll != self.scroll:
