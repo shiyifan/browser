@@ -5,10 +5,11 @@ from skia import Rect
 
 # a11y(accessibility) tree结构中的结点
 class AccessibilityNode:
-    def __init__(self, node):
+    def __init__(self, node, parent=None):
         self.node = node
         self.children = []
         self.text = ""
+        self.parent = parent
 
         self.bounds = self.compute_bounds()
 
@@ -123,9 +124,9 @@ class AccessibilityNode:
         ):
             # 如果遇到"<iframe>", 那么直接对'<iframe>'内的DOM tree的root node创建
             # a11y node, 将每个'<iframe>'的a11y tree合并至root frame的tree中.
-            child = AccessibilityNode(child_node.frame.nodes)
+            child = FrameAccessibilityNode(child_node, self)
         else:
-            child = AccessibilityNode(child_node)
+            child = AccessibilityNode(child_node, self)
 
         if child.role != "none":
             self.children.append(child)
@@ -181,5 +182,54 @@ class AccessibilityNode:
                 return True
         return False
 
+    def absolute_bounds(self):
+        abs_bounds = []
+        for bound in self.bounds:
+            abs_bound = bound.makeOffset(0.0, 0.0)
+            if isinstance(self, FrameAccessibilityNode):
+                obj = self.parent
+            else:
+                obj = self
+
+            while obj:
+                obj.map_to_parent(abs_bound)
+                obj = obj.parent
+            abs_bounds.append(abs_bound)
+        return abs_bound
+
+    def map_to_parent(self, rect):
+        # "大部分的a11y node不需要转换矩形区域坐标"
+        pass
+
     def __repr__(self):
         return f"role={self.role}, text={self.text}"
+
+
+# 表示"<iframe>"的a11y node
+class FrameAccessibilityNode(AccessibilityNode):
+    # node: <iframe> DOM node
+    def __init__(self, node, parent=None):
+        super().__init__(node, parent)
+        self.scroll = self.node.frame.scroll
+        self.zoom = self.node.layout_object.zoom
+
+    def hit_test(self, x, y):
+        bounds = self.bounds[0]
+        if not bounds.contains(x, y):
+            return
+
+        new_x = x - bounds.left() - dpx(1, self.zoom)
+        new_y = y - bounds.top() - dpx(1, self.zoom) + self.scroll
+        node = self
+
+        for child in self.children:
+            res = child.hit_test(new_x, new_y)
+            if res:
+                node = res
+
+        return node
+
+    def map_to_parent(self, rect):
+        bounds = self.bounds[0]
+        rect.offset(bounds.left(), bounds.top() - self.scroll)
+        rect.intersect(bounds)
