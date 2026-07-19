@@ -69,6 +69,8 @@ class Tab:
         # 先被访问的是后被访问的父结点或者同级结点，不可能是子结点
         self.window_id_to_frame = {}
 
+        self.origin_to_js = {}
+
     def set_needs_render_all_frames(self):
         for id, frame in self.window_id_to_frame.items():
             frame.set_needs_render()
