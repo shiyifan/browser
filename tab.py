@@ -69,7 +69,7 @@ class Tab:
         # 先被访问的是后被访问的父结点或者同级结点，不可能是子结点
         self.window_id_to_frame = {}
 
-        self.origin_to_js = {}
+        self.origin_to_js = {}  # http url origin --> js context
 
     def set_needs_render_all_frames(self):
         for id, frame in self.window_id_to_frame.items():
@@ -351,6 +351,12 @@ class Tab:
         frame = self.focused_frame or self.root_frame
         frame.scrollup()
         self.set_needs_paint()
+
+    def get_js(self, url):
+        origin = url.origin()
+        if origin not in self.origin_to_js:
+            self.origin_to_js[origin] = JSContext(self, origin)
+        return self.origin_to_js[origin]
 
 
 def paint_tree(layout_object, display_list):

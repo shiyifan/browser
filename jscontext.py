@@ -21,7 +21,7 @@ TIMEOUT_TIMERS = []
 class JSContext:
     """Javascript运行时"""
 
-    def __init__(self, tab):
+    def __init__(self, tab, origin=None):
         self.tab = tab
 
         # 创建一个Javascript runtime,网页上的所有js代码都将在这个runtime中执行,

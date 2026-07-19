@@ -85,7 +85,7 @@ class Frame:
         if hasattr(self, "js") and self.js:
             # 废弃旧的js context, 避免后续执行queue中的旧task
             self.js.discarded = True
-        self.js = JSContext(self.tab)  # 目前每个"Frame"单独地拥有一个js context
+        self.js = self.tab.get_js(url)
 
         for script in scripts:
             script_url = url.resolve(script)
