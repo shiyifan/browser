@@ -13,54 +13,59 @@ Javascript:
 这样Python对象就与Javascript对象建立了对应关系
 */
 
-var console = {
+/* 由于Dukpy Javascript Runtime无法修改global object, 并且为了支持多个"same origin 'Frame'"下同一js context中
+   多个"window"对象的实现，所有的js代码(包括页面的js代码)引用web环境中global变量时（例如console, document, Node以及一些内部变量
+   "LISTENERS", "RAF_LISTENERS", "SET_TIMEOUT_REQUESTS"等）需要显式指定"window",
+   引用非web环境的global变量（例如Array, Object等）时则无需指定 */
+
+console = {
   log: function () {
     var joined = Array.prototype.join.call(arguments, ' '); // 将多个参数合并为一个字符串
     call_python('log', joined); // 调用Python中导出的function'log'
   },
 };
 
-var document = {
+window.document = {
   querySelectorAll: function (s) {
-    var handles = call_python('querySelectorAll', s);
+    var handles = call_python('querySelectorAll', s, window._id);
     return handles.map(function (h) {
-      return new Node(h);
+      return new window.Node(h);
     });
   },
   getElementById: function (id) {
-    var handle = call_python('getElementById', id);
-    return handle == null ? null : new Node(handle);
+    var handle = call_python('getElementById', id, window._id);
+    return handle == null ? null : new window.Node(handle);
   },
 };
 
 // 保存DOM node与event listener的对应关系: { DOM node handle: { eventType: [eventHandler] } }
-var LISTENERS = {};
+window.LISTENERS = {};
 
 // Javascript DOM node
-function Node(handle) {
+window.Node = function (handle) {
   // 关于Javascript DOM node的所有操作都通过这个handle与Python中的DOM node进行交互
   // 所以Node对象没有任何属性，所有属性均通过调用Python中的函数来获取
   this.handle = handle;
-}
+};
 
-Node.prototype.getAttribute = function (attr) {
+window.Node.prototype.getAttribute = function (attr) {
   return call_python('getAttribute', this.handle, attr);
 };
 
-Node.prototype.addEventListener = function (type, listener) {
-  if (!LISTENERS[this.handle]) LISTENERS[this.handle] = {};
+window.Node.prototype.addEventListener = function (type, listener) {
+  if (!window.LISTENERS[this.handle]) window.LISTENERS[this.handle] = {};
 
-  var dict = LISTENERS[this.handle];
+  var dict = window.LISTENERS[this.handle];
   if (!dict[type]) dict[type] = []; // 可以对同一个事件类型添加多个listener
   var list = dict[type];
   list.push(listener);
 };
 
 // 触发Node对象的某一类型事件
-Node.prototype.dispatchEvent = function (evt) {
+window.Node.prototype.dispatchEvent = function (evt) {
   var type = evt.type;
   var handle = this.handle;
-  var list = (LISTENERS[handle] && LISTENERS[handle][type]) || [];
+  var list = (window.LISTENERS[handle] && window.LISTENERS[handle][type]) || [];
   for (var i = 0; i < list.length; i++) {
     list[i].call(this, evt);
   }
@@ -70,91 +75,91 @@ Node.prototype.dispatchEvent = function (evt) {
   return evt.do_default;
 };
 
-Node.prototype.setAttribute = function (attr, value) {
-  return call_python('setAttribute', this.handle, attr, value);
+window.Node.prototype.setAttribute = function (attr, value) {
+  return call_python('setAttribute', this.handle, attr, value, window._id);
 };
 
-Object.defineProperty(Node.prototype, 'innerHTML', {
+Object.defineProperty(window.Node.prototype, 'innerHTML', {
   set: function (s) {
-    call_python('innerHTML_set', this.handle, s.toString());
+    call_python('innerHTML_set', this.handle, s.toString(), window._id);
   },
 });
 
-Object.defineProperty(Node.prototype, 'style', {
+Object.defineProperty(window.Node.prototype, 'style', {
   set: function (s) {
-    call_python('style_set', this.handle, s.toString());
+    call_python('style_set', this.handle, s.toString(), window._id);
   },
 });
 
-function Event(type) {
+window.Event = function (type) {
   this.type = type;
   this.do_default = true; // 是否执行默认的后续流程
-}
+};
 
-Event.prototype.preventDefault = function () {
+window.Event.prototype.preventDefault = function () {
   this.do_default = false;
 };
 
 /* XHR与handle间的对应关系: handle -> XHR. 用于实现异步xhr请求。
 当浏览器利用多线程完成请求时，Python中根据handle触发xhr对象上的onload事件 */
-XHR_REQUESTS = {};
+window.XHR_REQUESTS = {};
 
 // XMLHttpRequest对象
-function XMLHttpRequest() {
-  this.handle = Object.keys(XHR_REQUESTS).length;
-  XHR_REQUESTS[this.handle] = this;
-}
+window.XMLHttpRequest = function () {
+  this.handle = Object.keys(window.XHR_REQUESTS).length;
+  window.XHR_REQUESTS[this.handle] = this;
+};
 
-XMLHttpRequest.prototype.open = function (method, url, is_async) {
+window.XMLHttpRequest.prototype.open = function (method, url, is_async) {
   this.is_async = is_async;
   this.method = method;
   this.url = url;
 };
 
-XMLHttpRequest.prototype.send = function (body) {
-  this.responseText = call_python('XMLHttpRequest_send', this.method, this.url, body, this.is_async, this.handle);
+window.XMLHttpRequest.prototype.send = function (body) {
+  this.responseText = call_python('XMLHttpRequest_send', this.method, this.url, body, this.is_async, this.handle, window._id);
 };
 
 // 保存setTimeout的callback与handle的对应关系, handle -> callback
-SET_TIMEOUT_REQUESTS = {};
+window.SET_TIMEOUT_REQUESTS = {};
 
-function setTimeout(callback, time_delta) {
-  var handle = Object.keys(SET_TIMEOUT_REQUESTS).length;
-  SET_TIMEOUT_REQUESTS[handle] = callback;
-  call_python('setTimeout', handle, time_delta);
-}
+window.setTimeout = function (callback, time_delta) {
+  var handle = Object.keys(window.SET_TIMEOUT_REQUESTS).length;
+  window.SET_TIMEOUT_REQUESTS[handle] = callback;
+  call_python('setTimeout', handle, time_delta, window._id);
+};
 
 // 由Python调用，执行setTimeout的callback
-function __runSetTimeout(handle) {
-  var callback = SET_TIMEOUT_REQUESTS[handle];
+window.__runSetTimeout = function (handle) {
+  var callback = window.SET_TIMEOUT_REQUESTS[handle];
   callback();
 
-  /* 这里没有从SET_TIMEOUT_REQUESTS中删除callback,可能会导致memory leak */
-}
+  /* 这里没有从window.SET_TIMEOUT_REQUESTS中删除callback,可能会导致memory leak */
+};
 
 // 由Python调用，异步请求完成后触发xhr对象的'onload'事件
-function __runXHROnload(body, handle) {
-  var obj = XHR_REQUESTS[handle];
-  var evt = new Event('load');
+window.__runXHROnload = function (body, handle) {
+  var obj = window.XHR_REQUESTS[handle];
+  var evt = new window.Event('load');
   obj.responseText = body;
   if (obj.onload) {
     obj.onload(evt);
   }
-}
+};
 
 /* 保存animation frame的callback */
-var RAF_LISTENERS = [];
+window.RAF_LISTENERS = [];
 
-function requestAnimationFrame(fn) {
-  RAF_LISTENERS.push(fn);
-  call_python('requestAnimationFrame');
-}
+window.requestAnimationFrame = function (fn) {
+  window.RAF_LISTENERS.push(fn);
+  call_python('requestAnimationFrame', window._id);
+};
 
-function __runRAFHandlers() {
-  var handlers_copy = RAF_LISTENERS;
-  RAF_LISTENERS = [];
+window.__runRAFHandlers = function () {
+  var handlers_copy = window.RAF_LISTENERS;
+  window.RAF_LISTENERS = [];
 
   for (var i = 0; i < handlers_copy.length; i++) {
     handlers_copy[i]();
   }
-}
+};

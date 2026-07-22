@@ -86,6 +86,7 @@ class Frame:
             # 废弃旧的js context, 避免后续执行queue中的旧task
             self.js.discarded = True
         self.js = self.tab.get_js(url)
+        self.js.add_window(self)
 
         for script in scripts:
             script_url = url.resolve(script)
@@ -102,7 +103,7 @@ class Frame:
                 continue
 
             # 将运行javascript的任务添加至任务队列，待后续执行(依赖于tab eventloop)
-            task = Task(self.js.run, body)
+            task = Task(self.js.run, body, self.window_id)
             self.tab.task_runner.schedule_task(task)
 
         # 加载并解析所有"<link rel=stylesheet>"的css
@@ -252,7 +253,7 @@ class Frame:
                 pass
 
             elif is_focusable(elt):
-                if self.js.dispatch_event("click", elt):
+                if self.js.dispatch_event("click", elt, self.window_id):
                     return
 
                 if self.tab.focus != elt:
@@ -266,7 +267,7 @@ class Frame:
             elif elt.tag == "div":
                 # 点击位于"non clickable"的div中
 
-                if self.js.dispatch_event("click", elt):
+                if self.js.dispatch_event("click", elt, self.window_id):
                     return
 
                 # 清除当前焦点
@@ -336,7 +337,7 @@ class Frame:
                 elt = elt.parent
 
     def submit_form(self, elt):
-        if self.js.dispatch_event("submit", elt):
+        if self.js.dispatch_event("submit", elt, self.window_id):
             return
         inputs = [
             node
@@ -428,12 +429,12 @@ class Frame:
         if not "value" in focus.attributes:
             self.activate_element(focus)
 
-        self.js.dispatch_event("keydown", focus)
+        self.js.dispatch_event("keydown", focus, self.window_id)
         focus.attributes["value"] += char
         self.set_needs_render()
 
     def enter(self):
-        if self.js.dispatch_event("click", self.tab.focus):
+        if self.js.dispatch_event("click", self.tab.focus, self.window_id):
             return
         self.activate_element(self.tab.focus)
         self.set_needs_render()
@@ -443,7 +444,7 @@ class Frame:
         if not value or len(value) == 0:
             return
         self.tab.focus.attributes["value"] = value[:-1]
-        self.js.dispatch_event("keydown", self.tab.focus)
+        self.js.dispatch_event("keydown", self.tab.focus, self.window_id)
         self.set_needs_render()
 
     def scrolldown(self):

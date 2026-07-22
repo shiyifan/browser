@@ -10,10 +10,10 @@ RUNTIME_JS = open("runtime.js").read()
 # 触发Javascript中的event handler
 # 新建一个包含handle的Javascript DOM Node对象，然后在这个对象上触发事件
 # 注意，javascript中的event handler中的"this"指向的是一个临时新建的Node对象，而非实际被点击的Python中DOM Tree中的Node对象
-EVENT_DISPATCH_JS = "new Node(dukpy.handle).dispatchEvent(new Event(dukpy.type))"
+EVENT_DISPATCH_JS = "new window.Node(dukpy.handle).dispatchEvent(new window.Event(dukpy.type))"
 
-SETTIMEOUT_JS = "__runSetTimeout(dukpy.handle)"
-XHR_ONLOAD_JS = "__runXHROnload(dukpy.out, dukpy.handle)"
+SETTIMEOUT_JS = "window.__runSetTimeout(dukpy.handle)"
+XHR_ONLOAD_JS = "window.__runXHROnload(dukpy.out, dukpy.handle)"
 
 TIMEOUT_TIMERS = []
 
@@ -21,16 +21,15 @@ TIMEOUT_TIMERS = []
 class JSContext:
     """Javascript运行时"""
 
-    def __init__(self, tab, origin=None):
+    def __init__(self, tab, url_origin):
         self.tab = tab
+        self.url_origin = url_origin
 
         # 创建一个Javascript runtime,网页上的所有js代码都将在这个runtime中执行,
         # 这样可以保证网页中不同"<script>"中context的连续性
         self.interp = dukpy.JSInterpreter()
 
-        self.tab.browser.measure.time("RUNTIME_JS")
-        self.interp.evaljs(RUNTIME_JS)  # 准备runtime环境
-        self.tab.browser.measure.stop("RUNTIME_JS")
+        self.interp.evaljs("function Window(id) { this._id = id }")  # 创建全局对象的Window类型
 
         self.interp.export_function("log", log.js)
         self.interp.export_function("querySelectorAll", self.querySelectorAll)
@@ -50,7 +49,7 @@ class JSContext:
         # 当Javascript读取python DOM node时，返回这个整数，当Javascript修改某个DOM node时，也需要提供这个整数
         # 这个方式有点像file descriptor
         # 另外，目前这个映射存在内存泄漏的问题：当Javascript中通过"innerHTML"删除一个DOM节点后，
-        # 这里仍然保存这个Python DOM node。解决这个问题可能需要Python与Javascript虚拟机间的协同
+        # 这里仍然保存这个Python DOM node。解决这个问题可能需要Python与Javascript虚拟机间的协同垃圾回收
         self.node_to_handle = {}  # python DOM node -> handle
         self.handle_to_node = {}  # handle -> python DOM node
 
@@ -60,23 +59,40 @@ class JSContext:
         # 因此加载新url后，queue中可能存在一些待执行的旧task(由旧url页面添加的task), 这些task不应再被旧的js context执行
         self.discarded = False
 
-    def run(self, code):
+    def add_window(self, frame):
+        # 创建全局对象window
+        self.interp.evaljs(f"var window_{frame.window_id} = new Window({frame.window_id})")
+
+        # 在全局对象window上实现基础web api
+        self.tab.browser.measure.time("RUNTIME_JS")
+        self.interp.evaljs(self.wrap(RUNTIME_JS, frame.window_id))
+        self.tab.browser.measure.stop("RUNTIME_JS")
+
+    # 在某个全局对象window的scope中执行javascript
+    def wrap(self, script, window_id):
+        return f"window = window_{window_id}; {script}"
+
+    def run(self, code, window_id):
         try:
             self.tab.browser.measure.time("run js")
-            self.interp.evaljs(code)
+            self.interp.evaljs(self.wrap(code, window_id))
         except dukpy.JSRuntimeError as e:
             log.e(f"@@@ JS crashed! @@@\n{e}")
+        except Exception as e:
+            log.e(f"@@@ JS Context Error! @@@\n{e}")
         finally:
             self.tab.browser.measure.stop("run js")
 
-    def querySelectorAll(self, selector_text):
+    def querySelectorAll(self, selector_text, window_id):
+        frame = self.tab.window_id_to_frame[window_id]
         selector = CSSParser(selector_text).selector()
-        nodes = [node for node in tree_to_list(self.tab.nodes, []) if selector.matches(node)]
+        nodes = [node for node in tree_to_list(frame.nodes, []) if selector.matches(node)]
         return [self.get_handle(node) for node in nodes]
 
-    def getElementById(self, id):
+    def getElementById(self, id, window_id):
+        frame = self.tab.window_id_to_frame[window_id]
         selected = None
-        all_nodes = tree_to_list(self.tab.nodes, [])
+        all_nodes = tree_to_list(frame.nodes, [])
         for node in all_nodes:
             if not hasattr(node, "attributes"):
                 continue
@@ -99,57 +115,61 @@ class JSContext:
         attr = elt.attributes.get(attr, None)
         return attr if attr else ""
 
-    def dispatch_event(self, type, elt):
+    def dispatch_event(self, type, elt, window_id):
         handle = self.node_to_handle.get(elt, -1)
 
         self.tab.browser.measure.time("EVENT_DISPATCH_JS")
-        do_default = self.interp.evaljs(EVENT_DISPATCH_JS, type=type, handle=handle)
+        do_default = self.interp.evaljs(
+            self.wrap(EVENT_DISPATCH_JS, window_id), type=type, handle=handle
+        )
         self.tab.browser.measure.stop("EVENT_DISPATCH_JS")
 
         return not do_default  # 如果返回True，则表示不执行后续default操作，否则执行
 
-    def innerHTML_set(self, handle, s):
+    def innerHTML_set(self, handle, s, window_id):
         doc = HTMLParser(f"<html><body>{s}</body></html>").parse()
         new_nodes = doc.children[0].children
         elt = self.handle_to_node[handle]
         elt.children = new_nodes
         for node in new_nodes:
             node.parent = elt
-        self.tab.set_needs_render()
+        frame = self.tab.window_id_to_frame[window_id]
+        frame.set_needs_render()
 
-    def XMLHttpRequest_send(self, method, url, body, is_async, handle):
-        full_url = self.tab.url.resolve(url)
+    def XMLHttpRequest_send(self, method, url, body, is_async, handle, window_id):
+        frame = self.tab.window_id_to_frame[window_id]
+        full_url = frame.url.resolve(url)
 
-        if not self.tab.allowed_request(full_url):
+        if not frame.allowed_request(full_url):
             raise Exception("XHR blocked by CSP")
 
-        if full_url.origin() != self.tab.url.origin():
+        if full_url.origin() != frame.url.origin():
             raise Exception("CORS not allowed")
 
         def run_load():
-            headers, response = full_url.request(self.tab.url, body)
+            headers, response = full_url.request(frame.url, body)
             response = response.decode("utf8", "replace")
-            task = Task(self.dispatch_xhr_onload, response, handle)
+            task = Task(self.dispatch_xhr_onload, response, handle, window_id)
             self.tab.task_runner.schedule_task(task)
             return response
 
         if not is_async:
             return run_load()
         else:
-            # 理论上，两个异步的xhr请求时,同时访问cookie可能会有线程安全问题。但不前暂不考虑
+            # 理论上，两个异步的xhr请求时,同时访问cookie可能会有线程安全问题。但目前暂不考虑
             Thread(target=run_load).start()
 
-    def dispatch_settimeout(self, handle):
+    def dispatch_settimeout(self, handle, window_id):
         if self.discarded:
             return
 
         self.tab.browser.measure.time("SETTIMEOUT_JS")
-        self.interp.evaljs(SETTIMEOUT_JS, handle=handle)
+        self.interp.evaljs(self.wrap(SETTIMEOUT_JS, window_id), handle=handle)
         self.tab.browser.measure.stop("SETTIMEOUT_JS")
 
-    def setTimeout(self, handle, time):
+    def setTimeout(self, handle, time, window_id):
         def run_callback():
-            task = Task(self.dispatch_settimeout, handle)
+            task = Task(self.dispatch_settimeout, handle, window_id)
             self.tab.task_runner.schedule_task(task)
             TIMEOUT_TIMERS.remove(t)
 
@@ -160,19 +180,18 @@ class JSContext:
         TIMEOUT_TIMERS.append(t)
         t.start()
 
-    def dispatch_xhr_onload(self, out, handle):
+    def dispatch_xhr_onload(self, out, handle, window_id):
         if self.discarded:
             return
 
         self.tab.browser.measure.time("XHR_ONLOAD_JS")
-        self.interp.evaljs(XHR_ONLOAD_JS, out=out, handle=handle)
+        self.interp.evaljs(self.wrap(XHR_ONLOAD_JS, window_id), out=out, handle=handle)
         self.tab.browser.measure.stop("XHR_ONLOAD_JS")
 
     def dispatch_RAF(self, window_id):
-        # self.interp.evaljs("window.__runRAFHandlers()") # FIXME
-        self.interp.evaljs("__runRAFHandlers()")
+        self.interp.evaljs(self.wrap("window.__runRAFHandlers()", window_id))
 
-    def requestAnimationFrame(self):
+    def requestAnimationFrame(self, window_id):
 
         # mainloop中已经实现了以固定频率schedule render task。这里如果
         # 再次schedule,那么动画的渲染频率将比固定频率还快.如果取消这次schedule,
@@ -181,17 +200,18 @@ class JSContext:
         # task = Task(self.tab.render)
         # self.tab.task_runner.schedule_task(task)
 
-        self.tab.set_needs_render()
+        frame = self.tab.window_id_to_frame[window_id]
+        frame.set_needs_render()
 
-    def style_set(self, handle, s):
+    def style_set(self, handle, s, window_id):
         node = self.handle_to_node[handle]
         node.attributes["style"] = s
-        self.tab.set_needs_render()
+        self.tab.window_id_to_frame[window_id].set_needs_render()
 
-    def setAttribute(self, handle, attr, value):
+    def setAttribute(self, handle, attr, value, window_id):
         elt = self.handle_to_node[handle]
         elt.attributes[attr] = value
-        self.tab.set_needs_render()
+        self.tab.window_id_to_frame[window_id].set_needs_render()
 
     def destroy(self):
         for t in TIMEOUT_TIMERS:
