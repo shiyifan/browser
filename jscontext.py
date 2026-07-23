@@ -18,6 +18,24 @@ XHR_ONLOAD_JS = "window.__runXHROnload(dukpy.out, dukpy.handle)"
 TIMEOUT_TIMERS = []
 
 
+# Javascript运行时.
+# 为了支持"<iframe>"以及引入"Frame"之后，js context与frame的关系如下：
+# 不管是否same-origin, 每个Frame拥有自己的全局对象window，不会发生命名冲突。
+# same-origin的多个Frame共享一个js context，虽然拥有各自的window，但是可以通过
+# 非same-origin的多个Frame采用各自的js context.
+#
+#                               Tab
+#
+#     (www.a.com)        (www.a.com)       (www.b.com)
+#       Frame 0             Frame 1           Frame 2
+#          |                   |                 |
+#    +-----+-------------------+-------+   +-----+------+
+#    |     |                   |       |   |     |      |
+#    |     v                   v       |   |     v      |
+#    |  window 0  <------>  window 1   |   |  window 2  |
+#    |                                 |   |            |
+#    +---------------------------------+   +------------+
+#                 js context                 js context
 class JSContext:
     """Javascript运行时"""
 
@@ -67,6 +85,12 @@ class JSContext:
         self.tab.browser.measure.time("RUNTIME_JS")
         self.interp.evaljs(self.wrap(RUNTIME_JS, frame.window_id))
         self.tab.browser.measure.stop("RUNTIME_JS")
+
+    def parent(self, window_id):
+        parent_frame = self.tab.window_id_to_frame[window_id].parent_frame
+        if not parent_frame:
+            return None
+        return parent_frame.window_id
 
     # 在某个全局对象window的scope中执行javascript
     def wrap(self, script, window_id):
