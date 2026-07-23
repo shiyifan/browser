@@ -124,7 +124,7 @@ window.XMLHttpRequest.prototype.send = function (body) {
     body,
     this.is_async,
     this.handle,
-    window._id,
+    window._id
   );
 };
 
