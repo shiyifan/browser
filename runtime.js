@@ -117,7 +117,15 @@ window.XMLHttpRequest.prototype.open = function (method, url, is_async) {
 };
 
 window.XMLHttpRequest.prototype.send = function (body) {
-  this.responseText = call_python('XMLHttpRequest_send', this.method, this.url, body, this.is_async, this.handle, window._id);
+  this.responseText = call_python(
+    'XMLHttpRequest_send',
+    this.method,
+    this.url,
+    body,
+    this.is_async,
+    this.handle,
+    window._id,
+  );
 };
 
 // 保存setTimeout的callback与handle的对应关系, handle -> callback
