@@ -120,6 +120,7 @@ class JSContext:
     def querySelectorAll(self, selector_text, window_id):
         frame = self.tab.window_id_to_frame[window_id]
         self.throw_if_cross_origin(frame)
+
         selector = CSSParser(selector_text).selector()
         nodes = [node for node in tree_to_list(frame.nodes, []) if selector.matches(node)]
         return [self.get_handle(node) for node in nodes]
@@ -127,6 +128,7 @@ class JSContext:
     def getElementById(self, id, window_id):
         frame = self.tab.window_id_to_frame[window_id]
         self.throw_if_cross_origin(frame)
+
         selected = None
         all_nodes = tree_to_list(frame.nodes, [])
         for node in all_nodes:
@@ -209,6 +211,9 @@ class JSContext:
         self.tab.browser.measure.stop("SETTIMEOUT_JS")
 
     def setTimeout(self, handle, time, window_id):
+        frame = self.tab.window_id_to_frame[window_id]
+        self.throw_if_cross_origin(frame)
+
         def run_callback():
             task = Task(self.dispatch_settimeout, handle, window_id)
             self.tab.task_runner.schedule_task(task)
@@ -242,11 +247,13 @@ class JSContext:
         # self.tab.task_runner.schedule_task(task)
 
         frame = self.tab.window_id_to_frame[window_id]
+        self.throw_if_cross_origin(frame)
         frame.set_needs_render()
 
     def style_set(self, handle, s, window_id):
         frame = self.tab.window_id_to_frame[window_id]
         self.throw_if_cross_origin(frame)
+
         node = self.handle_to_node[handle]
         node.attributes["style"] = s
         frame.set_needs_render()
@@ -254,6 +261,7 @@ class JSContext:
     def setAttribute(self, handle, attr, value, window_id):
         frame = self.tab.window_id_to_frame[window_id]
         self.throw_if_cross_origin(frame)
+
         elt = self.handle_to_node[handle]
         elt.attributes[attr] = value
         frame.set_needs_render()
