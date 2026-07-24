@@ -60,6 +60,7 @@ class JSContext:
         self.interp.export_function("requestAnimationFrame", self.requestAnimationFrame)
         self.interp.export_function("style_set", self.style_set)
         self.interp.export_function("setAttribute", self.setAttribute)
+        self.interp.export_function("parent", self.parent)
 
         # python的DOM node与Javascript DOM node间的映射
         #
@@ -89,10 +90,17 @@ class JSContext:
         self.tab.browser.measure.stop("RUNTIME_JS")
 
     def parent(self, window_id):
+        # 根据Frame对象的创建过程（在"Frame.load()"函数中创建, Frame.parent_frame不一定是same-origin的parent frame，
+        # 而仅是在Frame实现结构上的parent），这里得到的parent frame与window_id表示
+        # 的frame可能是same-origin，也可能不是
         parent_frame = self.tab.window_id_to_frame[window_id].parent_frame
         if not parent_frame:
             return None
         return parent_frame.window_id
+
+    def throw_if_cross_origin(self, frame):
+        if frame.url.origin() != self.url_origin:
+            raise Exception("cross origin access disallowed from js context!")
 
     # 在某个全局对象window的scope中执行javascript
     def wrap(self, script, window_id):
@@ -111,12 +119,14 @@ class JSContext:
 
     def querySelectorAll(self, selector_text, window_id):
         frame = self.tab.window_id_to_frame[window_id]
+        self.throw_if_cross_origin(frame)
         selector = CSSParser(selector_text).selector()
         nodes = [node for node in tree_to_list(frame.nodes, []) if selector.matches(node)]
         return [self.get_handle(node) for node in nodes]
 
     def getElementById(self, id, window_id):
         frame = self.tab.window_id_to_frame[window_id]
+        self.throw_if_cross_origin(frame)
         selected = None
         all_nodes = tree_to_list(frame.nodes, [])
         for node in all_nodes:
@@ -136,7 +146,10 @@ class JSContext:
             handle = self.node_to_handle[elt]
         return handle
 
-    def getAttribute(self, handle, attr):
+    def getAttribute(self, handle, attr, window_id):
+        frame = self.tab.window_id_to_frame[window_id]
+        self.throw_if_cross_origin(frame)
+
         elt = self.handle_to_node[handle]
         attr = elt.attributes.get(attr, None)
         return attr if attr else ""
@@ -153,13 +166,15 @@ class JSContext:
         return not do_default  # 如果返回True，则表示不执行后续default操作，否则执行
 
     def innerHTML_set(self, handle, s, window_id):
+        frame = self.tab.window_id_to_frame[window_id]
+        self.throw_if_cross_origin(frame)
+
         doc = HTMLParser(f"<html><body>{s}</body></html>").parse()
         new_nodes = doc.children[0].children
         elt = self.handle_to_node[handle]
         elt.children = new_nodes
         for node in new_nodes:
             node.parent = elt
-        frame = self.tab.window_id_to_frame[window_id]
         frame.set_needs_render()
 
     def XMLHttpRequest_send(self, method, url, body, is_async, handle, window_id):
@@ -230,14 +245,18 @@ class JSContext:
         frame.set_needs_render()
 
     def style_set(self, handle, s, window_id):
+        frame = self.tab.window_id_to_frame[window_id]
+        self.throw_if_cross_origin(frame)
         node = self.handle_to_node[handle]
         node.attributes["style"] = s
-        self.tab.window_id_to_frame[window_id].set_needs_render()
+        frame.set_needs_render()
 
     def setAttribute(self, handle, attr, value, window_id):
+        frame = self.tab.window_id_to_frame[window_id]
+        self.throw_if_cross_origin(frame)
         elt = self.handle_to_node[handle]
         elt.attributes[attr] = value
-        self.tab.window_id_to_frame[window_id].set_needs_render()
+        frame.set_needs_render()
 
     def destroy(self):
         for t in TIMEOUT_TIMERS:

@@ -25,7 +25,14 @@ class Frame:
 
         self.loaded = False  # frame的resources(html, css, javascript...)是否已加载完成
 
-        self.window_id = len(self.tab.window_id_to_frame)  # frame的id
+        # frame的id，同时也用于标识Frame内全局对象window。
+        #
+        # 由于"Frame"对象在创建之后不再更新修改"window_id", 因此在"Frame"内连续访问不同的url之后，window_id不会改变.
+        # 不变的window_id可能在多个js context中的"WINDOWS"对象内作为"key"被保存, "key"
+        # 对应的"value"（即window对象）可能已不再对应于某个Frame（因为Frame加载了新的url，但是
+        # js context内的"WINDOWS"对象没有更新）
+        self.window_id = len(self.tab.window_id_to_frame)
+
         self.tab.window_id_to_frame[self.window_id] = self
 
         self.url = None
@@ -57,7 +64,7 @@ class Frame:
     def load(self, url, payload=None):
         self.loaded = False
 
-        headers, body = url.request(self.url, payload)
+        headers, body = url.request(referer=self.url, payload=payload)
         body = body.decode("utf8", "replace")
         self.url = url
         self.nodes = HTMLParser(body).parse()  # 将HTML代码解析为DOM tree
@@ -86,6 +93,7 @@ class Frame:
             # 废弃旧的js context, 避免后续执行queue中的旧task
             self.js.discarded = True
         self.js = self.tab.get_js(url)
+        # 为当前的Frame新建全局window对象
         self.js.add_window(self)
 
         for script in scripts:

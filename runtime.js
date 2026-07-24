@@ -28,12 +28,16 @@ console = {
 Object.defineProperty(Window.prototype, 'parent', {
   configurable: true,
   get: function () {
-    var parent_id = call_python('parent', window._id);
+    var parent_id = call_python('parent', this._id);
     if (parent_id != null) {
       var parent = WINDOWS[parent_id];
+
+      /* 即使"parent != null", 这里获取的parent也不一定是same-origin的parent window
+      (另见"Frame.window_id"的注释), 所以，js context中访问DOM的方法需要调用"JSContext.throw_if_cross_origin"
+      检查是否same-origin */
+
       if (parent == null) {
-        // parent = new Window(parent_id);
-        throw new Error(`parent WINDOWS[${parent_id}] is null`);
+        parent = new Window(parent_id);
       }
       return parent;
     }
@@ -64,7 +68,7 @@ window.Node = function (handle) {
 };
 
 window.Node.prototype.getAttribute = function (attr) {
-  return call_python('getAttribute', this.handle, attr);
+  return call_python('getAttribute', this.handle, attr, window._id);
 };
 
 window.Node.prototype.addEventListener = function (type, listener) {
@@ -132,7 +136,16 @@ window.XMLHttpRequest.prototype.open = function (method, url, is_async) {
 };
 
 window.XMLHttpRequest.prototype.send = function (body) {
-  this.responseText = call_python('XMLHttpRequest_send', this.method, this.url, body, this.is_async, this.handle, window._id);
+  /* prettier-ignore */
+  this.responseText = call_python(
+    'XMLHttpRequest_send',
+    this.method,
+    this.url,
+    body,
+    this.is_async,
+    this.handle,
+    window._id
+  );
 };
 
 // 保存setTimeout的callback与handle的对应关系, handle -> callback
