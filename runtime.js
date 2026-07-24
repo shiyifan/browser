@@ -25,6 +25,21 @@ console = {
   },
 };
 
+Object.defineProperty(Window.prototype, 'parent', {
+  configurable: true,
+  get: function () {
+    var parent_id = call_python('parent', window._id);
+    if (parent_id != null) {
+      var parent = WINDOWS[parent_id];
+      if (parent == null) {
+        // parent = new Window(parent_id);
+        throw new Error(`parent WINDOWS[${parent_id}] is null`);
+      }
+      return parent;
+    }
+  },
+});
+
 window.document = {
   querySelectorAll: function (s) {
     var handles = call_python('querySelectorAll', s, window._id);
@@ -117,15 +132,7 @@ window.XMLHttpRequest.prototype.open = function (method, url, is_async) {
 };
 
 window.XMLHttpRequest.prototype.send = function (body) {
-  this.responseText = call_python(
-    'XMLHttpRequest_send',
-    this.method,
-    this.url,
-    body,
-    this.is_async,
-    this.handle,
-    window._id
-  );
+  this.responseText = call_python('XMLHttpRequest_send', this.method, this.url, body, this.is_async, this.handle, window._id);
 };
 
 // 保存setTimeout的callback与handle的对应关系, handle -> callback

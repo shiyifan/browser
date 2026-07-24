@@ -48,6 +48,7 @@ class JSContext:
         self.interp = dukpy.JSInterpreter()
 
         self.interp.evaljs("function Window(id) { this._id = id }")  # 创建全局对象的Window类型
+        self.interp.evaljs("WINDOWS = {}")
 
         self.interp.export_function("log", log.js)
         self.interp.export_function("querySelectorAll", self.querySelectorAll)
@@ -80,6 +81,7 @@ class JSContext:
     def add_window(self, frame):
         # 创建全局对象window
         self.interp.evaljs(f"var window_{frame.window_id} = new Window({frame.window_id})")
+        self.interp.evaljs(f"WINDOWS[{frame.window_id}] = window_{frame.window_id}")
 
         # 在全局对象window上实现基础web api
         self.tab.browser.measure.time("RUNTIME_JS")
