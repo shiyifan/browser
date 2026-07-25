@@ -358,6 +358,10 @@ class Tab:
             self.origin_to_js[origin] = JSContext(self, origin)
         return self.origin_to_js[origin]
 
+    def post_message(self, message, target_window_id):
+        frame = self.window_id_to_frame[target_window_id]
+        frame.js.dispatch_post_message(message, target_window_id)
+
 
 def paint_tree(layout_object, display_list):
     """收集\"layout_object\"及其子节点的绘制命令,绘制命令保存在\"display_list\"中"""

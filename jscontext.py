@@ -16,6 +16,8 @@ EVENT_DISPATCH_JS = "new window.Node(dukpy.handle).dispatchEvent(new window.Even
 SETTIMEOUT_JS = "window.__runSetTimeout(dukpy.handle)"
 XHR_ONLOAD_JS = "window.__runXHROnload(dukpy.out, dukpy.handle)"
 
+POST_MESSAGE_DISPATCH_JS = "window.dispatchEvent(new window.MessageEvent(dukpy.data))"
+
 TIMEOUT_TIMERS = []
 
 
@@ -49,7 +51,6 @@ class JSContext:
         self.interp = dukpy.JSInterpreter()
 
         self.interp.evaljs(WINDOW_JS)  # 创建全局对象的Window类型
-        self.interp.evaljs("WINDOWS = {}")
 
         self.interp.export_function("log", log.js)
         self.interp.export_function("querySelectorAll", self.querySelectorAll)
@@ -62,6 +63,7 @@ class JSContext:
         self.interp.export_function("style_set", self.style_set)
         self.interp.export_function("setAttribute", self.setAttribute)
         self.interp.export_function("parent", self.parent)
+        self.interp.export_function("postMessage", self.postMessage)
 
         # python的DOM node与Javascript DOM node间的映射
         #
@@ -101,6 +103,13 @@ class JSContext:
         if not parent_frame:
             return None
         return parent_frame.window_id
+
+    def postMessage(self, target_window_id, message, origin):
+        task = Task(self.tab.post_message, message, target_window_id)
+        self.tab.task_runner.schedule_task(task)
+
+    def dispatch_post_message(self, message, window_id):
+        self.interp.evaljs(self.wrap(POST_MESSAGE_DISPATCH_JS, window_id), data=message)
 
     def throw_if_cross_origin(self, frame):
         if frame.url.origin() != self.url_origin:
@@ -164,7 +173,9 @@ class JSContext:
         handle = self.node_to_handle.get(elt, -1)
 
         self.tab.browser.measure.time("EVENT_DISPATCH_JS")
-        do_default = self.interp.evaljs(self.wrap(EVENT_DISPATCH_JS, window_id), type=type, handle=handle)
+        do_default = self.interp.evaljs(
+            self.wrap(EVENT_DISPATCH_JS, window_id), type=type, handle=handle
+        )
         self.tab.browser.measure.stop("EVENT_DISPATCH_JS")
 
         return not do_default  # 如果返回True，则表示不执行后续default操作，否则执行

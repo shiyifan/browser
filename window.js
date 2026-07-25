@@ -1,3 +1,7 @@
+/* 保存window_id与window对象之间的映射。 { window_id: window对象 }.
+same-origin的Frame在同一个js context中创建属于各自的window对象，并以"window_id"区分. */
+WINDOWS = {};
+
 // 全局对象window的类型：Window
 function Window(id) {
   this._id = id;
@@ -22,6 +26,30 @@ Object.defineProperty(Window.prototype, 'parent', {
   },
 });
 
-Window.prototype.addEventListener = function (type, listener) {};
+/* 保存window对象与event listener之间的映射. 
+{ window_id: { event type: [event handlers] } } */
+WINDOW_LISTENERS = {};
 
-Window.prototype.dispatchEvent = function (evt) {};
+Window.prototype.addEventListener = function (type, listener) {
+  if (!WINDOW_LISTENERS[this._id]) WINDOW_LISTENERS[this._id] = {};
+  listeners = WINDOW_LISTENERS[this._id];
+
+  if (!listeners[type]) listeners[type] = [];
+  typeListeners = listeners[type];
+
+  typeListeners.push(listener);
+};
+
+Window.prototype.dispatchEvent = function (evt) {
+  window_id = this._id;
+  type = evt.type;
+  handlers = (WINDOW_LISTENERS[window_id] && WINDOW_LISTENERS[window_id][type]) || [];
+
+  for (var i = 0; i < handlers.length; i++) {
+    handlers[i].call(this, evt);
+  }
+};
+
+Window.prototype.postMessage = function (message, origin) {
+  call_python('postMessage', this._id, message, origin);
+};
