@@ -67,9 +67,12 @@ class JSContext:
         # 由于Python的对象无法直接转换为Javascript的Object,所以采用下面的方法：
         # 用一个唯一的整数(handle)表示Python的DOM node,这个整数可在Python与Javascript中传递,
         # 当Javascript读取python DOM node时，返回这个整数，当Javascript修改某个DOM node时，也需要提供这个整数
-        # 这个方式有点像file descriptor
+        # 这个方式有点像file descriptor.
         # 另外，目前这个映射存在内存泄漏的问题：当Javascript中通过"innerHTML"删除一个DOM节点后，
-        # 这里仍然保存这个Python DOM node。解决这个问题可能需要Python与Javascript虚拟机间的协同垃圾回收
+        # 这里仍然保存这个Python DOM node。解决这个问题可能需要Python与Javascript虚拟机间的协同垃圾回收.
+        #
+        # 当网页的Javascript中调用"document.[querySelectorAll() | getElementById()]"时才会在这个map中
+        # 保存新的映射。
         self.node_to_handle = {}  # python DOM node -> handle
         self.handle_to_node = {}  # handle -> python DOM node
 
