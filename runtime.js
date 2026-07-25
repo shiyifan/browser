@@ -80,7 +80,8 @@ window.Node.prototype.addEventListener = function (type, listener) {
   list.push(listener);
 };
 
-// 触发Node对象的某一类型事件
+// 触发Node对象的某一类型事件.
+// 主要用于在Python中调用DOM node通过'addEventListener()'注册的listener function.
 window.Node.prototype.dispatchEvent = function (evt) {
   var type = evt.type;
   var handle = this.handle;
