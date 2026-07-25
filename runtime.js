@@ -25,24 +25,11 @@ console = {
   },
 };
 
-Object.defineProperty(Window.prototype, 'parent', {
-  configurable: true,
-  get: function () {
-    var parent_id = call_python('parent', this._id);
-    if (parent_id != null) {
-      var parent = WINDOWS[parent_id];
-
-      /* 即使"parent != null", 这里获取的parent也不一定是same-origin的parent window
-      (另见"Frame.window_id"的注释), 所以，js context中访问DOM的方法需要调用"JSContext.throw_if_cross_origin"
-      检查是否same-origin */
-
-      if (parent == null) {
-        parent = new Window(parent_id);
-      }
-      return parent;
-    }
-  },
-});
+window.WINDOW_LISTENERS = {};
+window.MessageEvent = function (data) {
+  this.type = 'message';
+  this.data = data;
+};
 
 window.document = {
   querySelectorAll: function (s) {

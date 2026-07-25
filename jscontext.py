@@ -6,6 +6,7 @@ from html_parser import HTMLParser
 from task import Task
 
 RUNTIME_JS = open("runtime.js").read()
+WINDOW_JS = open("window.js").read()
 
 # 触发Javascript中的event handler
 # 新建一个包含handle的Javascript DOM Node对象，然后在这个对象上触发事件
@@ -47,7 +48,7 @@ class JSContext:
         # 这样可以保证网页中不同"<script>"中context的连续性
         self.interp = dukpy.JSInterpreter()
 
-        self.interp.evaljs("function Window(id) { this._id = id }")  # 创建全局对象的Window类型
+        self.interp.evaljs(WINDOW_JS)  # 创建全局对象的Window类型
         self.interp.evaljs("WINDOWS = {}")
 
         self.interp.export_function("log", log.js)
@@ -163,9 +164,7 @@ class JSContext:
         handle = self.node_to_handle.get(elt, -1)
 
         self.tab.browser.measure.time("EVENT_DISPATCH_JS")
-        do_default = self.interp.evaljs(
-            self.wrap(EVENT_DISPATCH_JS, window_id), type=type, handle=handle
-        )
+        do_default = self.interp.evaljs(self.wrap(EVENT_DISPATCH_JS, window_id), type=type, handle=handle)
         self.tab.browser.measure.stop("EVENT_DISPATCH_JS")
 
         return not do_default  # 如果返回True，则表示不执行后续default操作，否则执行
