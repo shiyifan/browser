@@ -3,10 +3,10 @@ function Window(id) {
   this._id = id;
 }
 
-Object.defineProperty(Window.prototype, "parent", {
+Object.defineProperty(Window.prototype, 'parent', {
   configurable: true,
   get: function () {
-    var parent_id = call_python("parent", this._id);
+    var parent_id = call_python('parent', this._id);
     if (parent_id != null) {
       var parent = WINDOWS[parent_id];
 
