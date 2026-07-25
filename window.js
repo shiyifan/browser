@@ -5,6 +5,7 @@ WINDOWS = {};
 // 全局对象window的类型：Window
 function Window(id) {
   this._id = id;
+  this.WINDOW_LISTENERS = {};
 }
 
 Object.defineProperty(Window.prototype, 'parent', {
@@ -53,3 +54,8 @@ Window.prototype.dispatchEvent = function (evt) {
 Window.prototype.postMessage = function (message, origin) {
   call_python('postMessage', this._id, message, origin);
 };
+
+function MessageEvent(evt) {
+  this.type = 'message';
+  this.data = evt.data;
+}

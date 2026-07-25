@@ -1,36 +1,41 @@
-console.log('hello script')
+// console.log('hello script')
 
-var div = document.querySelectorAll('div')[0];
+// var div = document.querySelectorAll('div')[0];
 
-var total_frames = 120;
-var current_frame = 0;
+// var total_frames = 120;
+// var current_frame = 0;
 
-function animate() {
-  current_frame++;
+// function animate() {
+//   current_frame++;
 
-  if (current_frame > total_frames) return false;
+//   if (current_frame > total_frames) return false;
 
-  opacity = 0 + (current_frame / total_frames) * (1 - 0);
-  div.style = 'opacity: ' + opacity;
-  return true;
-}
+//   opacity = 0 + (current_frame / total_frames) * (1 - 0);
+//   div.style = 'opacity: ' + opacity;
+//   return true;
+// }
 
-function run_animation_frame() {
-  if (animate()) {
-    requestAnimationFrame(run_animation_frame);
-  }
-}
+// function run_animation_frame() {
+//   if (animate()) {
+//     requestAnimationFrame(run_animation_frame);
+//   }
+// }
 
-var beneath = document.getElementById('beneath');
-var top = document.getElementById('top');
+// var beneath = document.getElementById('beneath');
+// var top = document.getElementById('top');
 
-beneath.addEventListener('click', function () {
-  console.log('beneath clicked');
-});
+// beneath.addEventListener('click', function () {
+//   console.log('beneath clicked');
+// });
 
-top.addEventListener('click', function () {
-  console.log('top clicked');
-});
+// top.addEventListener('click', function () {
+//   console.log('top clicked');
+// });
+
+var parent = window.document.getElementById('parent');
+parent.addEventListener('click', function() {
+  console.log('parent: ', window.parent.b)
+})
 
 // requestAnimationFrame(run_animation_frame);
 

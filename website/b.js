@@ -6,3 +6,5 @@ a.addEventListener('click', function () {
 window.setTimeout(function () {
   console.log('b timeout');
 }, 1000);
+
+window.b = 'This is b'

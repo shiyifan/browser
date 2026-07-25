@@ -25,7 +25,7 @@ console = {
   },
 };
 
-window.WINDOW_LISTENERS = {};
+// window.WINDOW_LISTENERS = {};
 window.MessageEvent = function (data) {
   this.type = 'message';
   this.data = data;
