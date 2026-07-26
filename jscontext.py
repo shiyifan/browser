@@ -6,17 +6,17 @@ from html_parser import HTMLParser
 from task import Task
 
 RUNTIME_JS = open("runtime.js").read()
-WINDOW_JS = open("window.js").read()
+REBIND_JS = open("rebind.js").read()
 
 # 触发Javascript中的event handler
 # 新建一个包含handle的Javascript DOM Node对象，然后在这个对象上触发事件
 # 注意，javascript中的event handler中的"this"指向的是一个临时新建的Node对象，而非实际被点击的Python中DOM Tree中的Node对象
-EVENT_DISPATCH_JS = "new window.Node(dukpy.handle).dispatchEvent(new window.Event(dukpy.type))"
+EVENT_DISPATCH_JS = "new Node(dukpy.handle).dispatchEvent(new Event(dukpy.type))"
 
-SETTIMEOUT_JS = "window.__runSetTimeout(dukpy.handle)"
-XHR_ONLOAD_JS = "window.__runXHROnload(dukpy.out, dukpy.handle)"
+SETTIMEOUT_JS = "__runSetTimeout(dukpy.handle)"
+XHR_ONLOAD_JS = "__runXHROnload(dukpy.out, dukpy.handle)"
 
-POST_MESSAGE_DISPATCH_JS = "window.dispatchEvent(new window.MessageEvent(dukpy.data))"
+POST_MESSAGE_DISPATCH_JS = "window.dispatchEvent(new MessageEvent(dukpy.data))"
 
 TIMEOUT_TIMERS = []
 
@@ -50,7 +50,9 @@ class JSContext:
         # 这样可以保证网页中不同"<script>"中context的连续性
         self.interp = dukpy.JSInterpreter()
 
-        self.interp.evaljs(WINDOW_JS)  # 创建全局对象的Window类型
+        self.tab.browser.measure.time("RUNTIME_JS")
+        self.interp.evaljs(RUNTIME_JS)  # 创建全局对象的Window类型
+        self.tab.browser.measure.stop("RUNTIME_JS")
 
         self.interp.export_function("log", log.js)
         self.interp.export_function("querySelectorAll", self.querySelectorAll)
@@ -90,11 +92,6 @@ class JSContext:
         self.interp.evaljs(f"var window_{frame.window_id} = new Window({frame.window_id})")
         self.interp.evaljs(f"WINDOWS[{frame.window_id}] = window_{frame.window_id}")
 
-        # 在全局对象window上实现基础web api
-        self.tab.browser.measure.time("RUNTIME_JS")
-        self.interp.evaljs(self.wrap(RUNTIME_JS, frame.window_id))
-        self.tab.browser.measure.stop("RUNTIME_JS")
-
     def parent(self, window_id):
         # 根据Frame对象的创建过程（在"Frame.load()"函数中创建, Frame.parent_frame不一定是same-origin的parent frame，
         # 而仅是在Frame实现结构上的parent），这里得到的parent frame与window_id表示
@@ -115,9 +112,10 @@ class JSContext:
         if frame.url.origin() != self.url_origin:
             raise Exception("cross origin access disallowed from js context!")
 
-    # 在某个全局对象window的scope中执行javascript
+    # 在某个全局对象window的scope中执行javascript, 并重新bind一些全局变量
+    # 用来模拟浏览器的js runtime中"window.<global property> === <global property>"的特性.
     def wrap(self, script, window_id):
-        return f"window = window_{window_id}; {script}"
+        return f"window = window_{window_id}; {REBIND_JS}; {script}"
 
     def run(self, code, window_id):
         try:

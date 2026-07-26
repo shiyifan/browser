@@ -33,9 +33,10 @@
 // });
 
 var parent = window.document.getElementById('parent');
-parent.addEventListener('click', function() {
-  console.log('parent: ', window.parent.b)
-})
+parent.addEventListener('click', function () {
+  console.log('parent: ', window.parent.b);
+  window.parent.postMessage('hello from script!', '*');
+});
 
 // requestAnimationFrame(run_animation_frame);
 

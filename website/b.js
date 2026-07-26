@@ -1,10 +1,14 @@
-var a = window.document.querySelectorAll('button')[0];
+var a = document.querySelectorAll('button')[0];
 a.addEventListener('click', function () {
   console.log('b clicked');
 });
 
-window.setTimeout(function () {
+setTimeout(function () {
   console.log('b timeout');
 }, 1000);
 
-window.b = 'This is b'
+window.b = 'This is b';
+
+window.addEventListener('message', function (e) {
+  console.log('message received! ', e.data);
+});
