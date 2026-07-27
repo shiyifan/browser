@@ -2,6 +2,7 @@ WIDTH, HEIGHT = 800, 600
 
 from sdl2 import *
 from skia import *
+import OpenGL.GL
 import ctypes
 import sys
 
@@ -17,8 +18,16 @@ else:
     ALPHA_MASK = 0xFF000000
 
 
+sdl_window = None
+root_surface = None
+canvas = None
+skia_context = None
+gl_context = None
+
+
 def main():
-    sdl_window, root_surface, canvas = prepare()
+    global sdl_window, root_surface, canvas, gl_context, skia_context
+    sdl_window, root_surface, canvas, gl_context, skia_context = prepare()
 
     canvas.clear(ColorWHITE)
 
@@ -27,6 +36,7 @@ def main():
     canvas.drawRRect(rrect, Paint(Color=Color(255, 0, 0)))
 
     update(sdl_window, root_surface)
+
     mainloop()
 
 
@@ -39,48 +49,54 @@ def prepare():
         SDL_WINDOWPOS_CENTERED,
         WIDTH,
         HEIGHT,
-        SDL_WINDOW_SHOWN,
-    )
-    root_surface = Surface.MakeRaster(
-        ImageInfo.Make(
-            WIDTH,
-            HEIGHT,
-            ct=kRGBA_8888_ColorType,
-            at=kUnpremul_AlphaType,
-        )
+        SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL,
     )
 
-    return sdl_window, root_surface, root_surface.getCanvas()
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3)
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2)
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG, True)
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE)
+
+    gl_context = SDL_GL_CreateContext(sdl_window)
+    print(
+        f"** OpenGL initialized: vendor={OpenGL.GL.glGetString(OpenGL.GL.GL_VENDOR)}, render={OpenGL.GL.glGetString(OpenGL.GL.GL_RENDERER)} **"
+    )
+    print()
+
+    skia_context = GrDirectContext.MakeGL()
+
+    root_surface = Surface.MakeFromBackendRenderTarget(
+        skia_context,
+        GrBackendRenderTarget(WIDTH, HEIGHT, 0, 0, GrGLFramebufferInfo(0, OpenGL.GL.GL_RGBA8)),
+        kBottomLeft_GrSurfaceOrigin,
+        kRGBA_8888_ColorType,
+        ColorSpace.MakeSRGB(),
+    )
+
+    return sdl_window, root_surface, root_surface.getCanvas(), gl_context, skia_context
 
 
 def update(sdl_window, root_surface):
-    skia_image = root_surface.makeImageSnapshot()
-    skia_bytes = skia_image.tobytes()
-
-    sdl_surface = SDL_CreateRGBSurfaceFrom(
-        skia_bytes,
-        WIDTH,
-        HEIGHT,
-        32,
-        4 * WIDTH,
-        RED_MASK,
-        GREEN_MASK,
-        BLUE_MASK,
-        ALPHA_MASK,
-    )
-
-    rect = SDL_Rect(0, 0, WIDTH, HEIGHT)
-    window_surface = SDL_GetWindowSurface(sdl_window)
-    SDL_BlitSurface(sdl_surface, rect, window_surface, rect)
-    SDL_UpdateWindowSurface(sdl_window)
+    root_surface.flushAndSubmit()
+    SDL_GL_SwapWindow(sdl_window)
 
 
 def mainloop():
+    global sdl_window, skia_context, gl_context
+
     event = SDL_Event()
 
     while True:
         while SDL_PollEvent(ctypes.byref(event)) != 0:
             if event.type == SDL_QUIT:
+                OpenGL.GL.glFinish()
+
+                skia_context.flush()
+                skia_context.submit()
+                skia_context.abandonContext()
+
+                SDL_GL_DeleteContext(gl_context)
+                SDL_DestroyWindow(sdl_window)
                 SDL_Quit()
                 sys.exit()
 

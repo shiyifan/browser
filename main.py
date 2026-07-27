@@ -661,8 +661,18 @@ class Browser:
         self.set_needs_accessibility()
 
     def handle_quit(self):
+        # do not forget to release skia opengl backend!
+        self.skia_context.flush()
+        self.skia_context.submit()
+        self.skia_context.abandonContext()
+
+        # wait until GPU completes all commands
+        OpenGL.GL.glFinish()
+
+        # sdl opengl context
         SDL_GL_DeleteContext(self.gl_context)
         SDL_DestroyWindow(self.sdl_window)
+
         self.measure.finish()
 
         # 结束每个tab的eventloop
