@@ -8,6 +8,7 @@ from css_parser import CSSParser
 from utils import *
 from layout import DocumentLayout
 from jscontext import JSContext
+from animation import NumericAnimation
 
 # 浏览器默认样式，user agent style
 DEFAULT_STYLE_SHEET = CSSParser(open("browser.css").read()).parse()
@@ -552,6 +553,9 @@ def diff_styles(old_style, new_style):
     transitions = {}
 
     for property, num_frames in parse_transition(new_style.get("transition")).items():
+        # 目前仅解析css文件中以及DOM node的“style”属性中声明的css属性，对于其他未声明的css属性在重绘的"style"过程中
+        # 不会为其在"node.style"中创建默认值（例如未声明"opacity"时，"style"之后"node.style"中不会有"opacity: 1"的默认值）.
+        # 因此，transition中声明的属性如果未出现在old_style中，即使new_style中有该属性，也不会触发transition的动画.
         if property not in old_style:
             continue
         if property not in new_style:

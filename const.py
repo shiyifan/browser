@@ -106,6 +106,7 @@ REFRESH_RATE_SEC = 0.033
 
 SCHEDULE_ANIMATION_TIMER_TID = 9999999
 
+# 是否绘制composited layer的边界以便于调试
 SHOW_COMPOSITED_LAYER_BORDERS = True
 
 # <iframe>默认的尺寸

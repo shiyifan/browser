@@ -657,10 +657,9 @@ class IframeLayout(EmbedLayout):
         self.ascent = -self.height
         self.descent = 0
 
-        # 将计算得到的width与height赋值给对应的"Frame"对象
-        if self.node.frame and self.node.frame.loaded:
-            self.node.frame.frame_height = self.height - dpx(2, self.zoom)
-            self.node.frame.frame_width = self.width - dpx(2, self.zoom)
+        # 将计算得到的width与height赋值给对应的"Frame"对象, 使得<iframe>内部可以正确地layout
+        self.node.frame.frame_height = self.height - dpx(2, self.zoom)
+        self.node.frame.frame_width = self.width - dpx(2, self.zoom)
 
     def paint(self):
         return []
