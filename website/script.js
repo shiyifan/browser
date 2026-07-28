@@ -1,6 +1,12 @@
 // console.log('hello script')
 
-// var div = document.querySelectorAll('div')[0];
+var div = document.querySelectorAll('div')[0];
+
+setTimeout(function () {
+  console.log('index opacity start: ', window._id);
+  div.style = 'opacity: 0';
+  console.log('index opacity end: ', window._id);
+}, 2000);
 
 // var total_frames = 120;
 // var current_frame = 0;
@@ -21,6 +27,8 @@
 //   }
 // }
 
+// requestAnimationFrame(run_animation_frame)
+
 // var beneath = document.getElementById('beneath');
 // var top = document.getElementById('top');
 
@@ -31,12 +39,6 @@
 // top.addEventListener('click', function () {
 //   console.log('top clicked');
 // });
-
-var parent = window.document.getElementById('parent');
-parent.addEventListener('click', function () {
-  console.log('parent: ', window.parent.b);
-  window.parent.postMessage('hello from script!', '*');
-});
 
 // requestAnimationFrame(run_animation_frame);
 

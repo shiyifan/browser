@@ -10,6 +10,7 @@ a {
 div {
   font-size: 34px;
   border-radius: 40px;
+  opacity: 1;
   transition: opacity 5s;
 }
 

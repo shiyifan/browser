@@ -1,4 +1,6 @@
 div {
   color: #334489;
   font-size: 50px;
+  opacity: 1;
+  transition: opacity 2s;
 }

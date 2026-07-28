@@ -32,10 +32,14 @@ WINDOWS = {};
 继续查找, 因此默认情况下"<global prop> === window.<global prop>")。且绝大部分都是window的own property
 (即定义在window对象中而非window的prototype中).
 
-Dukpy不支持自定义全局对象，这里尽可能地模仿实际的浏览器javascript runtime, 自定义Window类型并且，
-window大部分的属性均为own property. 
-且通过'rebind.js'重新绑定这些全局属性（支持同一js context中定义多个window对象的情况, for same-origin iframe）
-使得在user script中可以通过"<global prop>"或者"window.<global prop>"两个方式访问全局属性.
+Dukpy不支持自定义全局对象，这里尽可能地模仿实际的浏览器javascript runtime. 这里自定义创建Window类型并且window大部分的
+属性均为own property. 
+通过'rebind.js'重新绑定这些全局属性, 使得在user script中可以通过"<global prop>"或者"window.<global prop>"两个方式访问全局属性.
+
+在同一页面中多个same-origin的<iframe>间可以通过Javascript互相访问, 为了简单地实现这一机制, 这些<iframe>将共享
+同一个js context. 根据上文，虽然同一js context中<iframe>拥有各自的window对象以及其他全局属性, 但user script中的
+top-level variable以及function仍然会发生命名冲突（因为top-level的语句执行在同一个js context的global scope中）。
+为避免冲突， user script中代码将执行在anonymous function中（另见"JSContext.wrap()"）
 */
 function Window(id) {
   this._id = id; // 内部property, user script中不可以调用

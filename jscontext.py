@@ -89,8 +89,7 @@ class JSContext:
 
     def add_window(self, frame):
         # 创建全局对象window
-        self.interp.evaljs(f"var window_{frame.window_id} = new Window({frame.window_id})")
-        self.interp.evaljs(f"WINDOWS[{frame.window_id}] = window_{frame.window_id}")
+        self.interp.evaljs(f"WINDOWS[{frame.window_id}] = new Window({frame.window_id})")
 
     def parent(self, window_id):
         # 根据Frame对象的创建过程（在"Frame.load()"函数中创建, Frame.parent_frame不一定是same-origin的parent frame，
@@ -112,10 +111,12 @@ class JSContext:
         if frame.url.origin() != self.url_origin:
             raise Exception("cross origin access disallowed from js context!")
 
-    # 在某个全局对象window的scope中执行javascript, 并重新bind一些全局变量
+    # 在某个全局对象window的范围内执行javascript, 并重新bind一些全局变量
     # 用来模拟浏览器的js runtime中"window.<global property> === <global property>"的特性.
+    #
+    # 实际执行的user script("script"参数)将在匿名function中执行以避免在js context的top-level scope中命名冲突
     def wrap(self, script, window_id):
-        return f"window = window_{window_id}; {REBIND_JS}; {script}"
+        return f"window = WINDOWS[{window_id}]; {REBIND_JS}; (function() {{ {script} }})();"
 
     def run(self, code, window_id):
         try:

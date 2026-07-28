@@ -1,8 +1,6 @@
-var button = window.document.getElementById('button');
-button.addEventListener('click', function () {
-  console.log('parent: ', window.parent.b)
-});
+var div = document.querySelectorAll('div')[0];
 
 window.setTimeout(function () {
-  console.log('c timeout');
-}, 2000);
+  console.log('c opacity start');
+  div.style = 'opacity: 0';
+}, 5000);
