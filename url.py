@@ -142,5 +142,8 @@ class URL:
             port_part = ""
         return self.scheme + "://" + self.host + port_part + self.path
 
+    def __repr__(self):
+        return self.__str__()
+
     def origin(self):
         return f"{self.scheme}://{self.host}:{self.port}"
