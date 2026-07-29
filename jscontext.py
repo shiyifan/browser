@@ -1,4 +1,5 @@
 import dukpy
+import json
 from threading import Timer, Thread
 from css_parser import CSSParser
 from utils import tree_to_list, log
@@ -116,7 +117,7 @@ class JSContext:
     #
     # 实际执行的user script("script"参数)将在匿名function中执行以避免在js context的top-level scope中命名冲突
     def wrap(self, script, window_id):
-        return f"window = WINDOWS[{window_id}]; {REBIND_JS}; (function() {{ {script} }})();"
+        return f"(function() {{ window = WINDOWS[{window_id}]; {REBIND_JS}; return eval({json.dumps(script)}) }})();"
 
     def run(self, code, window_id):
         try:
