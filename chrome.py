@@ -220,7 +220,7 @@ class Chrome:
     def blur(self):
         """取消焦点"""
         self.focus = None
-    
+
     def focus_addressbar(self):
         """地址栏获取焦点"""
 

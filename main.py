@@ -574,8 +574,12 @@ class Browser:
         else:
             # 点击位置位于chrome下面的网页
 
+            if self.focus is None:
+                # 如果焦点已位于chrome中，则先取消chrome中的焦点
+                self.chrome.blur()
+                self.set_needs_raster()
+
             self.focus = "content"
-            self.chrome.blur()
 
             url = self.active_tab.url  # 保存点击前的url
 

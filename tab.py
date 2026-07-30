@@ -1,17 +1,12 @@
 from skia import *
-from html_parser import HTMLParser
 import const
 import urllib.parse
-from layout import DocumentLayout, IframeLayout
-from tags import Element, Text
-from css_parser import CSSParser
+from layout import IframeLayout
+from tags import Element
 from jscontext import JSContext
 from utils import *
-from url import URL
-from task import Task, TaskRunner
+from task import TaskRunner
 from commit import CommitData
-from animation import NumericAnimation
-import math
 from accessibility import AccessibilityNode
 from frame import Frame
 
@@ -336,7 +331,8 @@ class Tab:
             frame.js.destroy()
 
     def blur(self):
-        self.focused_frame.focus_element(None)
+        if self.focused_frame:
+            self.focused_frame.focus_element(None)
         self.set_needs_render_all_frames()
 
     def scroll_to(self, elt):
