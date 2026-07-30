@@ -150,8 +150,30 @@ class Tab:
                 value = animation.animate()
                 if value:
                     node.style[property_name] = value
-                    self.composited_updates.append(node)
                     self.set_needs_paint()  # 不仅通过"render"重新收集绘制命令，而且让browser安排下一次的animation frame
+
+                # 无论animation是否完成（即"value"不是None时表示未完成，是None时表示上一animation frame已是最后一帧）,
+                # 这里都会保存带有animation的node。
+                #
+                # 当tab内有两个animation且绘制时间段有重叠时，在先结束的animation
+                # 的最后一帧的下一帧时，"value"的值为None。如果此时不再保存至"self.composited_updates"时，那么
+                # 在"browser.paint_draw_list()"调用"get_latest()"时，由于无法在"composited_updates"中找到node而
+                # 采用旧的effect，导致animation在最后一帧后的下一帧突然又变回了animation之前的状态.
+                # 如下所示:
+                #
+                #                                    last frame
+                #                                         |
+                #                                         v   back to the previous state
+                #    animation 0   |----------------------|               |
+                #                                         |               v
+                #    animation 1                |---------+|---------------------|
+                #                                          ^
+                #                                          |
+                #                                      the frame
+                #                                   after last frame
+                #
+                # 为避免这个问题，这里使用保存带有animation的node.
+                self.composited_updates.append(node)
 
         # 在browser "raster and draw"期间，是否需要从tab display list中提取PaintCommand并创建"CompositedLayer"
         # 如果不需要，那么在"self.render()"前后仅仅是node的animation visual effect发生了变化. browser可以重用之前"CompositedLayer"的绘制结果
