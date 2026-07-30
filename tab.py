@@ -172,7 +172,7 @@ class Tab:
                 #                                      the frame
                 #                                   after last frame
                 #
-                # 为避免这个问题，这里使用保存带有animation的node.
+                # 为避免这个问题，无论animation是否结束，这里都将保存带有animation的node.
                 self.composited_updates.append(node)
 
         # 在browser "raster and draw"期间，是否需要从tab display list中提取PaintCommand并创建"CompositedLayer"
