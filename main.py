@@ -591,7 +591,13 @@ class Browser:
             self.active_tab.set_needs_render_all_frames()
             # 切换tab之后，由于在"Chrome.click()"中重置了"active_tab_*"等变量，
             # 所以Browser需要tab通过"run_animation_frame"回传保存的滚动距离.
-            self.active_tab.root_frame.scroll_changed_in_frame = True
+
+            # 在新建tab并切换的情况下，由于通过"Browser.schedule_load()"的异步方式加载新tab的内容，
+            # 因此这里"active_tab.root_frame"可能尚未初始化, 此时跳过"scroll_changed_in_frame"的赋值，
+            # 不过该变量仍将在"Frame.load()"中被赋值为True.
+            if self.active_tab.root_frame:
+                self.active_tab.root_frame.scroll_changed_in_frame = True
+
             self.measure.instant("tab switched", cat="debug", args={"tab": self.active_tab.id})
 
             # 如果切换后恰好上一个tab设置了"needs_raster_and_draw", 那么取消该次raster

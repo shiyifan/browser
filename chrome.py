@@ -71,6 +71,7 @@ class Chrome:
 
         if self.newtab_rect.contains(x, y):
             # 当点击在"+"按钮时
+            self.browser.measure.instant("new tab click")
             self.browser.new_tab_internal(URL(const.HTTP_URL))
         elif self.back_rect.contains(x, y):
             # 当点击在"<"按钮时
@@ -84,6 +85,7 @@ class Chrome:
             # 当点击在tab标签时
             for i, tab in enumerate(self.browser.tabs):
                 if self.tab_rect(i).contains(x, y) and tab != self.browser.active_tab:
+                    self.browser.measure.instant(f"tab({i}) click")
                     self.browser.set_active_tab(tab)
                     break
 

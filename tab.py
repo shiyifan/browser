@@ -75,6 +75,8 @@ class Tab:
         self.browser.set_needs_animation_frame(self)
 
     def load(self, url, payload=None):
+        self.browser.measure.time("load", args={"url": str(url)})
+
         self.zoom = 1
         self.history.append(url)
         self.url = url
@@ -88,6 +90,8 @@ class Tab:
         self.root_frame.focus_element(None)
 
         self.set_needs_render_all_frames()
+
+        self.browser.measure.stop("load")
 
     # 计算layout并收集每个layout对象的绘制命令
     # 多数情况下由Browser的animation timer添加至task队列中，并在event loop中调用。
