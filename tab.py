@@ -151,7 +151,7 @@ class Tab:
                 if value:
                     node.style[property_name] = value
                     self.composited_updates.append(node)
-                    self.set_needs_paint()  # 不仅让"render"重新收集绘制命令，而且让browser安排下一次的animation frame
+                    self.set_needs_paint()  # 不仅通过"render"重新收集绘制命令，而且让browser安排下一次的animation frame
 
         # 在browser "raster and draw"期间，是否需要从tab display list中提取PaintCommand并创建"CompositedLayer"
         # 如果不需要，那么在"self.render()"前后仅仅是node的animation visual effect发生了变化. browser可以重用之前"CompositedLayer"的绘制结果
