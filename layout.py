@@ -250,6 +250,9 @@ class BlockLayout:
             self.node.tag not in ["input", "button", "img", "iframe"]
         )
 
+    def __repr__(self):
+        return f"BlockLayout(<{self.node.tag}>, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width, 2)}, h{round(self.height, 2)}))"
+
 
 # 对应于DOM根结点的layout object。
 # 负责根据viewport大小定义根元素的绘制坐标
@@ -286,6 +289,9 @@ class DocumentLayout:
     def should_paint(self):
         return True
 
+    def __repr__(self):
+        return f"DocumentLayout(<{self.node.tag}>, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width, 2)}, h{round(self.height, 2)}))"
+
 
 # 表示以"inline"方式绘制的BlockLayout中的每一行text
 # 如下所示
@@ -313,6 +319,11 @@ class LineLayout:
         self.parent = parent
         self.previous = previous  # 上一行
         self.children = []
+
+        self.x = None
+        self.y = None
+        self.width = None
+        self.height = None
 
         node.layout_object = self
 
@@ -427,6 +438,9 @@ class LineLayout:
 
         return cmds
 
+    def __repr__(self):
+        return f"LineLayout(<{self.node.tag}>, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width, 2)}, h{round(self.height, 2)}))"
+
 
 # 表示LineLayout中的每一个word
 class TextLayout:
@@ -489,6 +503,9 @@ class TextLayout:
 
     def self_rect(self):
         return Rect(self.x, self.y, self.x + self.width, self.y + self.height)
+
+    def __repr__(self):
+        return f"TextLayout({self.word!r}, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width, 2)}, h{round(self.height, 2)}))"
 
 
 # <input>, <button>以及<img>等inline html element的layout object的父类, 包含一些通用的属性以及布局流程
@@ -578,6 +595,9 @@ class InputLayout(EmbedLayout):
         paint_outline(self.node, cmds, self.self_rect(), self.zoom)
         return cmds
 
+    def __repr__(self):
+        return f"InputLayout(<{self.node.tag}>, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width, 2)}, h{round(self.height, 2)}))"
+
 
 # "<img>"对应的layout object
 class ImageLayout(EmbedLayout):
@@ -631,6 +651,9 @@ class ImageLayout(EmbedLayout):
         quality = self.node.style.get("image-rendering", "auto")
         cmds.append(DrawImage(self.node.image, rect, quality))
         return cmds
+
+    def __repr__(self):
+        return f"ImageLayout(<{self.node.tag}>, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width, 2)}, h{round(self.height, 2)}))"
 
 
 #'<iframe>'对应的layout object
@@ -698,6 +721,9 @@ class IframeLayout(EmbedLayout):
         cmds = paint_visual_effects(self.node, cmds, rect)
 
         return cmds
+
+    def __repr__(self):
+        return f"IframeLayout(<{self.node.tag}>, {self.node.url}, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width, 2)}, h{round(self.height, 2)}))"
 
 
 def paint_visual_effects(node, cmds, rect):

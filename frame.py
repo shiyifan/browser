@@ -176,6 +176,7 @@ class Frame:
                 iframe.frame = None
                 continue
             iframe.frame = Frame(self.tab, self, iframe)
+            iframe.url = document_url
             task = Task(iframe.frame.load, document_url)  # 异步加载子iframe
             self.tab.task_runner.schedule_task(task)
 
