@@ -7,8 +7,8 @@ from html_parser import HTMLParser
 from css_parser import CSSParser
 from utils import *
 from layout import DocumentLayout
-from jscontext import JSContext
 from animation import NumericAnimation
+from layout import LineLayout
 
 # 浏览器默认样式，user agent style
 DEFAULT_STYLE_SHEET = CSSParser(open("browser.css").read()).parse()
@@ -255,7 +255,20 @@ class Frame:
 
         # 已在当前frame中找到被点击的layout object
 
-        elt = objs[-1].node  # 获取最上层被点击的layout object对应的DOM node
+        # 获取最上层被点击的layout object对应的DOM node
+        elt = None
+        if isinstance(objs[-1], LineLayout) and objs[-1].node.tag == "iframe":
+            # 根据BlockLayout的"layout()", 当layout object采用"block"布局时，
+            # 所有children都将创建各自的BlockLayout. 当children中存在"<iframe>"时，同样将
+            # 会创建这个"<iframe>"的BlockLayout.
+            # 如果点击在这个BlockLayout中的LineLayout的空白区域(没有点击在<iframe>中), 那么
+            # 应该由BlockLayout的parent负责这次点击后续流程。但由于LineLayout与BlockLayout的"self.node"
+            # 均为"<iframe>"，这里取倒数第三个object。
+            # 这样避免了后续滚动时滚动了<iframe>本身而不是<iframe>所在的"Frame"的问题.
+
+            elt = objs[-3].node if objs[-3] else None
+        else:
+            elt = objs[-1].node
 
         # 根据最上层的object,依次向上查找第一个clickable html element
         while elt:
