@@ -11,8 +11,17 @@ class HTMLParser:
     def parse(self):
         text = ""
         in_tag = False
+        in_comment = False
 
-        for c in self.body:
+        for i, c in enumerate(self.body):
+            # 忽略"<!-- ... -->"的注释
+            if is_comment_end(i, self.body):
+                in_comment = False
+            elif is_comment_start(i, self.body):
+                in_comment = True
+            if in_comment:
+                continue
+
             if c == "<":
                 in_tag = True
                 if text:
@@ -133,3 +142,11 @@ class HTMLParser:
                 self.add_tag("/head")
             else:
                 break
+
+
+def is_comment_start(i, str):
+    return str[i : i + 4] == "<!--"
+
+
+def is_comment_end(i, str):
+    return str[i : i + 3] == "-->"
