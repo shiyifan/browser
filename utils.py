@@ -237,3 +237,13 @@ def get_tabindex(node):
 
 def speak_text(text):
     print(f"SPEAK: {text}")
+
+
+def text_digest(text):
+    if text is None:
+        return ""
+
+    if len(text) <= 10:
+        return text
+
+    return f"{text[0:3]}...{text[-3:]}"

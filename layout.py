@@ -2,7 +2,8 @@ from font import *
 from tags import Text, Element
 from commands import *
 import const
-from utils import parse_transform, dpx
+from utils import parse_transform, dpx, text_digest
+import json
 
 # <input>的固定宽度
 INPUT_WIDTH_PX = 200
@@ -215,7 +216,7 @@ class BlockLayout:
         """
 
         cmds = paint_visual_effects(self.node, cmds, self.self_rect())
-        if "tabindex" in self.node.attributes:
+        if isinstance(self.node, Element) and "tabindex" in self.node.attributes:
             # 如果html element有"tabindex"属性，那么该element也可以获得焦点并绘制该焦点.
             paint_outline(self.node, cmds, self.self_rect(), self.zoom)
         return cmds
@@ -251,7 +252,13 @@ class BlockLayout:
         )
 
     def __repr__(self):
-        return f"BlockLayout(<{self.node.tag}>, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width, 2)}, h{round(self.height, 2)}))"
+        label = None
+        if isinstance(self.node, Element):
+            label = f"<{self.node.tag}>"
+        else:
+            label = f"#text{json.dumps(text_digest(self.node.text))}"
+
+        return f"BlockLayout({label}, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width, 2)}, h{round(self.height, 2)}))"
 
 
 # 对应于DOM根结点的layout object。
@@ -390,7 +397,11 @@ class LineLayout:
             # 实际获取焦点的DOM结点
             effect_node = child.node if is_inputlayout else child.node.parent
 
-            if self.node.tag in const.BLOCK_ELEMENTS and effect_node == self.node:
+            if (
+                isinstance(self.node, Element)
+                and self.node.tag in const.BLOCK_ELEMENTS
+                and effect_node == self.node
+            ):
                 # 对于以"inline"(根据"layout_mode()")方式绘制的Block HTML Element(且这个Element可以通过
                 # "tabindex"属性获取焦点), 如果Text作为直接子结点，那么点击这个Text后会重复绘制outline: 一次绘制Text
                 # 的outline(在TextLayout的并集区域上),另一次绘制Element的outline.
@@ -439,7 +450,13 @@ class LineLayout:
         return cmds
 
     def __repr__(self):
-        return f"LineLayout(<{self.node.tag}>, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width, 2)}, h{round(self.height, 2)}))"
+        label = None
+        if isinstance(self.node, Element):
+            label = f"<{self.node.tag}>"
+        else:
+            label = f"#text{json.dumps(text_digest(self.node.text))}"
+
+        return f"LineLayout({label}, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width, 2)}, h{round(self.height, 2)}))"
 
 
 # 表示LineLayout中的每一个word
