@@ -287,7 +287,7 @@ class Browser:
         #
 
         # 根据cacheable commands创建layer. 具有相同parent的layer可合并为同一个layer
-        # 对于上面注释中的display结构，将创建下面的layer:
+        # 对于上面注释中的display结构，下面的这些layer将保存至"self.composited_layers"变量中:
         #
         # [display list]                                                       [draw list]
         #
