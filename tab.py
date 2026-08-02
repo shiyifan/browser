@@ -251,7 +251,7 @@ class Tab:
             cmd.execute(canvas)
 
     def keypress(self, char):
-        if self.focus and self.focus.tag == "input":
+        if self.focus:
             self.focused_frame.keypress(char)
 
     def click(self, x, y):

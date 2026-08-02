@@ -371,3 +371,7 @@ def parse_image_rendering(quality):
             return SamplingOptions(FilterMode.kNearest, MipmapMode.kNone)
         case _:
             return SamplingOptions(FilterMode.kLinear, MipmapMode.kLinear)
+
+def DrawCursor(elt, offset):
+    x = elt.x + offset
+    return DrawLine(x, elt.y, x, elt.y + elt.height, "red", 1)

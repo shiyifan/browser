@@ -2,7 +2,7 @@ from font import *
 from tags import Text, Element
 from commands import *
 import const
-from utils import parse_transform, dpx, text_digest
+from utils import parse_transform, dpx, text_digest, tree_to_list
 import json
 
 # <input>的固定宽度
@@ -204,6 +204,14 @@ class BlockLayout:
         if bgcolor != "transparent":
             radius = float(self.node.style.get("border-radius", "0px")[:-2])
             cmds.append(DrawRRect(self.self_rect(), radius, bgcolor))
+
+        # 绘制由于"contenteditable"创建的编辑区域内的光标
+        if self.node.is_focused and "contenteditable" in self.node.attributes:
+            text_nodes = [t for t in tree_to_list(self, []) if isinstance(t, TextLayout)]
+            if text_nodes:
+                cmds.append(DrawCursor(text_nodes[-1], text_nodes[-1].width))
+            else:
+                cmds.append(DrawCursor(self, 0))
 
         return cmds
 
@@ -603,7 +611,7 @@ class InputLayout(EmbedLayout):
         # 如果当前"<input>"已获取焦点，则绘制光标
         if self.node.is_focused and self.node.tag == "input":
             cx = self.x + self.font.measureText(text)
-            cmds.append(DrawLine(cx, self.y, cx, self.y + self.height, "black", 1))
+            cmds.append(DrawCursor(self, self.font.measureText(text)))
 
         return cmds
 

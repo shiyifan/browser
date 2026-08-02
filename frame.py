@@ -449,11 +449,20 @@ class Frame:
     def keypress(self, char):
         focus = self.tab.focus
 
-        if not "value" in focus.attributes:
+        if focus.tag == "input" and not "value" in focus.attributes:
             self.activate_element(focus)
+            focus.attributes["value"] += char
+        elif "contenteditable" in focus.attributes:
+            last_text = None
+            text_nodes = [t for t in tree_to_list(focus, []) if isinstance(t, Text)]
+            if text_nodes:
+                last_text = text_nodes[-1]
+            else:
+                last_text = Text("", focus)
+                focus.children.append(last_text)
+            last_text.text += char
 
         self.js.dispatch_event("keydown", focus, self.window_id)
-        focus.attributes["value"] += char
         self.set_needs_render()
 
     def enter(self):

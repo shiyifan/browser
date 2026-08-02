@@ -6,7 +6,7 @@ HSTEP, VSTEP = 13, 18
 SCROLL_STEP = 20
 
 HTTP_URL = "https://localhost:3000/b"
-# HTTP_URL = "https://browser.engineering/examples/example15-img.html"
+# HTTP_URL = "https://browser.engineering/invalidation.html"
 # HTTP_URL = "https://www.baidu.com"
 # HTTP_URL = "https://browser.engineering/index.html"
 # HTTP_URL = "https://localhost:8000"
