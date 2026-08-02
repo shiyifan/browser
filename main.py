@@ -289,30 +289,30 @@ class Browser:
         # 根据cacheable commands创建layer. 具有相同parent的layer可合并为同一个layer
         # 对于上面注释中的display结构，下面的这些layer将保存至"self.composited_layers"变量中:
         #
-        # [display list]                                                       [draw list]
+        # [display list]
         #
-        #     Blend                                                              Blend
-        #      |                                                                  |
-        #      +->Blend (opacity)        +--> layer                               +->Blend (opacity)
-        #      |   |                     |      |                                 |   |
-        #      |   +-->DrawRRect  ---+---+      +-->DrawRRect                     |   +--> layer
-        #      |   |                 |          |                                 |          |
-        #      |   +-->DrawText   ---+          +-->DrawText                      |          +-->DrawRRect
-        #      |                                                                  |          |
-        #      |                                                                  |          +-->DrawText
-        #      +->Blend (no-op)  -----+------> layer                ------->      +-> layer
-        #      |   |                  |          |                                      |
-        #      |   +-->DrawRRect      |          +->Blend (no-op)                       +->Blend (no-op)
-        #      |   |                  |          |   |                                  |   |
-        #      |   +-->DrawText       |          |   +-->DrawRRect                      |   +-->DrawRRect
-        #      |                      |          |   |                                  |   |
-        #      +->Blend (no-op)  -----+          |   +-->DrawText                       |   +-->DrawText
-        #          |                             |                                      |
-        #          +-->DrawRRect                 +->Blend (no-op)                       +->Blend (no-op)
-        #          |                                 |                                      |
-        #          +-->DrawText                      +-->DrawRRect                          +-->DrawRRect
-        #                                            |                                      |
-        #                                            +-->DrawText                           +-->DrawText
+        #    Blend
+        #     |
+        #     +->Blend (opacity)
+        #     |   |
+        #     |   +-->DrawRRect  ---+---------------> layer
+        #     |   |                 |                   |
+        #     |   +-->DrawText   ---+                   +-->DrawRRect
+        #     |                                         |
+        #     |                                         +-->DrawText
+        #     +->Blend (no-op)  -----+------> layer
+        #     |   |                  |          |
+        #     |   +-->DrawRRect      |          +->Blend (no-op)
+        #     |   |                  |          |   |
+        #     |   +-->DrawText       |          |   +-->DrawRRect
+        #     |                      |          |   |
+        #     +->Blend (no-op)  -----+          |   +-->DrawText
+        #         |                             |
+        #         +-->DrawRRect                 +->Blend (no-op)
+        #         |                                 |
+        #         +-->DrawText                      +-->DrawRRect
+        #                                           |
+        #                                           +-->DrawText
         #
         for cmd in non_composited_commands:
             for layer in reversed(self.composited_layers):
@@ -371,17 +371,30 @@ class Browser:
     # 并根据所有的"CompositedLayer"创建允许缓存绘制结果的display list("draw_list")
     # 一般情况下，只有VisualEffect command拥有子结点，PaintCommand没有子结点
     #
-    # display list(tab):
-    # Blend:
-    #     Blend:
-    #         DrawLine
-    #         DrawText
+    #    [display list]
     #
-    # draw_list(tab):
-    # Blend:
-    #     Blend:
-    #         DrawCompositedLayer(cacheable) --> DrawLine
-    #         DrawCompositedLayer(cacheable) --> DrawText
+    #    Blend
+    #     |
+    #     +->Blend (opacity)
+    #     |   |
+    #     |   +-->DrawRRect  ---+--------------> layer 0                       [draw list]
+    #     |   |                 |                  |
+    #     |   +-->DrawText   ---+                  +-->DrawRRect                Blend
+    #     |                                        |                             |
+    #     |                                        +-->DrawText                  +->Blend (opacity)
+    #     +->Blend (no-op)  -----+------> layer 1                                |   |
+    #     |   |                  |          |                      ------->      |   +--> DrawCompositedLayer (layer 0)
+    #     |   +-->DrawRRect      |          +->Blend (no-op)                     |
+    #     |   |                  |          |   |                                |
+    #     |   +-->DrawText       |          |   +-->DrawRRect                    +-> DrawCompositedLayer (layer 1)
+    #     |                      |          |   |
+    #     +->Blend (no-op)  -----+          |   +-->DrawText
+    #         |                             |
+    #         +-->DrawRRect                 +->Blend (no-op)
+    #         |                                 |
+    #         +-->DrawText                      +-->DrawRRect
+    #                                           |
+    #                                           +-->DrawText
     #
     def paint_draw_list(self):
         new_effects = {}  # 临时保存已经clone的parent
