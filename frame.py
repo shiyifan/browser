@@ -449,11 +449,14 @@ class Frame:
     def keypress(self, char):
         focus = self.tab.focus
 
-        if focus.tag == "input" and not "value" in focus.attributes:
-            self.activate_element(focus)
+        if focus.tag == "input":
+            if not "value" in focus.attributes:
+                self.activate_element(focus)
             focus.attributes["value"] += char
+
         elif "contenteditable" in focus.attributes:
-            last_text = None
+            # 如果在"contenteditable"DOM node中键入字符，那么在该DOM node的最后一个"Text"node中添加字符，或者新建"Text"node
+
             text_nodes = [t for t in tree_to_list(focus, []) if isinstance(t, Text)]
             if text_nodes:
                 last_text = text_nodes[-1]
@@ -472,10 +475,21 @@ class Frame:
         self.set_needs_render()
 
     def backspace(self):
-        value = self.tab.focus.attributes["value"]
-        if not value or len(value) == 0:
-            return
-        self.tab.focus.attributes["value"] = value[:-1]
+        focus = self.tab.focus
+
+        if focus.tag == "input" and "value" in focus.attributes:
+            value = focus.attributes["value"]
+            if not value or len(value) == 0:
+                return
+            focus.attributes["value"] = value[:-1]
+        elif "contenteditable" in focus.attributes:
+            text_nodes = [t for t in tree_to_list(focus, []) if isinstance(t, Text)]
+            if text_nodes:
+                last_text = text_nodes[-1]
+                last_text.text = last_text.text[:-1]
+                if len(last_text.text) == 0:
+                    focus.children.remove(last_text)
+
         self.js.dispatch_event("keydown", self.tab.focus, self.window_id)
         self.set_needs_render()
 

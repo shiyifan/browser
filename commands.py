@@ -373,5 +373,7 @@ def parse_image_rendering(quality):
             return SamplingOptions(FilterMode.kLinear, MipmapMode.kLinear)
 
 def DrawCursor(elt, offset):
+    """在DOM node的右侧绘制光标"""
+
     x = elt.x + offset
     return DrawLine(x, elt.y, x, elt.y + elt.height, "red", 1)

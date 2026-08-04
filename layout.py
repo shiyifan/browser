@@ -205,7 +205,7 @@ class BlockLayout:
             radius = float(self.node.style.get("border-radius", "0px")[:-2])
             cmds.append(DrawRRect(self.self_rect(), radius, bgcolor))
 
-        # 绘制由于"contenteditable"创建的编辑区域内的光标
+        # 绘制由于"contenteditable"创建的编辑区域内的光标. 目前仅在最后的TextLayout后面添加光标
         if self.node.is_focused and "contenteditable" in self.node.attributes:
             text_nodes = [t for t in tree_to_list(self, []) if isinstance(t, TextLayout)]
             if text_nodes:

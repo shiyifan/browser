@@ -13,13 +13,27 @@ class HTMLParser:
         in_tag = False
         in_comment = False
 
-        for i, c in enumerate(self.body):
+        i = 0
+        body_len = len(self.body)
+        while i < body_len:
+            c = self.body[i]
+
             # 忽略"<!-- ... -->"的注释
             if is_comment_end(i, self.body):
                 in_comment = False
+
+                if i + 3 < body_len:
+                    i = i + 3  # 跳转至"-->"的后面第一个字符继续解析
+                    continue
+                else:
+                    break
             elif is_comment_start(i, self.body):
                 in_comment = True
+                i += 4
+                continue
+
             if in_comment:
+                i += 1
                 continue
 
             if c == "<":
@@ -35,6 +49,8 @@ class HTMLParser:
                 text = ""
             else:
                 text += c
+
+            i += 1
 
         if not in_tag and text:
             self.add_text(text)
