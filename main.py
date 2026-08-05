@@ -639,7 +639,8 @@ class Browser:
             self.set_needs_raster()
         elif self.focus == "content":
             self.active_tab.task_runner.schedule_task(Task(self.active_tab.keypress, char))
-            self.set_needs_raster()
+            # self.set_needs_raster()
+            self.measure.instant(f"keypress({char})")
 
         self.lock.release()
 

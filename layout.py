@@ -293,8 +293,12 @@ class DocumentLayout:
         self.x = dpx(const.HSTEP, self.zoom)
         self.y = dpx(const.VSTEP, self.zoom)  # "VSTEP"作为上下的空白边距
 
-        child = BlockLayout(self.node, self, None)
-        self.children.append(child)
+        if not self.children:
+            child = BlockLayout(self.node, self, None)
+        else:
+            child = self.children[0]
+
+        self.children = [child]
         child.layout()
         self.height = child.height
 

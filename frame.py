@@ -185,6 +185,8 @@ class Frame:
 
         self.loaded = True
 
+        self.document = DocumentLayout(self.nodes)
+
     # 根据CSP,是否允许请求(<script>, <style>, XHR)
     def allowed_request(self, url):
         return self.allowed_origins == None or url.origin() in self.allowed_origins
@@ -216,7 +218,6 @@ class Frame:
         if self.needs_layout:
             self.tab.browser.measure.time(f"[{self.window_id}] layout")
 
-            self.document = DocumentLayout(self.nodes)
             self.document.layout(self.frame_width, self.tab.zoom)
 
             self.tab.needs_accessibility = True
