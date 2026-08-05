@@ -53,6 +53,7 @@ class BlockLayout:
         if mode == "block":
             # 以"block"方式绘制
 
+            self.children = []
             previous = None
             for child in self.node.children:
                 next = BlockLayout(child, self, previous)
@@ -62,6 +63,7 @@ class BlockLayout:
             # 计算inline元素的绘制信息，并创建LineLayout以及TextLayout作为当前BlockLayout的子节点.
             # 由LineLayout以及TextLayout负责绘制与计算
 
+            self.children = []
             self.new_line()
             self.recurse(self.node)
 
@@ -295,10 +297,10 @@ class DocumentLayout:
 
         if not self.children:
             child = BlockLayout(self.node, self, None)
+            self.children = [child]
         else:
             child = self.children[0]
 
-        self.children = [child]
         child.layout()
         self.height = child.height
 
