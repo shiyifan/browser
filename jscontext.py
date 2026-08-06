@@ -2,6 +2,7 @@ import dukpy
 import json
 from threading import Timer, Thread
 from css_parser import CSSParser
+from layout import BlockLayout
 from utils import tree_to_list, log
 from html_parser import HTMLParser
 from task import Task
@@ -190,6 +191,13 @@ class JSContext:
         elt.children = new_nodes
         for node in new_nodes:
             node.parent = elt
+
+        # 由于修改了DOM node的children，因此后续的"layout"将不能再重用对应的layout object的children
+        layout = elt.layout_object
+        while not isinstance(layout, BlockLayout):
+            layout = layout.parent
+        layout.children.mark()
+
         frame.set_needs_render()
 
     def XMLHttpRequest_send(self, method, url, body, is_async, handle, window_id):

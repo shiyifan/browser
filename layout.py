@@ -1,3 +1,4 @@
+from fields import ProtectedField
 from font import *
 from tags import Text, Element
 from commands import *
@@ -12,16 +13,16 @@ INPUT_WIDTH_PX = 200
 # 对应于DOM tree node, 该类表示用于布局的layout tree中的节点。
 # DOM tree中大部分可绘制的节点(block html element或者inline html element)对应于layout tree中的节点。
 # layout过程中为DOM节点计算屏幕所在坐标、宽高、以及要绘制内容，并将要绘制的
-# 内容保存在"display list"中等待下一步实际的渲染流程
+# 内容保存在"display list"中等待下一步实际的渲染流程.
 #
-# 子结点左上角的x、y坐标以及宽度继承自父结点，仅包含inline元素和text的子结点的高度由字体决定
-# 父结点的高度是所有子结点的高度之和
+# 子结点左上角的x、y坐标以及宽度继承自父结点，仅包含inline元素和text的子结点的高度由字体决定.
+# 父结点的高度是所有子结点的高度之和.
 class BlockLayout:
     def __init__(self, node, parent, previous):
         self.node = node  # DOM结点
         self.parent = parent
         self.previous = previous  # previous sibling
-        self.children = []
+        self.children = ProtectedField()
 
         # 该layout相对于canvas左上角的绝对坐标
         self.x = None
@@ -36,9 +37,11 @@ class BlockLayout:
 
         node.layout_object = self
 
+        self.zoom = ProtectedField()
+
     # 根据绘制方式创建layout tree
     def layout(self):
-        self.zoom = self.parent.zoom
+        self.zoom.copy(self.parent.zoom)
 
         # 根据layout tree中的父结点以及previous计算当前结点的x坐标、y坐标以及宽度width.
         self.x = self.parent.x  # 子结点的绘制起始点的x坐标继承自父结点的x坐标
@@ -49,29 +52,32 @@ class BlockLayout:
         else:
             self.y = self.parent.y
 
-        self.children = []
         mode = self.layout_mode()
         if mode == "block":
             # 以"block"方式绘制
 
-            previous = None
-            for child in self.node.children:
-                next = BlockLayout(child, self, previous)
-                self.children.append(next)
-                previous = next
+            if self.children.dirty:
+                children = []
+                previous = None
+                for child in self.node.children:
+                    next = BlockLayout(child, self, previous)
+                    children.append(next)
+                    previous = next
+                self.children.set(children)
         else:
             # 计算inline元素的绘制信息，并创建LineLayout以及TextLayout作为当前BlockLayout的子节点.
             # 由LineLayout以及TextLayout负责绘制与计算
 
-            self.new_line()
-            self.recurse(self.node)
+            if self.children.dirty:
+                self.new_line()
+                self.recurse(self.node)
 
-        for child in self.children:
+        for child in self.children.get():
             child.layout()
 
         # block html element的高度等于所有子结点的高度之和.
         # 在所有子结点计算得到height之后再计算当前结点的高度
-        self.height = sum([child.height for child in self.children])
+        self.height = sum([child.height for child in self.children.get()])
 
     # 根据当前DOM结点以及所包含子结点的类型，确定当前节点的绘制方式
     #
@@ -125,37 +131,41 @@ class BlockLayout:
     # 计算每个word的宽度，并根据宽度判断是否超出一行。
     # 这里仅用于创建layout tree结构，而计算baseline、确定行高的流程由LineLayout负责完成
     def word(self, node, word):
-        node_font = font(node.style, self.zoom)
+        zoom = self.zoom.read(notify=self.children)
+        node_font = font(node.style, zoom)
         w = node_font.measureText(word)
         self.add_inline_child(node, w, TextLayout, word)
 
     # 与"word()"方法相似，将<input>和<button>以与纯文本相似的方式添加至LineLayout中
     def input(self, node):
-        w = dpx(INPUT_WIDTH_PX, self.zoom)  # "<input>"布局时采用固定宽度
+        zoom = self.zoom.read(notify=self.children)
+        w = dpx(INPUT_WIDTH_PX, zoom)  # "<input>"布局时采用固定宽度
         self.add_inline_child(node, w, InputLayout)
 
     # 将<img>添加至LineLayout中
     def image(self, node):
         aspect_ratio = node.image.width() / node.image.height()
+        zoom = self.zoom.read(notify=self.children)
 
         if "width" in node.attributes:
             # 如果以"<img width=''>"的方式指定了宽度
-            w = dpx(int(node.attributes["width"]), self.zoom)
+            w = dpx(int(node.attributes["width"]), zoom)
         elif "height" in node.attributes:
             # 如果以"<img height=''>"的方式指定了高度且没有指定宽度，那么根据宽高比计算宽度
-            h = dpx(int(node.attributes["height"]), self.zoom)
+            h = dpx(int(node.attributes["height"]), zoom)
             w = h * aspect_ratio
         else:
-            w = dpx(node.image.width(), self.zoom)  # 默认情况下，"<img>"布局时采用图片原始宽度
+            w = dpx(node.image.width(), zoom)  # 默认情况下，"<img>"布局时采用图片原始宽度
 
         self.add_inline_child(node, w, ImageLayout)
 
     # 将<iframe>添加至LineLayout中
     def iframe(self, node):
+        zoom = self.zoom.read(notify=self.children)
         if "width" in node.attributes:
-            w = dpx(int(node.attributes["width"]), self.zoom)
+            w = dpx(int(node.attributes["width"]), zoom)
         else:
-            w = const.IFRAME_WIDTH_PX + dpx(2, self.zoom)
+            w = const.IFRAME_WIDTH_PX + dpx(2, zoom)
         self.add_inline_child(node, w, IframeLayout, parent_frame=node.frame.parent_frame)
 
     # 添加inline layout object至LineLayout中
@@ -181,7 +191,8 @@ class BlockLayout:
         line.children.append(child)
 
         # 更新x坐标，作为同一line中下一个inline element的布局x坐标
-        self.cursor_x += w + font(node.style, self.zoom).measureText(" ")
+        zoom = self.zoom.read(notify=self.children)
+        self.cursor_x += w + font(node.style, zoom).measureText(" ")
 
     def new_line(self):
         self.cursor_x = 0
@@ -227,7 +238,8 @@ class BlockLayout:
         cmds = paint_visual_effects(self.node, cmds, self.self_rect())
         if isinstance(self.node, Element) and "tabindex" in self.node.attributes:
             # 如果html element有"tabindex"属性，那么该element也可以获得焦点并绘制该焦点.
-            paint_outline(self.node, cmds, self.self_rect(), self.zoom)
+            zoom = self.zoom.read(self.children)
+            paint_outline(self.node, cmds, self.self_rect(), zoom)
         return cmds
 
     def self_rect(self):
@@ -285,12 +297,13 @@ class DocumentLayout:
 
         node.layout_object = self
 
+        self.zoom = ProtectedField()
+
     # 对整个HTML文档内容布局
     #
     # 布局时额外添加四周的空白边距
     def layout(self, width, zoom):
-        self.zoom = zoom
-        self.width = width - 2 * dpx(const.HSTEP, self.zoom)  # "HSTEP"作为左右的空白边距
+        self.width = width - 2 * dpx(const.HSTEP, zoom)  # "HSTEP"作为左右的空白边距
         self.x = dpx(const.HSTEP, self.zoom)
         self.y = dpx(const.VSTEP, self.zoom)  # "VSTEP"作为上下的空白边距
 
@@ -299,6 +312,9 @@ class DocumentLayout:
             self.children = [child]
         else:
             child = self.children[0]
+
+        self.zoom.set(zoom)
+        child.zoom.mark()
 
         child.layout()
         self.height = child.height
@@ -347,9 +363,11 @@ class LineLayout:
 
         node.layout_object = self
 
+        self.zoom = ProtectedField()
+
     # 计算baseline位置、确定行高
     def layout(self):
-        self.zoom = self.parent.zoom
+        self.zoom.copy(self.parent.zoom)
 
         self.width = self.parent.width
         self.x = self.parent.x

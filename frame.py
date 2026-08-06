@@ -6,7 +6,7 @@ from tags import *
 from html_parser import HTMLParser
 from css_parser import CSSParser
 from utils import *
-from layout import DocumentLayout
+from layout import BlockLayout, DocumentLayout
 from animation import NumericAnimation
 from layout import LineLayout
 
@@ -465,6 +465,11 @@ class Frame:
                 last_text = Text("", focus)
                 focus.children.append(last_text)
             last_text.text += char
+
+            layout = focus.layout_object
+            while not isinstance(layout, BlockLayout):
+                layout = layout.parent
+            layout.children.mark()
 
         self.js.dispatch_event("keydown", focus, self.window_id)
         self.set_needs_render()

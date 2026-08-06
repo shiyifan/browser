@@ -1,14 +1,7 @@
-// var a = document.querySelectorAll('button')[0];
-// a.addEventListener('click', function () {
-//   console.log('b clicked');
-// });
+var button = document.getElementById('button');
 
-// setTimeout(function () {
-//   console.log('b timeout');
-// }, 1000);
+var count = 0;
 
-// window.b = 'This is b';
-
-// window.addEventListener('message', function (e) {
-//   console.log('message received! ', e.data);
-// });
+button.addEventListener('click', function (e) {
+  button.innerHTML = count++
+});
