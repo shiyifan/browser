@@ -49,11 +49,11 @@ class BlockLayout:
         else:
             self.y = self.parent.y
 
+        self.children = []
         mode = self.layout_mode()
         if mode == "block":
             # 以"block"方式绘制
 
-            self.children = []
             previous = None
             for child in self.node.children:
                 next = BlockLayout(child, self, previous)
@@ -63,7 +63,6 @@ class BlockLayout:
             # 计算inline元素的绘制信息，并创建LineLayout以及TextLayout作为当前BlockLayout的子节点.
             # 由LineLayout以及TextLayout负责绘制与计算
 
-            self.children = []
             self.new_line()
             self.recurse(self.node)
 
@@ -365,7 +364,7 @@ class LineLayout:
             self.height = 0
             return
 
-        # 让每个TextLayout自己计算x绘制坐标、宽度、高度以及字体.
+        # 让每个child inline layout自己计算x绘制坐标、宽度、高度以及字体.
         # 仅当所有子结点完成layout之后，才能计算出当前line的baseline位置、高度等
         for word in self.children:
             word.layout()
