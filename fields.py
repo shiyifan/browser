@@ -27,8 +27,10 @@ class ProtectedField:
         for field in self.invalidations:
             field.mark()
 
+    # "notify": 依赖于当前field的其他protected field
     def read(self, notify):
-        self.invalidations.add(notify)
+        if notify:
+            self.invalidations.add(notify)
         return self.get()
 
     def copy(self, field):

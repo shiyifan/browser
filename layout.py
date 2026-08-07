@@ -57,6 +57,13 @@ class BlockLayout:
             # 以"block"方式绘制
 
             if self.children.dirty:
+                # 无论是"block"还是"inline"方式布局, "children"一旦变为dirty, 那么将重建整个children, 重新创建每一个子结点.
+                # 这是一种简单的实现。
+                #
+                # 当前"invalidation"仅实现在"BlockLayout.children"的层面上. children一旦dirty将重新创建. 实际上还可以更细致地优化：
+                # 例如：如果"children"中某一个child变为dirty, 则无需重建children, 仅受影响的child即可。这种情况下遍历children时需要
+                # 更细致地检查，跳过不受影响的child, 重新计算可能受影响的child的信息。这些实现较为复杂.
+
                 children = []
                 previous = None
                 for child in self.node.children:
@@ -238,7 +245,7 @@ class BlockLayout:
         cmds = paint_visual_effects(self.node, cmds, self.self_rect())
         if isinstance(self.node, Element) and "tabindex" in self.node.attributes:
             # 如果html element有"tabindex"属性，那么该element也可以获得焦点并绘制该焦点.
-            zoom = self.zoom.read(self.children)
+            zoom = self.zoom.read(notify=self.children)
             paint_outline(self.node, cmds, self.self_rect(), zoom)
         return cmds
 
@@ -476,6 +483,7 @@ class LineLayout:
         # 同一时刻仅能有一个DOM结点获取焦点，所以上面的"for"循环时，"outline_node"变量只能被相同的DOM结点赋值一次或者多次.
         # （当"child"是TextLayout时，同样成立。注意：是以layout object对应的DOM结点的样式来绘制焦点的）
         if outline_node:
+            zoom = self.zoom.read(notify=None)  # TODO: 这里应该notify什么?
             paint_outline(outline_node, cmds, outline_rect, self.zoom)
 
         return cmds
@@ -519,16 +527,18 @@ class TextLayout:
         self.height = None
         self.width = None
 
+        self.zoom = ProtectedField()
+
         # "Text"DOM nodes don't have the layout object reference
 
     def layout(self):
-        self.zoom = self.parent.zoom
+        self.zoom.copy(self.parent.zoom)
 
         weight = self.node.style["font-weight"]
         style = self.node.style["font-style"]
         if style == "normal":
             style = "roman"
-        size = dpx(float(self.node.style["font-size"][:-2]) * 0.75, self.zoom)
+        size = dpx(float(self.node.style["font-size"][:-2]) * 0.75, self.zoom.read(notify=None))
         self.font = get_font(size, weight, style)
 
         self.ascent = self.font.getMetrics().fAscent * 1.25
@@ -573,10 +583,12 @@ class EmbedLayout:
 
         node.layout_object = self
 
+        self.zoom = ProtectedField()
+
     # 根据前一个inline element计算当前layout object的x坐标
     def layout(self):
-        self.zoom = self.parent.zoom
-        self.font = font(self.node.style, self.zoom)
+        self.zoom.copy(self.parent.zoom)
+        self.font = font(self.node.style, self.zoom.read(notify=None))
 
         if self.previous:
             # 使用相邻的前一个layout object的font计算两者间距
@@ -603,7 +615,7 @@ class InputLayout(EmbedLayout):
     def layout(self):
         super().layout()
 
-        self.width = dpx(INPUT_WIDTH_PX, self.zoom)
+        self.width = dpx(INPUT_WIDTH_PX, self.zoom.read(notify=None))
         self.height = linespace(self.font)
         self.ascent = -self.height
         self.descent = 0
@@ -640,7 +652,7 @@ class InputLayout(EmbedLayout):
 
     def paint_effects(self, cmds):
         cmds = paint_visual_effects(self.node, cmds, self.self_rect())
-        paint_outline(self.node, cmds, self.self_rect(), self.zoom)
+        paint_outline(self.node, cmds, self.self_rect(), self.zoom.read(notify=None))
         return cmds
 
     def __repr__(self):
@@ -661,22 +673,23 @@ class ImageLayout(EmbedLayout):
         image_height = self.node.image.height()
 
         aspect_ratio = image_width / image_height  # 图片原始的宽高比
+        zoom = self.zoom.read(notify=None)
 
         if width_attr and height_attr:
             # 如果同时设置了"width"与"height"HTML属性, 那么就采用设置的大小渲染
-            self.width = dpx(int(width_attr), self.zoom)
-            self.img_height = dpx(int(height_attr), self.zoom)
+            self.width = dpx(int(width_attr), zoom)
+            self.img_height = dpx(int(height_attr), zoom)
         elif width_attr:
             # 当仅设置"width"或者"height"时，用原始的宽高比计算另一个
-            self.width = dpx(int(width_attr), self.zoom)
+            self.width = dpx(int(width_attr), zoom)
             self.img_height = self.width / aspect_ratio
         elif height_attr:
-            self.img_height = dpx(int(height_attr), self.zoom)
+            self.img_height = dpx(int(height_attr), zoom)
             self.width = self.img_height * aspect_ratio
         else:
             # 图片原始宽度, 采用该原始宽度作为layout object的宽度
-            self.width = dpx(image_width, self.zoom)
-            self.img_height = dpx(image_height, self.zoom)  # 图片原始高度
+            self.width = dpx(image_width, zoom)
+            self.img_height = dpx(image_height, zoom)  # 图片原始高度
 
         # 图片的高度可能会基于"<img>"的"font"
         self.height = max(self.img_height, linespace(self.font))
@@ -715,28 +728,30 @@ class IframeLayout(EmbedLayout):
 
         width_attr = self.node.attributes.get("width")
         height_attr = self.node.attributes.get("height")
+        zoom = self.zoom.read(notify=None)
 
         if width_attr:
-            self.width = dpx(int(width_attr) + 2, self.zoom)
+            self.width = dpx(int(width_attr) + 2, zoom)
         else:
-            self.width = dpx(const.IFRAME_WIDTH_PX + 2, self.zoom)
+            self.width = dpx(const.IFRAME_WIDTH_PX + 2, zoom)
         if height_attr:
-            self.height = dpx(int(height_attr) + 2, self.zoom)
+            self.height = dpx(int(height_attr) + 2, zoom)
         else:
-            self.height = dpx(int(const.IFRAME_HEIGHT_PX) + 2, self.zoom)
+            self.height = dpx(int(const.IFRAME_HEIGHT_PX) + 2, zoom)
 
         self.ascent = -self.height
         self.descent = 0
 
         # 将计算得到的width与height赋值给对应的"Frame"对象, 使得<iframe>内部可以正确地layout
-        self.node.frame.frame_height = self.height - dpx(2, self.zoom)
-        self.node.frame.frame_width = self.width - dpx(2, self.zoom)
+        self.node.frame.frame_height = self.height - dpx(2, zoom)
+        self.node.frame.frame_width = self.width - dpx(2, zoom)
 
     def paint(self):
         return []
 
     def paint_effects(self, cmds):
         rect = self.self_rect()
+        zoom = self.zoom.read(notify=None)
 
         # 在这里实现iframe的滚动.
         #
@@ -752,7 +767,7 @@ class IframeLayout(EmbedLayout):
         # 简单起见, 目前在iframe滚动时, 在"frame.scrolldown()"中设置"scroll_changed_in_frame = True"让
         # browser重新composite. (比较完美的实现方式类似于"animation"的绘制机制，browser无需再次composite. 当前的"animation"
         # 绘制流程比较单一，缺乏灵活性，无法通过简单地修改使其同样适用于frame scroll)
-        diff = dpx(1, self.zoom)
+        diff = dpx(1, zoom)
         offset = (self.x + diff, self.y + diff - self.node.frame.scroll)
         cmds = [Transform(offset, rect, self.node, cmds)]
 
@@ -765,7 +780,7 @@ class IframeLayout(EmbedLayout):
         )
         cmds = [Blend(1.0, "source-over", self.node, internal_cmds)]
 
-        paint_outline(self.node, cmds, rect, self.zoom)
+        paint_outline(self.node, cmds, rect, zoom)
         cmds = paint_visual_effects(self.node, cmds, rect)
 
         return cmds
