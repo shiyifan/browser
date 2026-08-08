@@ -22,7 +22,7 @@ class Element:
     def __init__(self, tag, attributes, parent):
         self.tag = tag
         self.children = []
-        self.attributes = attributes
+        self.attributes = attributes  # HTML标签中声明的属性，例如<input tyle="text">中的"type"属性
         self.parent = parent
         self.is_focused = False  # 是否获取到焦点
         self.animations = {}  # 保存结点的animations、transitions
