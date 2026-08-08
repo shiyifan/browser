@@ -153,7 +153,8 @@ class Tab:
             for property_name, animation in node.animations.items():
                 value = animation.animate()
                 if value:
-                    node.style[property_name] = value
+                    node.style.get()[property_name] = value
+                    node.style.mark()
                     self.set_needs_paint()  # 不仅通过"render"重新收集绘制命令，而且让browser安排下一次的animation frame
 
                 # 无论animation是否完成（即"value"不是None时表示未完成，是None时表示上一animation frame已是最后一帧）,
@@ -402,7 +403,10 @@ def paint_tree(layout_object, display_list):
         paint_tree(layout_object.node.frame.document, cmds)
     else:
         # "layout_object"的子节点的绘制命令
-        for child in layout_object.children:
+        c = layout_object.children
+        children = c.get() if isinstance(c, ProtectedField) else c
+
+        for child in children:
             paint_tree(child, cmds)
 
     # 此时"cmds"中已包含"layout_object"以及所有子结点的绘制命令

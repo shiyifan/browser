@@ -35,3 +35,10 @@ class ProtectedField:
 
     def copy(self, field):
         self.set(field.read(notify=self))
+
+    def __repr__(self):
+        if isinstance(self.value, list):
+            value = f"[...]({len(self.value)})"
+        else:
+            value = self.value
+        return f"ProtectedField(value={value}, dirty={self.dirty})"

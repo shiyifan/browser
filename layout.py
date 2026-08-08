@@ -28,7 +28,7 @@ class BlockLayout:
         self.x = None
         self.y = None
 
-        self.width = None
+        self.width = ProtectedField()
         self.height = None
 
         # layout内的子结点相对于layout左上角的相对坐标
@@ -45,7 +45,7 @@ class BlockLayout:
 
         # 根据layout tree中的父结点以及previous计算当前结点的x坐标、y坐标以及宽度width.
         self.x = self.parent.x  # 子结点的绘制起始点的x坐标继承自父结点的x坐标
-        self.width = self.parent.width
+        self.width.copy(self.parent.width)
         # 子结点绘制起始点的y坐标继承自父结点的y坐标（如果当前结点是父结点的第一个子结点）,或者上一个兄弟结点的"y坐标 + 兄弟结点的高度"
         if self.previous:
             self.y = self.previous.y + self.previous.height
@@ -76,8 +76,13 @@ class BlockLayout:
             # 由LineLayout以及TextLayout负责绘制与计算
 
             if self.children.dirty:
+                # 临时保存在"new_line"以及"recurse"过程中添加的LineLayout以及inline layout object
+                self.temp_children = []
+
                 self.new_line()
                 self.recurse(self.node)
+                self.children.set(self.temp_children)
+                self.temp_children = None
 
         for child in self.children.get():
             child.layout()
@@ -139,7 +144,9 @@ class BlockLayout:
     # 这里仅用于创建layout tree结构，而计算baseline、确定行高的流程由LineLayout负责完成
     def word(self, node, word):
         zoom = self.zoom.read(notify=self.children)
-        node_font = font(node.style, zoom)
+        style = node.style.read(notify=self.children)
+
+        node_font = font(style, zoom)
         w = node_font.measureText(word)
         self.add_inline_child(node, w, TextLayout, word)
 
@@ -181,11 +188,12 @@ class BlockLayout:
     #      用于计算是否换行以及更新下一个layout object的x坐标
     # "child_class": inline layout class
     def add_inline_child(self, node, w, child_class, word=None, parent_frame=None):
-        if self.cursor_x + w > self.width:
+        width = self.width.read(notify=self.children)
+        if self.cursor_x + w > width:
             # 根据BlockLayout宽度，已超出一行时，新建一行
             self.new_line()
 
-        line = self.children[-1]
+        line = self.temp_children[-1]
         previous_word = line.children[-1] if line.children else None
         if word:
             # 此时添加的是"TextLayout"
@@ -199,13 +207,14 @@ class BlockLayout:
 
         # 更新x坐标，作为同一line中下一个inline element的布局x坐标
         zoom = self.zoom.read(notify=self.children)
-        self.cursor_x += w + font(node.style, zoom).measureText(" ")
+        style = node.style.read(notify=self.children)
+        self.cursor_x += w + font(style, zoom).measureText(" ")
 
     def new_line(self):
         self.cursor_x = 0
-        last_line = self.children[-1] if self.children else None
+        last_line = self.temp_children[-1] if self.temp_children else None
         new_line = LineLayout(self.node, self, last_line)
-        self.children.append(new_line)
+        self.temp_children.append(new_line)
 
     def paint(self):
         """根据已计算的坐标, 创建当前layout对象的绘制命令. 注意:不创建layout的children的绘制命令"""
@@ -219,9 +228,10 @@ class BlockLayout:
         # 则无法由block layout绘制出来
         #
         # 目前背景色仅能由DOM节点本身对应的layout tree节点绘制
-        bgcolor = self.node.style.get("background-color", "transparent")
+        style = self.node.style.read(notify=self.children)
+        bgcolor = style.get("background-color", "transparent")
         if bgcolor != "transparent":
-            radius = float(self.node.style.get("border-radius", "0px")[:-2])
+            radius = float(style.get("border-radius", "0px")[:-2])
             cmds.append(DrawRRect(self.self_rect(), radius, bgcolor))
 
         # 绘制由于"contenteditable"创建的编辑区域内的光标. 目前仅在最后的TextLayout后面添加光标
@@ -250,7 +260,7 @@ class BlockLayout:
         return cmds
 
     def self_rect(self):
-        return Rect(self.x, self.y, self.x + self.width, self.y + self.height)
+        return Rect(self.x, self.y, self.x + self.width.get(), self.y + self.height)
 
     # 避免由<button>创建的BlockLayout重复绘制
     #
@@ -285,8 +295,9 @@ class BlockLayout:
             label = f"<{self.node.tag}>"
         else:
             label = f"#text{json.dumps(text_digest(self.node.text))}"
+        width = self.width.get()
 
-        return f"BlockLayout({label}, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width, 2)}, h{round(self.height, 2)}))"
+        return f"BlockLayout({label}, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(width, 2)}, h{round(self.height, 2)}))"
 
 
 # 对应于DOM根结点的layout object。
@@ -299,7 +310,7 @@ class DocumentLayout:
 
         self.x = None
         self.y = None
-        self.width = None
+        self.width = ProtectedField()
         self.height = None
 
         node.layout_object = self
@@ -310,9 +321,9 @@ class DocumentLayout:
     #
     # 布局时额外添加四周的空白边距
     def layout(self, width, zoom):
-        self.width = width - 2 * dpx(const.HSTEP, zoom)  # "HSTEP"作为左右的空白边距
-        self.x = dpx(const.HSTEP, self.zoom)
-        self.y = dpx(const.VSTEP, self.zoom)  # "VSTEP"作为上下的空白边距
+        self.width.set(width - 2 * dpx(const.HSTEP, zoom))  # "HSTEP"作为左右的空白边距
+        self.x = dpx(const.HSTEP, zoom)
+        self.y = dpx(const.VSTEP, zoom)  # "VSTEP"作为上下的空白边距
 
         if not self.children:
             child = BlockLayout(self.node, self, None)
@@ -333,7 +344,8 @@ class DocumentLayout:
         return True
 
     def __repr__(self):
-        return f"DocumentLayout(<{self.node.tag}>, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width, 2)}, h{round(self.height, 2)}))"
+        width = self.width.get()
+        return f"DocumentLayout(<{self.node.tag}>, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(width, 2)}, h{round(self.height, 2)}))"
 
 
 # 表示以"inline"方式绘制的BlockLayout中的每一行text
@@ -475,7 +487,8 @@ class LineLayout:
 
                 return cmds
 
-            outline_str = effect_node.style.get("outline")
+            effect_style = effect_node.style.get()
+            outline_str = effect_style.get("outline")
             if parse_outline(outline_str):
                 outline_rect.join(child.self_rect())
                 outline_node = effect_node
@@ -483,8 +496,8 @@ class LineLayout:
         # 同一时刻仅能有一个DOM结点获取焦点，所以上面的"for"循环时，"outline_node"变量只能被相同的DOM结点赋值一次或者多次.
         # （当"child"是TextLayout时，同样成立。注意：是以layout object对应的DOM结点的样式来绘制焦点的）
         if outline_node:
-            zoom = self.zoom.read(notify=None)  # TODO: 这里应该notify什么?
-            paint_outline(outline_node, cmds, outline_rect, self.zoom)
+            zoom = self.zoom.get()
+            paint_outline(outline_node, cmds, outline_rect, zoom)
 
         return cmds
 
@@ -533,12 +546,13 @@ class TextLayout:
 
     def layout(self):
         self.zoom.copy(self.parent.zoom)
+        node_style = self.node.style.get()
 
-        weight = self.node.style["font-weight"]
-        style = self.node.style["font-style"]
+        weight = node_style["font-weight"]
+        style = node_style["font-style"]
         if style == "normal":
             style = "roman"
-        size = dpx(float(self.node.style["font-size"][:-2]) * 0.75, self.zoom.read(notify=None))
+        size = dpx(float(node_style["font-size"][:-2]) * 0.75, self.zoom.read(notify=None))
         self.font = get_font(size, weight, style)
 
         self.ascent = self.font.getMetrics().fAscent * 1.25
@@ -553,7 +567,8 @@ class TextLayout:
         self.height = linespace(self.font)
 
     def paint(self):
-        color = self.node.style["color"]
+        node_style = self.node.style.get()
+        color = node_style["color"]
         return [DrawText(self.x, self.y, self.word, self.font, color)]
 
     def should_paint(self):
@@ -588,7 +603,8 @@ class EmbedLayout:
     # 根据前一个inline element计算当前layout object的x坐标
     def layout(self):
         self.zoom.copy(self.parent.zoom)
-        self.font = font(self.node.style, self.zoom.read(notify=None))
+        node_style = self.node.style.get()
+        self.font = font(node_style, self.zoom.read(notify=None))
 
         if self.previous:
             # 使用相邻的前一个layout object的font计算两者间距
@@ -624,9 +640,10 @@ class InputLayout(EmbedLayout):
         cmds = []
 
         # 绘制背景色
-        bgcolor = self.node.style.get("background-color", "transparent")
+        node_style = self.node.style.get()
+        bgcolor = node_style.get("background-color", "transparent")
         if bgcolor != "transparent":
-            radius = float(self.node.style.get("border-radius", "0px")[:-2])
+            radius = float(node_style.get("border-radius", "0px")[:-2])
             cmds.append(DrawRRect(self.self_rect(), radius, bgcolor))
 
         # 绘制文字
@@ -640,7 +657,7 @@ class InputLayout(EmbedLayout):
                 # 如果<button>内包含非纯文本内容则不绘制
                 print("Ignoring HTML contents inside the button")
                 text = ""
-        color = self.node.style["color"]
+        color = node_style["color"]
         cmds.append(DrawText(self.x, self.y, text, self.font, color))
 
         # 如果当前"<input>"已获取焦点，则绘制光标
@@ -709,7 +726,7 @@ class ImageLayout(EmbedLayout):
             self.x + self.width,
             self.y + self.height,
         )
-        quality = self.node.style.get("image-rendering", "auto")
+        quality = self.node.style.get().get("image-rendering", "auto")
         cmds.append(DrawImage(self.node.image, rect, quality))
         return cmds
 
@@ -790,15 +807,17 @@ class IframeLayout(EmbedLayout):
 
 
 def paint_visual_effects(node, cmds, rect):
-    opacity = float(node.style.get("opacity", "1.0"))
-    blend_mode = node.style.get("mix-blend-mode")
-    translation = parse_transform(node.style.get("transform", ""))
+    node_style = node.style.get()
+
+    opacity = float(node_style.get("opacity", "1.0"))
+    blend_mode = node_style.get("mix-blend-mode")
+    translation = parse_transform(node_style.get("transform", ""))
 
     # 如果"overflow"为"clip"，则根据"border-radius"裁剪当前layout对象的绘制区域
-    if node.style.get("overflow", "visible") == "clip":
+    if node_style.get("overflow", "visible") == "clip":
         if not blend_mode:
             blend_mode = "source-over"
-        border_radius = float(node.style.get("border-radius", "0px")[:-2])
+        border_radius = float(node_style.get("border-radius", "0px")[:-2])
 
         # 这里实例化Blend时，"node"的参数设置为"None",详情参见"Tab.run_animation_frame()"函数中"composited_updates"
         # 变量的相关注释
@@ -825,7 +844,7 @@ def parse_outline(outline_str):
 
 
 def paint_outline(node, cmds, rect, zoom):
-    outline = parse_outline(node.style.get("outline"))
+    outline = parse_outline(node.style.get().get("outline"))
     if not outline:
         return
 

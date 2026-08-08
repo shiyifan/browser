@@ -2,13 +2,20 @@
 
 from skia import Color, ColorBLACK, Matrix, Rect
 import const
+from fields import ProtectedField
 
 
 # 树状结构转为扁平的list结构
 def tree_to_list(tree, list):
     list.append(tree)
-    for child in tree.children:
+
+    children = tree.children
+    if isinstance(children, ProtectedField):
+        children = children.get()
+
+    for child in children:
         tree_to_list(child, list)
+
     return list
 
 
@@ -169,12 +176,14 @@ def absolute_to_local(display_item, rect):
 
 # 计算layout object在应用css"transform"之后的绝对绘制区域
 def absolute_bounds_for_obj(obj):
-    rect = Rect.MakeXYWH(obj.x, obj.y, obj.width, obj.height)
+    width = obj.width.get() if isinstance(obj.width, ProtectedField) else obj.width
+    rect = Rect.MakeXYWH(obj.x, obj.y, width, obj.height)
 
     # 顺着DOM Tree向上依次应用所有parent node上的"transform"
     cur = obj.node
     while cur:
-        rect = map_translation(rect, parse_transform(cur.style.get("transform", "")))
+        cur_style = cur.style.get()
+        rect = map_translation(rect, parse_transform(cur_style.get("transform", "")))
         cur = cur.parent
 
     return rect

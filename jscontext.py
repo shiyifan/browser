@@ -277,6 +277,7 @@ class JSContext:
 
         node = self.handle_to_node[handle]
         node.attributes["style"] = s
+        node.style.mark()
         frame.set_needs_render()
 
     def setAttribute(self, handle, attr, value, window_id):

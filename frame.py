@@ -535,15 +535,16 @@ class Frame:
 
 # 根据DOM结点上"style"属性、css文件的代码创建CSS对象并赋值为"style"属性
 def style(node, rules, tab):
-    old_style = node.style if hasattr(node, "style") else None
-    node.style = {}  # CSS解析后的对象
+    old_style = node.style.value
+    new_style = {}  # CSS解析后的对象
 
     # 先解析当前节点的inherited property的值
     for property, default_value in const.INHERITED_PROPERTIES.items():
         if node.parent:
-            node.style[property] = node.parent.style[property]
+            parent_style = node.parent.style.read(notify=node.style)
+            new_style[property] = parent_style[property]
         else:
-            node.style[property] = default_value
+            new_style[property] = default_value
 
     # 解析css代码中与当前节点匹配的rule并应用至当前节点
     for media, selector, body in rules:
@@ -554,24 +555,26 @@ def style(node, rules, tab):
         if not selector.matches(node):
             continue
         for property, value in body.items():
-            node.style[property] = value
+            new_style[property] = value
 
     # 解析DOM中"style"属性的样式
     if isinstance(node, Element) and "style" in node.attributes:
         pairs = CSSParser(node.attributes["style"]).body()
         for property, value in pairs.items():
-            node.style[property] = value
+            new_style[property] = value
 
     # 如果DOM节点的"font-size"值为百分比数值，则根据父结点的值或者默认值计算具体"px"单位的数值
-    if node.style["font-size"].endswith("%"):
+    if new_style["font-size"].endswith("%"):
         if node.parent:
-            parent_font_size = node.parent.style["font-size"]
+            parent_style = node.parent.style.read(notify=node.style)
+            parent_font_size = parent_style["font-size"]
         else:
             parent_font_size = const.INHERITED_PROPERTIES["font-size"]
-        node_pct = float(node.style["font-size"][:-1]) / 100
+        node_pct = float(new_style["font-size"][:-1]) / 100
         parent_px = float(parent_font_size[:-2])
-        node.style["font-size"] = str(node_pct * parent_px) + "px"
+        new_style["font-size"] = str(node_pct * parent_px) + "px"
 
+    node.style.set(new_style)
     # 解析并创建子结点的CSS对象
     for child in node.children:
         style(child, rules, tab)
@@ -580,12 +583,13 @@ def style(node, rules, tab):
         # 查找在css中"transition"声明的属性中，哪些属性的值发生了更新,
         # 并在DOM node上根据更新的属性值创建animation对象，接着触发后续的animation frame
 
-        transitions = diff_styles(old_style, node.style)
+        transitions = diff_styles(old_style, new_style)
         for property, (old_value, new_value, num_frames) in transitions.items():
             if property == "opacity":
                 animation = NumericAnimation(float(old_value), float(new_value), num_frames)
                 node.animations[property] = animation
-                node.style[property] = animation.animate()  # animation的第一帧
+                new_style[property] = animation.animate()  # animation的第一帧
+                node.style.mark()
 
                 # 请求一次browser的animation frame, 以继续渲染animation后面的frame
                 tab.browser.set_needs_animation_frame(tab)

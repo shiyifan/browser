@@ -1,3 +1,6 @@
+from fields import ProtectedField
+
+
 # HTML代码中位于标签内外的纯文本
 class Text:
     def __init__(self, text, parent):
@@ -13,8 +16,10 @@ class Text:
         # 焦点，因此这个值始终为"None"
         self.layout_object = None
 
+        self.style = ProtectedField()
+
     def __repr__(self):
-        return repr(self.text)
+        return f"#text({repr(self.text)})"
 
 
 # HTML代码中的标签
@@ -31,6 +36,8 @@ class Element:
         # 例如在"inline"layout方式的BlockLayout中的DOM node. 不过"<input>"与"<button>"会单独创建"InputLayout",
         # 所以这两者有对应的layout object.
         self.layout_object = None
+
+        self.style = ProtectedField()
 
     def __repr__(self):
         return "<" + self.tag + ">"
