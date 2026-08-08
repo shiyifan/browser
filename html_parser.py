@@ -74,7 +74,7 @@ class HTMLParser:
             # 忽略"<!doctype html>"
             return
 
-        tag, attributes = self.get_attibutes(tag)  # 解析标签名与标签属性
+        tag, attributes = self.get_attributes(tag)  # 解析标签名与标签属性
         self.implicit_tags(tag)
 
         if tag.startswith("/"):
@@ -114,7 +114,7 @@ class HTMLParser:
 
     # 获取标签的"属性名=属性值"键值对
     # 注意属性值中不可以包含空格，因为通过空格分割每个键值对
-    def get_attibutes(self, text):
+    def get_attributes(self, text):
         parts = text.split()
         tag = parts[0].casefold()
         attributes = {}
