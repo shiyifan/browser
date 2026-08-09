@@ -518,7 +518,11 @@ class Frame:
         return max(0, min(scroll, maxscroll))
 
     def scroll_to(self, elt):
-        objs = [obj for obj in tree_to_list(self.document, []) if obj.node == elt]
+        # 这里扁平化layout tree时，通过".value"方式直接获取某些ProtectedField.
+        # 在"Tab.run_animation_frame"中，先滚动至focus再执行"render"流程. 因此通过"scroll_to"滚动时
+        # 某些ProtectedField仍然是dirty的. 为避免assert异常，这里直接读取ProtectedField的值.
+        objs = [obj for obj in tree_to_list(self.document, [], protect=False) if obj.node == elt]
+
         if not objs:
             return
         obj = objs[0]
@@ -574,11 +578,6 @@ def style(node, rules, tab):
         parent_px = float(parent_font_size[:-2])
         new_style["font-size"] = str(node_pct * parent_px) + "px"
 
-    node.style.set(new_style)
-    # 解析并创建子结点的CSS对象
-    for child in node.children:
-        style(child, rules, tab)
-
     if old_style:
         # 查找在css中"transition"声明的属性中，哪些属性的值发生了更新,
         # 并在DOM node上根据更新的属性值创建animation对象，接着触发后续的animation frame
@@ -589,10 +588,17 @@ def style(node, rules, tab):
                 animation = NumericAnimation(float(old_value), float(new_value), num_frames)
                 node.animations[property] = animation
                 new_style[property] = animation.animate()  # animation的第一帧
-                node.style.mark()
 
                 # 请求一次browser的animation frame, 以继续渲染animation后面的frame
                 tab.browser.set_needs_animation_frame(tab)
+
+    # 这里没有判断"old_style"与"new_style"是否存在不同，所以每进行一次render的"style", "node.style"
+    # 都将会更新, 并且"node.style"的所有依赖均变成dirty
+    node.style.set(new_style)
+
+    # 解析并创建子结点的CSS对象
+    for child in node.children:
+        style(child, rules, tab)
 
 
 # 获取在"transition"声明的属性中，render前后属性值不同的属性。返回 "<css property>: (<旧值>, <新值>, <动画帧个数>)" 的键值对

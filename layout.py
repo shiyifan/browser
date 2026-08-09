@@ -22,13 +22,13 @@ class BlockLayout:
         self.node = node  # DOM结点
         self.parent = parent
         self.previous = previous  # previous sibling
-        self.children = ProtectedField()
+        self.children = ProtectedField(self)
 
         # 该layout相对于canvas左上角的绝对坐标
         self.x = None
         self.y = None
 
-        self.width = ProtectedField()
+        self.width = ProtectedField(self)
         self.height = None
 
         # layout内的子结点相对于layout左上角的相对坐标
@@ -37,7 +37,7 @@ class BlockLayout:
 
         node.layout_object = self
 
-        self.zoom = ProtectedField()
+        self.zoom = ProtectedField(self)
 
     # 根据绘制方式创建layout tree
     def layout(self):
@@ -52,6 +52,7 @@ class BlockLayout:
         else:
             self.y = self.parent.y
 
+        # 根据layout方式创建当前结点的children
         mode = self.layout_mode()
         if mode == "block":
             # 以"block"方式绘制
@@ -310,12 +311,12 @@ class DocumentLayout:
 
         self.x = None
         self.y = None
-        self.width = ProtectedField()
+        self.width = ProtectedField(self)
         self.height = None
 
         node.layout_object = self
 
-        self.zoom = ProtectedField()
+        self.zoom = ProtectedField(self)
 
     # 对整个HTML文档内容布局
     #
@@ -382,7 +383,7 @@ class LineLayout:
 
         node.layout_object = self
 
-        self.zoom = ProtectedField()
+        self.zoom = ProtectedField(self)
 
     # 计算baseline位置、确定行高
     def layout(self):
@@ -540,7 +541,7 @@ class TextLayout:
         self.height = None
         self.width = None
 
-        self.zoom = ProtectedField()
+        self.zoom = ProtectedField(self)
 
         # "Text"DOM nodes don't have the layout object reference
 
@@ -598,7 +599,7 @@ class EmbedLayout:
 
         node.layout_object = self
 
-        self.zoom = ProtectedField()
+        self.zoom = ProtectedField(self)
 
     # 根据前一个inline element计算当前layout object的x坐标
     def layout(self):

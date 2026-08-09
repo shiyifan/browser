@@ -6,15 +6,18 @@ from fields import ProtectedField
 
 
 # 树状结构转为扁平的list结构
-def tree_to_list(tree, list):
+def tree_to_list(tree, list, protect=True):
     list.append(tree)
 
     children = tree.children
     if isinstance(children, ProtectedField):
-        children = children.get()
+        if protect:
+            children = children.get()
+        else:
+            children = children.value
 
     for child in children:
-        tree_to_list(child, list)
+        tree_to_list(child, list, protect)
 
     return list
 
