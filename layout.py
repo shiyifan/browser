@@ -309,10 +309,10 @@ class DocumentLayout:
         self.parent = None
         self.children = []
 
-        self.x = None
-        self.y = None
+        self.x = ProtectedField()
+        self.y = ProtectedField()
         self.width = ProtectedField(self)
-        self.height = None
+        self.height = ProtectedField()
 
         node.layout_object = self
 
@@ -323,8 +323,8 @@ class DocumentLayout:
     # 布局时额外添加四周的空白边距
     def layout(self, width, zoom):
         self.width.set(width - 2 * dpx(const.HSTEP, zoom))  # "HSTEP"作为左右的空白边距
-        self.x = dpx(const.HSTEP, zoom)
-        self.y = dpx(const.VSTEP, zoom)  # "VSTEP"作为上下的空白边距
+        self.x.set(dpx(const.HSTEP, zoom))
+        self.y.set(dpx(const.VSTEP, zoom))  # "VSTEP"作为上下的空白边距
 
         if not self.children:
             child = BlockLayout(self.node, self, None)
