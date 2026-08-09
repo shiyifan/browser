@@ -25,11 +25,11 @@ class BlockLayout:
         self.children = ProtectedField(self)
 
         # 该layout相对于canvas左上角的绝对坐标
-        self.x = None
-        self.y = None
+        self.x = ProtectedField(self)
+        self.y = ProtectedField(self)
 
         self.width = ProtectedField(self)
-        self.height = None
+        self.height = ProtectedField(self)
 
         # layout内的子结点相对于layout左上角的相对坐标
         # 所以子结点的绝对坐标等于"self.x + self.cursor_x"
@@ -44,13 +44,16 @@ class BlockLayout:
         self.zoom.copy(self.parent.zoom)
 
         # 根据layout tree中的父结点以及previous计算当前结点的x坐标、y坐标以及宽度width.
-        self.x = self.parent.x  # 子结点的绘制起始点的x坐标继承自父结点的x坐标
+        self.x.copy(self.parent.x)  # 子结点的绘制起始点的x坐标继承自父结点的x坐标
         self.width.copy(self.parent.width)
+
         # 子结点绘制起始点的y坐标继承自父结点的y坐标（如果当前结点是父结点的第一个子结点）,或者上一个兄弟结点的"y坐标 + 兄弟结点的高度"
         if self.previous:
-            self.y = self.previous.y + self.previous.height
+            prev_y = self.previous.y.read(notify=self.y)
+            prev_height = self.previous.height.read(notify=self.y)
+            self.y.set(prev_y + prev_height)
         else:
-            self.y = self.parent.y
+            self.y.copy(self.parent.y)
 
         # 根据layout方式创建当前结点的children
         mode = self.layout_mode()
@@ -90,7 +93,9 @@ class BlockLayout:
 
         # block html element的高度等于所有子结点的高度之和.
         # 在所有子结点计算得到height之后再计算当前结点的高度
-        self.height = sum([child.height for child in self.children.get()])
+        children = self.children.read(notify=self.height)
+        new_height = sum([child.height.read(notify=self.height) for child in children])
+        self.height.set(new_height)
 
     # 根据当前DOM结点以及所包含子结点的类型，确定当前节点的绘制方式
     #
@@ -309,10 +314,10 @@ class DocumentLayout:
         self.parent = None
         self.children = []
 
-        self.x = ProtectedField()
-        self.y = ProtectedField()
+        self.x = ProtectedField(self)
+        self.y = ProtectedField(self)
         self.width = ProtectedField(self)
-        self.height = ProtectedField()
+        self.height = ProtectedField(self)
 
         node.layout_object = self
 
@@ -336,7 +341,7 @@ class DocumentLayout:
         child.zoom.mark()
 
         child.layout()
-        self.height = child.height
+        self.height.copy(child.height)
 
     def paint(self):
         return []
