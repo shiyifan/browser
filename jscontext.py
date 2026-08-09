@@ -2,7 +2,7 @@ import dukpy
 import json
 from threading import Timer, Thread
 from css_parser import CSSParser
-from layout import BlockLayout
+from layout import BlockLayout, ImageLayout, IframeLayout
 from utils import tree_to_list, log
 from html_parser import HTMLParser
 from task import Task
@@ -285,6 +285,16 @@ class JSContext:
         self.throw_if_cross_origin(frame)
 
         elt = self.handle_to_node[handle]
+
+        # 如果修改了"<iframe>"或者"<img>"的"width"或者"height"HTML属性,那么需要invalidate对应layout object的"width"
+        elt_layout = elt.layout_object
+        iframe_or_image = isinstance(elt_layout, IframeLayout) or isinstance(
+            elt_layout, ImageLayout
+        )
+        width_or_height = attr == "width" or attr == "height"
+        if iframe_or_image and width_or_height:
+            elt_layout.width.mark()
+
         elt.attributes[attr] = value
         frame.set_needs_render()
 

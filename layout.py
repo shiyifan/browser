@@ -239,7 +239,7 @@ class BlockLayout:
         if self.node.is_focused and "contenteditable" in self.node.attributes:
             text_nodes = [t for t in tree_to_list(self, []) if isinstance(t, TextLayout)]
             if text_nodes:
-                cmds.append(DrawCursor(text_nodes[-1], text_nodes[-1].width))
+                cmds.append(DrawCursor(text_nodes[-1], text_nodes[-1].width.get()))
             else:
                 cmds.append(DrawCursor(self, 0))
 
@@ -378,7 +378,7 @@ class LineLayout:
 
         self.x = None
         self.y = None
-        self.width = None
+        self.width = ProtectedField(self)
         self.height = None
 
         node.layout_object = self
@@ -389,7 +389,7 @@ class LineLayout:
     def layout(self):
         self.zoom.copy(self.parent.zoom)
 
-        self.width = self.parent.width
+        self.width.copy(self.parent.width)
         self.x = self.parent.x
 
         if self.previous:
@@ -509,7 +509,7 @@ class LineLayout:
         else:
             label = f"#text{json.dumps(text_digest(self.node.text))}"
 
-        return f"LineLayout({label}, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width, 2)}, h{round(self.height, 2)}))"
+        return f"LineLayout({label}, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width.get(), 2)}, h{round(self.height, 2)}))"
 
 
 # 表示LineLayout中的每一个word
@@ -539,7 +539,7 @@ class TextLayout:
         self.x = None
         self.y = None  # 由"LineLayout.layout()"在计算最大的ascent后赋值
         self.height = None
-        self.width = None
+        self.width = ProtectedField(self)
 
         self.zoom = ProtectedField(self)
 
@@ -547,22 +547,22 @@ class TextLayout:
 
     def layout(self):
         self.zoom.copy(self.parent.zoom)
-        node_style = self.node.style.get()
+        node_style = self.node.style.read(notify=self.width)
 
         weight = node_style["font-weight"]
         style = node_style["font-style"]
         if style == "normal":
             style = "roman"
-        size = dpx(float(node_style["font-size"][:-2]) * 0.75, self.zoom.read(notify=None))
+        size = dpx(float(node_style["font-size"][:-2]) * 0.75, self.zoom.read(notify=self.width))
         self.font = get_font(size, weight, style)
 
         self.ascent = self.font.getMetrics().fAscent * 1.25
         self.descent = self.font.getMetrics().fDescent * 1.25
 
-        self.width = self.font.measureText(self.word)
+        self.width.set(self.font.measureText(self.word))
         if self.previous:
             space = self.previous.font.measureText(" ")
-            self.x = self.previous.x + self.previous.width + space
+            self.x = self.previous.x + self.previous.width.get() + space
         else:
             self.x = self.parent.x
         self.height = linespace(self.font)
@@ -576,10 +576,10 @@ class TextLayout:
         return True
 
     def self_rect(self):
-        return Rect(self.x, self.y, self.x + self.width, self.y + self.height)
+        return Rect(self.x, self.y, self.x + self.width.get(), self.y + self.height)
 
     def __repr__(self):
-        return f"TextLayout({self.word!r}, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width, 2)}, h{round(self.height, 2)}))"
+        return f"TextLayout({self.word!r}, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width.get(), 2)}, h{round(self.height, 2)}))"
 
 
 # <input>, <button>以及<img>等inline html element的layout object的父类, 包含一些通用的属性以及布局流程
@@ -595,7 +595,7 @@ class EmbedLayout:
         self.x = None
         self.y = None
         self.height = None
-        self.width = None
+        self.width = ProtectedField(self)
 
         node.layout_object = self
 
@@ -605,13 +605,13 @@ class EmbedLayout:
     def layout(self):
         self.zoom.copy(self.parent.zoom)
         node_style = self.node.style.get()
-        self.font = font(node_style, self.zoom.read(notify=None))
+        self.font = font(node_style, self.zoom.get())
 
         if self.previous:
             # 使用相邻的前一个layout object的font计算两者间距
             space = self.previous.font.measureText(" ")
 
-            self.x = self.previous.x + self.previous.width + space
+            self.x = self.previous.x + self.previous.width.get() + space
         else:
             self.x = self.parent.x
 
@@ -621,7 +621,7 @@ class EmbedLayout:
         return True
 
     def self_rect(self):
-        return Rect(self.x, self.y, self.x + self.width, self.y + self.height)
+        return Rect(self.x, self.y, self.x + self.width.get(), self.y + self.height)
 
 
 # <input>或者<button>对应的layout object
@@ -632,7 +632,8 @@ class InputLayout(EmbedLayout):
     def layout(self):
         super().layout()
 
-        self.width = dpx(INPUT_WIDTH_PX, self.zoom.read(notify=None))
+        zoom = self.zoom.read(notify=self.width)
+        self.width.set(dpx(INPUT_WIDTH_PX, zoom))
         self.height = linespace(self.font)
         self.ascent = -self.height
         self.descent = 0
@@ -670,11 +671,11 @@ class InputLayout(EmbedLayout):
 
     def paint_effects(self, cmds):
         cmds = paint_visual_effects(self.node, cmds, self.self_rect())
-        paint_outline(self.node, cmds, self.self_rect(), self.zoom.read(notify=None))
+        paint_outline(self.node, cmds, self.self_rect(), self.zoom.get())
         return cmds
 
     def __repr__(self):
-        return f"InputLayout(<{self.node.tag}>, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width, 2)}, h{round(self.height, 2)}))"
+        return f"InputLayout(<{self.node.tag}>, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width.get(), 2)}, h{round(self.height, 2)}))"
 
 
 # "<img>"对应的layout object
@@ -691,24 +692,26 @@ class ImageLayout(EmbedLayout):
         image_height = self.node.image.height()
 
         aspect_ratio = image_width / image_height  # 图片原始的宽高比
-        zoom = self.zoom.read(notify=None)
+        zoom = self.zoom.read(notify=self.width)
 
+        width = None
         if width_attr and height_attr:
             # 如果同时设置了"width"与"height"HTML属性, 那么就采用设置的大小渲染
-            self.width = dpx(int(width_attr), zoom)
+            width = dpx(int(width_attr), zoom)
             self.img_height = dpx(int(height_attr), zoom)
         elif width_attr:
             # 当仅设置"width"或者"height"时，用原始的宽高比计算另一个
-            self.width = dpx(int(width_attr), zoom)
-            self.img_height = self.width / aspect_ratio
+            width = dpx(int(width_attr), zoom)
+            self.img_height = width / aspect_ratio
         elif height_attr:
             self.img_height = dpx(int(height_attr), zoom)
-            self.width = self.img_height * aspect_ratio
+            width = self.img_height * aspect_ratio
         else:
             # 图片原始宽度, 采用该原始宽度作为layout object的宽度
-            self.width = dpx(image_width, zoom)
+            width = dpx(image_width, zoom)
             self.img_height = dpx(image_height, zoom)  # 图片原始高度
 
+        self.width.set(width)
         # 图片的高度可能会基于"<img>"的"font"
         self.height = max(self.img_height, linespace(self.font))
 
@@ -724,7 +727,7 @@ class ImageLayout(EmbedLayout):
             # 的上下边界充满整个line. 如果图片低于font lineheight, 那么图片的底部与font的descent对齐，
             # 图片的上面与font ascent之间会留出一小块空白区域
             self.y + self.height - self.img_height,
-            self.x + self.width,
+            self.x + self.width.get(),
             self.y + self.height,
         )
         quality = self.node.style.get().get("image-rendering", "auto")
@@ -732,7 +735,7 @@ class ImageLayout(EmbedLayout):
         return cmds
 
     def __repr__(self):
-        return f"ImageLayout(<{self.node.tag}>, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width, 2)}, h{round(self.height, 2)}))"
+        return f"ImageLayout(<{self.node.tag}>, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width.get(), 2)}, h{round(self.height, 2)}))"
 
 
 #'<iframe>'对应的layout object
@@ -746,12 +749,15 @@ class IframeLayout(EmbedLayout):
 
         width_attr = self.node.attributes.get("width")
         height_attr = self.node.attributes.get("height")
-        zoom = self.zoom.read(notify=None)
+        zoom = self.zoom.read(notify=self.width)
 
+        width = None
         if width_attr:
-            self.width = dpx(int(width_attr) + 2, zoom)
+            width = dpx(int(width_attr) + 2, zoom)
         else:
-            self.width = dpx(const.IFRAME_WIDTH_PX + 2, zoom)
+            width = dpx(const.IFRAME_WIDTH_PX + 2, zoom)
+        self.width.set(width)
+
         if height_attr:
             self.height = dpx(int(height_attr) + 2, zoom)
         else:
@@ -762,14 +768,14 @@ class IframeLayout(EmbedLayout):
 
         # 将计算得到的width与height赋值给对应的"Frame"对象, 使得<iframe>内部可以正确地layout
         self.node.frame.frame_height = self.height - dpx(2, zoom)
-        self.node.frame.frame_width = self.width - dpx(2, zoom)
+        self.node.frame.frame_width = self.width.get() - dpx(2, zoom)
 
     def paint(self):
         return []
 
     def paint_effects(self, cmds):
         rect = self.self_rect()
-        zoom = self.zoom.read(notify=None)
+        zoom = self.zoom.read(notify=self.width)
 
         # 在这里实现iframe的滚动.
         #
@@ -790,7 +796,10 @@ class IframeLayout(EmbedLayout):
         cmds = [Transform(offset, rect, self.node, cmds)]
 
         inner_rect = Rect.MakeLTRB(
-            self.x + diff, self.y + diff, self.x + self.width - diff, self.y + self.height - diff
+            self.x + diff,
+            self.y + diff,
+            self.x + self.width.get() - diff,
+            self.y + self.height - diff,
         )
         internal_cmds = cmds
         internal_cmds.append(
@@ -804,7 +813,7 @@ class IframeLayout(EmbedLayout):
         return cmds
 
     def __repr__(self):
-        return f"IframeLayout(<{self.node.tag}>, {self.node.url}, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width, 2)}, h{round(self.height, 2)}))"
+        return f"IframeLayout(<{self.node.tag}>, {self.node.url}, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width.get(), 2)}, h{round(self.height, 2)}))"
 
 
 def paint_visual_effects(node, cmds, rect):
