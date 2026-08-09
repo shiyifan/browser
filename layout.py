@@ -93,6 +93,8 @@ class BlockLayout:
 
         # block html element的高度等于所有子结点的高度之和.
         # 在所有子结点计算得到height之后再计算当前结点的高度
+        #
+        # 当前"BlockLayout.height"不仅依赖于children, 也依赖于children中，每个child的height
         children = self.children.read(notify=self.height)
         new_height = sum([child.height.read(notify=self.height) for child in children])
         self.height.set(new_height)
