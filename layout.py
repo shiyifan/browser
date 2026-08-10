@@ -383,10 +383,13 @@ class LineLayout:
         self.previous = previous  # 上一行
         self.children = []
 
-        self.x = None
-        self.y = None
+        self.x = ProtectedField(self)
+        self.y = ProtectedField(self)
         self.width = ProtectedField(self)
-        self.height = None
+        self.height = ProtectedField(self)
+
+        self.ascent = ProtectedField(self)
+        self.descent = ProtectedField(self)
 
         node.layout_object = self
 
@@ -395,18 +398,19 @@ class LineLayout:
     # 计算baseline位置、确定行高
     def layout(self):
         self.zoom.copy(self.parent.zoom)
-
         self.width.copy(self.parent.width)
-        self.x = self.parent.x
+        self.x.copy(self.parent.x)
 
         if self.previous:
-            self.y = self.previous.y + self.previous.height
+            prev_y = self.previous.y.read(notify=self.y)
+            prev_height = self.previous.height.read(notify=self.y)
+            self.y.set(prev_y + prev_height)
         else:
-            self.y = self.parent.y
+            self.y.copy(self.parent.y)
 
         if not self.children:
             # 如果LineLayout没有TextLayout子节点，那么高度为0
-            self.height = 0
+            self.height.set(0)
             return
 
         # 让每个child inline layout自己计算x绘制坐标、宽度、高度以及字体.
@@ -416,25 +420,37 @@ class LineLayout:
 
         # 行内的所有TextLayout均以计算完成，然后确定baseline的位置以及每个TextLayout的y绘制坐标
 
-        # 计算一行中最大的ascent
-        max_ascent = max([-child.ascent for child in self.children])
-
-        # 可以直接以"max_ascent"作为baseline的位置，或者在这个基础上、在最大字符的ascent与descent之外再
-        # 添加一些leading（空白区域），ascent上面添加一半leading, descent下面添加一半leading,
-        # 这样，lineheight = (ascent + descent) + ascent_leading + descent_leading
-        # 这里在最大ascent上面与最大descent下面各添加25%的leading
-        baseline = self.y + max_ascent
+        # 计算一行中最大的ascent.
+        # LineLayout的ascent依赖于每一个child的ascent.
+        child_ascents = [child.ascent for child in self.children]
+        max_ascent = max([-asc.read(notify=self.ascent) for asc in child_ascents])
+        self.ascent.set(max_ascent)
 
         # 确定各个子结点的y绘制坐标
         for child in self.children:
+            y = self.y.read(notify=child.y)
+            asc = self.ascent.read(notify=child.y)
+            child_asc = child.ascent.read(notify=child.y)
+
+            # 可以直接以"max_ascent"作为baseline的位置，或者在这个基础上、在最大字符的ascent与descent之外再
+            # 添加一些leading（空白区域），ascent上面添加一半leading, descent下面添加一半leading,
+            # 这样，lineheight = (ascent + descent) + ascent_leading + descent_leading
+            # 这里在最大ascent上面与最大descent下面各添加25%的leading
+            baseline = y + asc
+
             if isinstance(child, TextLayout):
-                child.y = baseline - (-child.ascent / 1.25)
+                child.y.set(baseline - (-child_asc / 1.25))
             else:
                 # 对于"InputLayout, ImageLayout"等其他inline layout object
-                child.y = baseline - -child.ascent
+                child.y.set(baseline - -child_asc)
 
-        max_descent = max([child.descent for child in self.children])
-        self.height = max_ascent + max_descent
+        child_descents = [child.descent for child in self.children]
+        max_descent = max([desc.read(notify=self.descent) for desc in child_descents])
+        self.descent.set(max_descent)
+
+        max_asc = self.ascent.read(notify=self.height)
+        max_desc = self.descent.read(notify=self.height)
+        self.height.set(max_asc + max_desc)
 
     def paint(self):
         # 由TextLayout负责绘制字符
