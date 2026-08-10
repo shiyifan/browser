@@ -543,10 +543,14 @@ class TextLayout:
         self.children = []
 
         # 绘制所需的绝对坐标
-        self.x = None
-        self.y = None  # 由"LineLayout.layout()"在计算最大的ascent后赋值
-        self.height = None
+        self.x = ProtectedField(self)
+        self.y = ProtectedField(self)  # 由"LineLayout.layout()"在计算最大的ascent后赋值
+        self.height = ProtectedField(self)
         self.width = ProtectedField(self)
+
+        self.font = ProtectedField(self)
+        self.ascent = ProtectedField(self)
+        self.descent = ProtectedField(self)
 
         self.zoom = ProtectedField(self)
 
@@ -554,25 +558,31 @@ class TextLayout:
 
     def layout(self):
         self.zoom.copy(self.parent.zoom)
-        node_style = self.node.style.read(notify=self.width)
 
-        weight = node_style["font-weight"]
-        style = node_style["font-style"]
-        if style == "normal":
-            style = "roman"
-        size = dpx(float(node_style["font-size"][:-2]) * 0.75, self.zoom.read(notify=self.width))
-        self.font = get_font(size, weight, style)
+        zoom = self.zoom.read(notify=self.font)
+        node_style = self.node.style.read(notify=self.font)
 
-        self.ascent = self.font.getMetrics().fAscent * 1.25
-        self.descent = self.font.getMetrics().fDescent * 1.25
+        self.font.set(font(node_style, zoom))
 
-        self.width.set(self.font.measureText(self.word))
+        f = self.font.read(notify=self.width)
+        self.width.set(f.measureText(self.word))
+        f = self.font.read(notify=self.ascent)
+        self.ascent.set(f.getMetrics().fAscent * 1.25)
+        f = self.font.read(notify=self.descent)
+        self.descent.set(f.getMetrics().fDescent * 1.25)
+
         if self.previous:
-            space = self.previous.font.measureText(" ")
-            self.x = self.previous.x + self.previous.width.get() + space
+            # 当前layout object的x坐标依赖于相邻的前一个layout object的x坐标、font以及width
+            prev_x = self.previous.x.read(notify=self.x)
+            prev_font = self.previous.font.read(notify=self.x)
+            prev_width = self.previous.width.read(notify=self.x)
+            space = prev_font.measureText(" ")
+            self.x.set(prev_x + prev_width + space)
         else:
-            self.x = self.parent.x
-        self.height = linespace(self.font)
+            self.x.copy(self.parent.x)
+
+        f = self.font.read(notify=self.height)
+        self.height.set(linespace(f))
 
     def paint(self):
         node_style = self.node.style.get()
@@ -599,9 +609,9 @@ class EmbedLayout:
         self.children = []
 
         # 绘制所需的绝对坐标
-        self.x = None
-        self.y = None
-        self.height = None
+        self.x = ProtectedField(self)
+        self.y = ProtectedField(self)
+        self.height = ProtectedField(self)
         self.width = ProtectedField(self)
 
         node.layout_object = self
@@ -611,16 +621,22 @@ class EmbedLayout:
     # 根据前一个inline element计算当前layout object的x坐标
     def layout(self):
         self.zoom.copy(self.parent.zoom)
-        node_style = self.node.style.get()
-        self.font = font(node_style, self.zoom.get())
+
+        node_style = self.node.style.read(notify=self.font)
+        zoom = self.zoom.read(notify=self.font)
+
+        self.font.set(font(node_style, zoom))
 
         if self.previous:
             # 使用相邻的前一个layout object的font计算两者间距
-            space = self.previous.font.measureText(" ")
+            prev_x = self.previous.x.read(notify=self.x)
+            prev_font = self.previous.font.read(notify=self.x)
+            prev_width = self.previous.width.read(notify=self.x)
 
-            self.x = self.previous.x + self.previous.width.get() + space
+            space = prev_font.measureText(" ")
+            self.x = prev_x + prev_width + space
         else:
-            self.x = self.parent.x
+            self.x.copy(self.parent.x)
 
         # 计算"self.width"时，不同的inline element有不同的计算方法,所以将这个计算委托至子类中完成
 
@@ -641,9 +657,13 @@ class InputLayout(EmbedLayout):
 
         zoom = self.zoom.read(notify=self.width)
         self.width.set(dpx(INPUT_WIDTH_PX, zoom))
-        self.height = linespace(self.font)
-        self.ascent = -self.height
-        self.descent = 0
+
+        font = self.font.read(notify=self.height)
+        self.height.set(linespace(font))
+
+        height = self.height.read(notify=self.ascent)
+        self.ascent.set(-height)
+        self.descent.set(0)
 
     def paint(self):
         cmds = []
@@ -720,10 +740,12 @@ class ImageLayout(EmbedLayout):
 
         self.width.set(width)
         # 图片的高度可能会基于"<img>"的"font"
-        self.height = max(self.img_height, linespace(self.font))
+        font = self.font.read(notify=self.height)
+        self.height.set(max(self.img_height, linespace(font)))
 
-        self.ascent = -self.height
-        self.descent = 0
+        height = self.height.read(notify=self.ascent)
+        self.ascent.set(-height)
+        self.descent.set(0)
 
     def paint(self):
         cmds = []
@@ -756,8 +778,8 @@ class IframeLayout(EmbedLayout):
 
         width_attr = self.node.attributes.get("width")
         height_attr = self.node.attributes.get("height")
-        zoom = self.zoom.read(notify=self.width)
 
+        zoom = self.zoom.read(notify=self.width)
         width = None
         if width_attr:
             width = dpx(int(width_attr) + 2, zoom)
@@ -765,13 +787,17 @@ class IframeLayout(EmbedLayout):
             width = dpx(const.IFRAME_WIDTH_PX + 2, zoom)
         self.width.set(width)
 
+        zoom = self.zoom.read(notify=self.height)
+        height = None
         if height_attr:
-            self.height = dpx(int(height_attr) + 2, zoom)
+            height = dpx(int(height_attr) + 2, zoom)
         else:
-            self.height = dpx(int(const.IFRAME_HEIGHT_PX) + 2, zoom)
+            height = dpx(int(const.IFRAME_HEIGHT_PX) + 2, zoom)
+        self.height.set(height)
 
-        self.ascent = -self.height
-        self.descent = 0
+        height = self.height.read(notify=self.ascent)
+        self.ascent.set(-height)
+        self.descent.set(0)
 
         # 将计算得到的width与height赋值给对应的"Frame"对象, 使得<iframe>内部可以正确地layout
         self.node.frame.frame_height = self.height - dpx(2, zoom)

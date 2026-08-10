@@ -294,6 +294,7 @@ class JSContext:
         width_or_height = attr == "width" or attr == "height"
         if iframe_or_image and width_or_height:
             elt_layout.width.mark()
+            elt_layout.height.mark()
 
         elt.attributes[attr] = value
         frame.set_needs_render()
