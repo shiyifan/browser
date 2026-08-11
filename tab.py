@@ -116,6 +116,7 @@ class Tab:
 
         if self.needs_paint:
             # 收集layout tree上每个layout object生成的绘制command
+            log.i("tab paint start")
 
             self.browser.measure.time("paint")
 
@@ -125,6 +126,7 @@ class Tab:
             self.needs_paint = False
 
             self.browser.measure.stop("paint")
+            log.i("tab paint end")
 
         self.browser.measure.stop("render")
 
@@ -195,7 +197,9 @@ class Tab:
         needs_layout = any([f.needs_layout for f in loaded_frames])
         needs_composite = needs_style or needs_layout
 
+        log.i("render start")
         self.render()
+        log.i("render end")
 
         # 在每个frame render之后，如果有一个frame更新了scroll, 那么browser需要重新"composite"
         for window_id, frame in self.window_id_to_frame.items():

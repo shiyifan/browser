@@ -205,9 +205,11 @@ class Frame:
         if self.needs_style:
             self.tab.browser.measure.time(f"[{self.window_id}] style")
 
+            log.i(f"frame {self.window_id} style start")
             # 将css rules全部赋值至DOM结点的"style"属性上
             sorted_rules = sorted(self.rules if self.rules else [], key=cascade_priority)
             style(self.nodes, sorted_rules, self.tab)
+            log.i(f"frame {self.window_id} style end")
 
             self.needs_layout = True
             self.needs_style = False
@@ -217,7 +219,9 @@ class Frame:
         if self.needs_layout:
             self.tab.browser.measure.time(f"[{self.window_id}] layout")
 
+            log.i(f"frame {self.window_id} layout start")
             self.document.layout(self.frame_width, self.tab.zoom)
+            log.i(f"frame {self.window_id} layout end")
 
             self.tab.needs_accessibility = True
             self.tab.set_needs_paint()
