@@ -634,6 +634,11 @@ class EmbedLayout:
 
         self.zoom = ProtectedField(self)
 
+        # 对于某些inline layout object, 可能需要font确定高度，所以在基类中创建这三个属性，由子类决定是否赋值与调用
+        self.font = ProtectedField(self)
+        self.ascent = ProtectedField(self)
+        self.descent = ProtectedField(self)
+
     # 根据前一个inline element计算当前layout object的x坐标
     def layout(self):
         self.zoom.copy(self.parent.zoom)

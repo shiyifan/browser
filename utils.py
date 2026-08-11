@@ -179,8 +179,7 @@ def absolute_to_local(display_item, rect):
 
 # 计算layout object在应用css"transform"之后的绝对绘制区域
 def absolute_bounds_for_obj(obj):
-    width = obj.width.get() if isinstance(obj.width, ProtectedField) else obj.width
-    rect = Rect.MakeXYWH(obj.x, obj.y, width, obj.height)
+    rect = Rect.MakeXYWH(obj.x.get(), obj.y.get(), obj.width.get(), obj.height.get())
 
     # 顺着DOM Tree向上依次应用所有parent node上的"transform"
     cur = obj.node
