@@ -22,14 +22,14 @@ class BlockLayout:
         self.node = node  # DOM结点
         self.parent = parent
         self.previous = previous  # previous sibling
-        self.children = ProtectedField(self)
+        self.children = ProtectedField(self, "children")
 
         # 该layout相对于canvas左上角的绝对坐标
-        self.x = ProtectedField(self)
-        self.y = ProtectedField(self)
+        self.x = ProtectedField(self, "x")
+        self.y = ProtectedField(self, "y")
 
-        self.width = ProtectedField(self)
-        self.height = ProtectedField(self)
+        self.width = ProtectedField(self, "width")
+        self.height = ProtectedField(self, "height")
 
         # layout内的子结点相对于layout左上角的相对坐标
         # 所以子结点的绝对坐标等于"self.x + self.cursor_x"
@@ -37,7 +37,7 @@ class BlockLayout:
 
         node.layout_object = self
 
-        self.zoom = ProtectedField(self)
+        self.zoom = ProtectedField(self, "zoom")
 
     # 根据绘制方式创建layout tree
     def layout(self):
@@ -325,14 +325,14 @@ class DocumentLayout:
         self.parent = None
         self.children = []
 
-        self.x = ProtectedField(self)
-        self.y = ProtectedField(self)
-        self.width = ProtectedField(self)
-        self.height = ProtectedField(self)
+        self.x = ProtectedField(self, "x")
+        self.y = ProtectedField(self, "y")
+        self.width = ProtectedField(self, "width")
+        self.height = ProtectedField(self, "height")
 
         node.layout_object = self
 
-        self.zoom = ProtectedField(self)
+        self.zoom = ProtectedField(self, "zoom")
 
     # 对整个HTML文档内容布局
     #
@@ -395,17 +395,17 @@ class LineLayout:
         self.previous = previous  # 上一行
         self.children = []
 
-        self.x = ProtectedField(self)
-        self.y = ProtectedField(self)
-        self.width = ProtectedField(self)
-        self.height = ProtectedField(self)
+        self.x = ProtectedField(self, "x")
+        self.y = ProtectedField(self, "y")
+        self.width = ProtectedField(self, "width")
+        self.height = ProtectedField(self, "height")
 
-        self.ascent = ProtectedField(self)
-        self.descent = ProtectedField(self)
+        self.ascent = ProtectedField(self, "ascent")
+        self.descent = ProtectedField(self, "descent")
 
         node.layout_object = self
 
-        self.zoom = ProtectedField(self)
+        self.zoom = ProtectedField(self, "zoom")
 
     # 计算baseline位置、确定行高
     def layout(self):
@@ -578,16 +578,16 @@ class TextLayout:
         self.children = []
 
         # 绘制所需的绝对坐标
-        self.x = ProtectedField(self)
-        self.y = ProtectedField(self)  # 由"LineLayout.layout()"在计算最大的ascent后赋值
-        self.height = ProtectedField(self)
-        self.width = ProtectedField(self)
+        self.x = ProtectedField(self, "x")
+        self.y = ProtectedField(self, "y")  # 由"LineLayout.layout()"在计算最大的ascent后赋值
+        self.height = ProtectedField(self, "height")
+        self.width = ProtectedField(self, "width")
 
-        self.font = ProtectedField(self)
-        self.ascent = ProtectedField(self)
-        self.descent = ProtectedField(self)
+        self.font = ProtectedField(self, "font")
+        self.ascent = ProtectedField(self, "ascent")
+        self.descent = ProtectedField(self, "descent")
 
-        self.zoom = ProtectedField(self)
+        self.zoom = ProtectedField(self, "zoom")
 
         # "Text"DOM nodes don't have the layout object reference
 
@@ -652,19 +652,19 @@ class EmbedLayout:
         self.children = []
 
         # 绘制所需的绝对坐标
-        self.x = ProtectedField(self)
-        self.y = ProtectedField(self)
-        self.height = ProtectedField(self)
-        self.width = ProtectedField(self)
+        self.x = ProtectedField(self, "x")
+        self.y = ProtectedField(self, "y")
+        self.height = ProtectedField(self, "height")
+        self.width = ProtectedField(self, "width")
 
         node.layout_object = self
 
-        self.zoom = ProtectedField(self)
+        self.zoom = ProtectedField(self, "zoom")
 
         # 对于某些inline layout object, 可能需要font确定高度，所以在基类中创建这三个属性，由子类决定是否赋值与调用
-        self.font = ProtectedField(self)
-        self.ascent = ProtectedField(self)
-        self.descent = ProtectedField(self)
+        self.font = ProtectedField(self, "font")
+        self.ascent = ProtectedField(self, "ascent")
+        self.descent = ProtectedField(self, "descent")
 
     # 根据前一个inline element计算当前layout object的x坐标
     def layout(self):

@@ -2,7 +2,6 @@
 
 from skia import Color, ColorBLACK, Matrix, Rect
 import const
-from fields import ProtectedField
 
 
 # 树状结构转为扁平的list结构
@@ -10,7 +9,7 @@ def tree_to_list(tree, list, protect=True):
     list.append(tree)
 
     children = tree.children
-    if isinstance(children, ProtectedField):
+    if children.__class__.__name__ == "ProtectedField":
         if protect:
             children = children.get()
         else:

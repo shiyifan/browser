@@ -1,10 +1,14 @@
+from utils import text_digest
+
+
 class ProtectedField:
     """表示layout object中会触发relayout的属性"""
 
-    def __init__(self, which):
+    def __init__(self, which, name):
         self.value = None
         self.dirty = True
         self.which = which
+        self.name = name
 
         self.invalidations = set()  # 所有依赖于当前属性的属性
 
@@ -19,6 +23,9 @@ class ProtectedField:
         return self.value
 
     def set(self, value):
+        if self.value != None:
+            print("Change: ", self)
+
         self.value = value
         self.dirty = False
 
@@ -45,4 +52,28 @@ class ProtectedField:
             value = f"[...]({len(self.value)})"
         else:
             value = self.value
-        return f"ProtectedField(value={value}, dirty={self.dirty}, which={self.which})"
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                value = round(value, 2)
+
+        dirty = "dirty!" if self.dirty else ""
+
+        msg = ""
+        which_cls = self.which.__class__.__name__
+        match which_cls:
+            case "Element":
+                msg = f"<{self.which.tag}>"
+            case "Text":
+                msg = f"<#text {text_digest(self.which.text)}>"
+
+            case "BlockLayout" | "LineLayout" | "IframeLayout" | "InputLayout" | "ImageLayout":
+                node = self.which.node
+                node_cls = node.__class__.__name__
+                if node_cls == "Element":
+                    msg = f"<{node.tag}>"
+                elif node_cls == "Text":
+                    msg = f"<#text {text_digest(node)}>"
+
+            case "TextLayout":
+                msg = f"<{self.which.word!r}>"
+
+        return f"PField({msg}, {which_cls}.{self.name}: {value!r}, {dirty})"

@@ -9,6 +9,7 @@ from task import TaskRunner
 from commit import CommitData
 from accessibility import AccessibilityNode
 from frame import Frame
+from fields import ProtectedField
 
 tab_counter = 0  # tab id
 
