@@ -236,7 +236,7 @@ class BlockLayout:
         # 则无法由block layout绘制出来
         #
         # 目前背景色仅能由DOM节点本身对应的layout tree节点绘制
-        style = self.node.style.read(notify=self.children)
+        style = self.node.style.get()
         bgcolor = style.get("background-color", "transparent")
         if bgcolor != "transparent":
             radius = float(style.get("border-radius", "0px")[:-2])
@@ -268,7 +268,12 @@ class BlockLayout:
         return cmds
 
     def self_rect(self):
-        return Rect(self.x, self.y, self.x + self.width.get(), self.y + self.height)
+        x = self.x.get()
+        y = self.y.get()
+        w = self.width.get()
+        h = self.height.get()
+
+        return Rect(x, y, x + w, y + h)
 
     # 避免由<button>创建的BlockLayout重复绘制
     #
@@ -303,9 +308,13 @@ class BlockLayout:
             label = f"<{self.node.tag}>"
         else:
             label = f"#text{json.dumps(text_digest(self.node.text))}"
-        width = self.width.get()
 
-        return f"BlockLayout({label}, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(width, 2)}, h{round(self.height, 2)}))"
+        x = self.x.get()
+        y = self.y.get()
+        width = self.width.get()
+        height = self.height.get()
+
+        return f"BlockLayout({label}, ({round(x, 2)}, {round(y, 2)}, w{round(width, 2)}, h{round(height, 2)}))"
 
 
 # 对应于DOM根结点的layout object。
@@ -352,8 +361,11 @@ class DocumentLayout:
         return True
 
     def __repr__(self):
+        x = self.x.get()
+        y = self.y.get()
         width = self.width.get()
-        return f"DocumentLayout(<{self.node.tag}>, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(width, 2)}, h{round(self.height, 2)}))"
+        height = self.height.get()
+        return f"DocumentLayout(<{self.node.tag}>, ({round(x, 2)}, {round(y, 2)}, w{round(width, 2)}, h{round(height, 2)}))"
 
 
 # 表示以"inline"方式绘制的BlockLayout中的每一行text
@@ -532,7 +544,14 @@ class LineLayout:
         else:
             label = f"#text{json.dumps(text_digest(self.node.text))}"
 
-        return f"LineLayout({label}, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width.get(), 2)}, h{round(self.height, 2)}))"
+        x = self.x.get()
+        y = self.y.get()
+        w = self.width.get()
+        h = self.height.get()
+
+        return (
+            f"LineLayout({label}, ({round(x, 2)}, {round(y, 2)}, w{round(w, 2)}, h{round(h, 2)}))"
+        )
 
 
 # 表示LineLayout中的每一个word
@@ -603,7 +622,10 @@ class TextLayout:
     def paint(self):
         node_style = self.node.style.get()
         color = node_style["color"]
-        return [DrawText(self.x, self.y, self.word, self.font, color)]
+        x = self.x.get()
+        y = self.y.get()
+        font = self.font.get()
+        return [DrawText(x, y, self.word, font, color)]
 
     def should_paint(self):
         return True
@@ -612,7 +634,12 @@ class TextLayout:
         return Rect(self.x, self.y, self.x + self.width.get(), self.y + self.height)
 
     def __repr__(self):
-        return f"TextLayout({self.word!r}, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width.get(), 2)}, h{round(self.height, 2)}))"
+        x = self.x.get()
+        y = self.y.get()
+        w = self.width.get()
+        h = self.height.get()
+
+        return f"TextLayout({self.word!r}, ({round(x, 2)}, {round(y, 2)}, w{round(w, 2)}, h{round(h, 2)}))"
 
 
 # <input>, <button>以及<img>等inline html element的layout object的父类, 包含一些通用的属性以及布局流程
@@ -665,7 +692,12 @@ class EmbedLayout:
         return True
 
     def self_rect(self):
-        return Rect(self.x, self.y, self.x + self.width.get(), self.y + self.height)
+        x = self.x.get()
+        y = self.y.get()
+        w = self.width.get()
+        h = self.height.get()
+
+        return Rect(x, y, x + w, y + h)
 
 
 # <input>或者<button>对应的layout object
@@ -708,12 +740,12 @@ class InputLayout(EmbedLayout):
                 print("Ignoring HTML contents inside the button")
                 text = ""
         color = node_style["color"]
-        cmds.append(DrawText(self.x, self.y, text, self.font, color))
+        cmds.append(DrawText(self.x.get(), self.y.get(), text, self.font.get(), color))
 
         # 如果当前"<input>"已获取焦点，则绘制光标
         if self.node.is_focused and self.node.tag == "input":
-            cx = self.x + self.font.measureText(text)
-            cmds.append(DrawCursor(self, self.font.measureText(text)))
+            font = self.font.get()
+            cmds.append(DrawCursor(self, font.measureText(text)))
 
         return cmds
 
@@ -723,7 +755,12 @@ class InputLayout(EmbedLayout):
         return cmds
 
     def __repr__(self):
-        return f"InputLayout(<{self.node.tag}>, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width.get(), 2)}, h{round(self.height, 2)}))"
+        x = self.x.get()
+        y = self.y.get()
+        w = self.width.get()
+        h = self.height.get()
+
+        return f"InputLayout(<{self.node.tag}>, ({round(x, 2)}, {round(y, 2)}, w{round(w, 2)}, h{round(h, 2)}))"
 
 
 # "<img>"对应的layout object
@@ -785,7 +822,12 @@ class ImageLayout(EmbedLayout):
         return cmds
 
     def __repr__(self):
-        return f"ImageLayout(<{self.node.tag}>, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width.get(), 2)}, h{round(self.height, 2)}))"
+        x = self.x.get()
+        y = self.y.get()
+        w = self.width.get()
+        h = self.height.get()
+
+        return f"ImageLayout(<{self.node.tag}>, ({round(x, 2)}, {round(y, 2)}, w{round(w, 2)}, h{round(h, 2)}))"
 
 
 #'<iframe>'对应的layout object
@@ -821,7 +863,7 @@ class IframeLayout(EmbedLayout):
         self.descent.set(0)
 
         # 将计算得到的width与height赋值给对应的"Frame"对象, 使得<iframe>内部可以正确地layout
-        self.node.frame.frame_height = self.height - dpx(2, zoom)
+        self.node.frame.frame_height = self.height.get() - dpx(2, zoom)
         self.node.frame.frame_width = self.width.get() - dpx(2, zoom)
 
     def paint(self):
@@ -846,14 +888,19 @@ class IframeLayout(EmbedLayout):
         # browser重新composite. (比较完美的实现方式类似于"animation"的绘制机制，browser无需再次composite. 当前的"animation"
         # 绘制流程比较单一，缺乏灵活性，无法通过简单地修改使其同样适用于frame scroll)
         diff = dpx(1, zoom)
-        offset = (self.x + diff, self.y + diff - self.node.frame.scroll)
+        x = self.x.get()
+        y = self.y.get()
+        width = self.width.get()
+        height = self.height.get()
+
+        offset = (x + diff, y + diff - self.node.frame.scroll)
         cmds = [Transform(offset, rect, self.node, cmds)]
 
         inner_rect = Rect.MakeLTRB(
-            self.x + diff,
-            self.y + diff,
-            self.x + self.width.get() - diff,
-            self.y + self.height - diff,
+            x + diff,
+            y + diff,
+            x + width - diff,
+            y + height - diff,
         )
         internal_cmds = cmds
         internal_cmds.append(
@@ -867,7 +914,12 @@ class IframeLayout(EmbedLayout):
         return cmds
 
     def __repr__(self):
-        return f"IframeLayout(<{self.node.tag}>, {self.node.url}, ({round(self.x, 2)}, {round(self.y, 2)}, w{round(self.width.get(), 2)}, h{round(self.height, 2)}))"
+        x = self.x.get()
+        y = self.y.get()
+        w = self.width.get()
+        h = self.height.get()
+
+        return f"IframeLayout(<{self.node.tag}>, {self.node.url}, ({round(x, 2)}, {round(y, 2)}, w{round(w, 2)}, h{round(h, 2)}))"
 
 
 def paint_visual_effects(node, cmds, rect):

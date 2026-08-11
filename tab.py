@@ -153,9 +153,14 @@ class Tab:
             for property_name, animation in node.animations.items():
                 value = animation.animate()
                 if value:
+                    # 这里直接修改ProtectedField中的属性值但没有"mark"以及"notify".
+                    #
+                    # TODO: 由于绘制animation的过程帧时没有进行"layout"，因此这里设置的"dirty"flag将会保留至"paint"阶段，
+                    # 导致读取"style"属性时发生assert异常。但是这种使用方式违反了ProtectedField的设计原则.
                     node.style.get()[property_name] = value
-                    node.style.mark()
-                    self.set_needs_paint()  # 不仅通过"render"重新收集绘制命令，而且让browser安排下一次的animation frame
+
+                    # 不仅通过"render"重新收集绘制命令，而且让browser安排下一次的animation frame
+                    self.set_needs_paint()
 
                 # 无论animation是否完成（即"value"不是None时表示未完成，是None时表示上一animation frame已是最后一帧）,
                 # 这里都会保存带有animation的node。
@@ -227,7 +232,7 @@ class Tab:
             self.url,
             self.root_frame.scroll,
             root_frame_focused,
-            self.root_frame.document.height,
+            self.root_frame.document.height.get(),
             self.display_list,
             composited_updates,
             self.accessibility_tree,

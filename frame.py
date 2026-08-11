@@ -206,9 +206,8 @@ class Frame:
             self.tab.browser.measure.time(f"[{self.window_id}] style")
 
             # 将css rules全部赋值至DOM结点的"style"属性上
-            style(
-                self.nodes, sorted(self.rules if self.rules else [], key=cascade_priority), self.tab
-            )
+            sorted_rules = sorted(self.rules if self.rules else [], key=cascade_priority)
+            style(self.nodes, sorted_rules, self.tab)
 
             self.needs_layout = True
             self.needs_style = False
@@ -311,7 +310,7 @@ class Frame:
                 # 然后再将点击事件委托给"<iframe>"处理.
 
                 abs_bounds = absolute_bounds_for_obj(elt.layout_object)
-                border = dpx(1, elt.layout_object.zoom)
+                border = dpx(1, elt.layout_object.zoom.get())
                 new_x = x - abs_bounds.left() - border
                 new_y = y - abs_bounds.top() - border
 
@@ -527,14 +526,18 @@ class Frame:
             return
         obj = objs[0]
 
-        if self.scroll < obj.y < self.scroll + self.frame_height:
+        y = obj.y.get()
+        if self.scroll < y < self.scroll + self.frame_height:
             # 位于viewport中的焦点元素无需滚动
             return
 
         # document_height = math.ceil(self.document.height + 2 * const.VSTEP)
-        new_scroll = obj.y - const.SCROLL_STEP
+        new_scroll = y - const.SCROLL_STEP
         self.scroll = self.clamp_scroll(new_scroll)
         self.scroll_changed_in_frame = True
+
+    def __repr__(self):
+        return f"Frame({self.url})"
 
 
 # 根据DOM结点上"style"属性、css文件的代码创建CSS对象并赋值为"style"属性
