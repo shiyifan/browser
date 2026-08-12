@@ -32,9 +32,6 @@ class ProtectedField:
 
         updated = value != self.value
 
-        old = self.value
-        new = value
-
         self.value = value
         self.dirty = False
 
@@ -42,7 +39,7 @@ class ProtectedField:
         if updated:
 
             if self.inited:
-                log.w(f"Changed, old: {self}, new: {new}")
+                log.w(f"Changed: {self}")
 
             self.notify()
 
