@@ -12,6 +12,8 @@ class ProtectedField:
 
         self.invalidations = set()  # 所有依赖于当前属性的属性
 
+        self.inited = None  # 是否已被第一次赋值, 仅作调试
+
     # 该值需要更新，不能继续重用
     def mark(self):
         if self.dirty:
@@ -23,6 +25,10 @@ class ProtectedField:
         return self.value
 
     def set(self, value):
+        if self.inited is None:
+            self.inited = False
+        elif self.inited == False:
+            self.inited = True
 
         updated = value != self.value
 
@@ -34,7 +40,9 @@ class ProtectedField:
 
         # 仅在属性值更新时通知dependencies更新
         if updated:
-            log.w(f"Changed, old: {self}, new: {new}")
+
+            if self.inited:
+                log.w(f"Changed, old: {self}, new: {new}")
 
             self.notify()
 

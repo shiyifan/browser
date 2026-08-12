@@ -3,7 +3,7 @@ from font import *
 from tags import Text, Element
 from commands import *
 import const
-from utils import parse_transform, dpx, text_digest, tree_to_list
+from utils import parse_transform, dpx, pf_n, text_digest, tree_to_list
 import json
 
 # <input>的固定宽度
@@ -309,12 +309,12 @@ class BlockLayout:
         else:
             label = f"#text{json.dumps(text_digest(self.node.text))}"
 
-        x = self.x.get()
-        y = self.y.get()
-        width = self.width.get()
-        height = self.height.get()
+        x = pf_n(self.x)
+        y = pf_n(self.y)
+        width = pf_n(self.width)
+        height = pf_n(self.height)
 
-        return f"BlockLayout({label}, ({round(x, 2)}, {round(y, 2)}, w{round(width, 2)}, h{round(height, 2)}))"
+        return f"BlockLayout({label}, ({x}, {y}, w{width}, h{height}))"
 
 
 # 对应于DOM根结点的layout object。
@@ -361,11 +361,11 @@ class DocumentLayout:
         return True
 
     def __repr__(self):
-        x = self.x.get()
-        y = self.y.get()
-        width = self.width.get()
-        height = self.height.get()
-        return f"DocumentLayout(<{self.node.tag}>, ({round(x, 2)}, {round(y, 2)}, w{round(width, 2)}, h{round(height, 2)}))"
+        x = pf_n(self.x)
+        y = pf_n(self.y)
+        width = pf_n(self.width)
+        height = pf_n(self.height)
+        return f"DocumentLayout(<{self.node.tag}>, ({x}, {y}, w{width}, h{height}))"
 
 
 # 表示以"inline"方式绘制的BlockLayout中的每一行text
@@ -544,14 +544,12 @@ class LineLayout:
         else:
             label = f"#text{json.dumps(text_digest(self.node.text))}"
 
-        x = self.x.get()
-        y = self.y.get()
-        w = self.width.get()
-        h = self.height.get()
+        x = pf_n(self.x)
+        y = pf_n(self.y)
+        width = pf_n(self.width)
+        height = pf_n(self.height)
 
-        return (
-            f"LineLayout({label}, ({round(x, 2)}, {round(y, 2)}, w{round(w, 2)}, h{round(h, 2)}))"
-        )
+        return f"LineLayout({label}, ({x}, {y}, w{width}, h{height}))"
 
 
 # 表示LineLayout中的每一个word
@@ -634,12 +632,12 @@ class TextLayout:
         return Rect(self.x, self.y, self.x + self.width.get(), self.y + self.height)
 
     def __repr__(self):
-        x = self.x.get()
-        y = self.y.get()
-        w = self.width.get()
-        h = self.height.get()
+        x = pf_n(self.x)
+        y = pf_n(self.y)
+        width = pf_n(self.width)
+        height = pf_n(self.height)
 
-        return f"TextLayout({self.word!r}, ({round(x, 2)}, {round(y, 2)}, w{round(w, 2)}, h{round(h, 2)}))"
+        return f"TextLayout({self.word!r}, ({x}, {y}, w{width}, h{height}))"
 
 
 # <input>, <button>以及<img>等inline html element的layout object的父类, 包含一些通用的属性以及布局流程
@@ -755,12 +753,12 @@ class InputLayout(EmbedLayout):
         return cmds
 
     def __repr__(self):
-        x = self.x.get()
-        y = self.y.get()
-        w = self.width.get()
-        h = self.height.get()
+        x = pf_n(self.x)
+        y = pf_n(self.y)
+        width = pf_n(self.width)
+        height = pf_n(self.height)
 
-        return f"InputLayout(<{self.node.tag}>, ({round(x, 2)}, {round(y, 2)}, w{round(w, 2)}, h{round(h, 2)}))"
+        return f"InputLayout(<{self.node.tag}>, ({x}, {y}, w{width}, h{height}))"
 
 
 # "<img>"对应的layout object
@@ -822,12 +820,12 @@ class ImageLayout(EmbedLayout):
         return cmds
 
     def __repr__(self):
-        x = self.x.get()
-        y = self.y.get()
-        w = self.width.get()
-        h = self.height.get()
+        x = pf_n(self.x)
+        y = pf_n(self.y)
+        width = pf_n(self.width)
+        height = pf_n(self.height)
 
-        return f"ImageLayout(<{self.node.tag}>, ({round(x, 2)}, {round(y, 2)}, w{round(w, 2)}, h{round(h, 2)}))"
+        return f"ImageLayout(<{self.node.tag}>, ({x}, {y}, w{width}, h{height}))"
 
 
 #'<iframe>'对应的layout object
@@ -914,12 +912,12 @@ class IframeLayout(EmbedLayout):
         return cmds
 
     def __repr__(self):
-        x = self.x.get()
-        y = self.y.get()
-        w = self.width.get()
-        h = self.height.get()
+        x = pf_n(self.x)
+        y = pf_n(self.y)
+        width = pf_n(self.width)
+        height = pf_n(self.height)
 
-        return f"IframeLayout(<{self.node.tag}>, {self.node.url}, ({round(x, 2)}, {round(y, 2)}, w{round(w, 2)}, h{round(h, 2)}))"
+        return f"IframeLayout(<{self.node.tag}>, {self.node.url}, ({x}, {y}, w{width}, h{height}))"
 
 
 def paint_visual_effects(node, cmds, rect):

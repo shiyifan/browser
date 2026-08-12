@@ -259,3 +259,16 @@ def text_digest(text):
         return text
 
     return f"{text[0:3]}...{text[-3:]}"
+
+
+def pf_n(pfield):
+    if pfield.value is not None:
+        if pfield.dirty:
+            return f"{round(pfield.value, 2)}!"
+        else:
+            return f"{round(pfield.value, 2)}"
+    else:
+        if pfield.dirty:
+            return "<None>!"
+        else:
+            return "<None>"
