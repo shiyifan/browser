@@ -404,6 +404,8 @@ class Frame:
             # 当focus为空focused_frame不为空时，表示某个<iframe>获取了焦点但是没有DOM element可以接收
             # 焦点。这时的focused_frame不需要render, 即不需要重绘DOM element. 所以这种
             # 情况下不会进入到该if分支
+
+            focus.style.mark()  # 已获取焦点的DOM node需要更新style
             focused_frame.set_needs_render()
 
         if node:
@@ -422,6 +424,11 @@ class Frame:
 
         if node:
             node.is_focused = True
+
+            # 目前只有"focusable"DOM node或者None被传入当前function。
+            # 为了简单实现，不论是否会有focus相关的style在animation frame时应用至该node上，
+            # 这里先将style置为dirty. 在animation frame时重新计算该node的style.
+            node.style.mark()
 
     # 在网页中通过"tab"按键浏览, 将焦点置于下一个focusable的元素
     def advance_tab(self):
@@ -546,6 +553,17 @@ class Frame:
 
 # 根据DOM结点上"style"属性、css文件的代码创建CSS对象并赋值为"style"属性
 def style(node, rules, tab):
+    if node.style.dirty:
+        # 仅在"style"属性为"dirty"时更新
+
+        update_style(node, rules, tab)
+
+    # 解析并创建子结点的CSS对象
+    for child in node.children:
+        style(child, rules, tab)
+
+
+def update_style(node, rules, tab):
     old_style = node.style.value
     new_style = {}  # CSS解析后的对象
 
@@ -602,10 +620,6 @@ def style(node, rules, tab):
     # 这里没有判断"old_style"与"new_style"是否存在不同，所以每进行一次render的"style", "node.style"
     # 都将会更新, 并且"node.style"的所有依赖均变成dirty
     node.style.set(new_style)
-
-    # 解析并创建子结点的CSS对象
-    for child in node.children:
-        style(child, rules, tab)
 
 
 # 获取在"transition"声明的属性中，render前后属性值不同的属性。返回 "<css property>: (<旧值>, <新值>, <动画帧个数>)" 的键值对

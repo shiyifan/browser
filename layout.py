@@ -263,7 +263,7 @@ class BlockLayout:
         cmds = paint_visual_effects(self.node, cmds, self.self_rect())
         if isinstance(self.node, Element) and "tabindex" in self.node.attributes:
             # 如果html element有"tabindex"属性，那么该element也可以获得焦点并绘制该焦点.
-            zoom = self.zoom.read(notify=self.children)
+            zoom = self.zoom.get()
             paint_outline(self.node, cmds, self.self_rect(), zoom)
         return cmds
 
@@ -871,7 +871,7 @@ class IframeLayout(EmbedLayout):
 
     def paint_effects(self, cmds):
         rect = self.self_rect()
-        zoom = self.zoom.read(notify=self.width)
+        zoom = self.zoom.get()
 
         # 在这里实现iframe的滚动.
         #

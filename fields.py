@@ -1,4 +1,4 @@
-from utils import text_digest
+from utils import text_digest, log
 
 
 class ProtectedField:
@@ -23,13 +23,20 @@ class ProtectedField:
         return self.value
 
     def set(self, value):
-        if self.value != None:
-            print("Change: ", self)
+
+        updated = value != self.value
+
+        old = self.value
+        new = value
 
         self.value = value
         self.dirty = False
 
-        self.notify()
+        # 仅在属性值更新时通知dependencies更新
+        if updated:
+            log.w(f"Changed, old: {self}, new: {new}")
+
+            self.notify()
 
     def notify(self):
         for field in self.invalidations:
