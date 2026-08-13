@@ -30,9 +30,9 @@ class ProtectedField:
             return
         self.dirty = True
 
-        # 将当前属性所在的layout object的所有ancestor layout object均置为“某一子结点需要重新'layout'”的状态
         self.set_ancestor_dirty_flags()
 
+    # 在layout tree中,将当前属性所在的layout object的所有ancestor layout object均置为“某一子结点需要重新'layout'”的状态
     def set_ancestor_dirty_flags(self):
         parent = self.parent
         while parent and not parent.has_dirty_descendants:

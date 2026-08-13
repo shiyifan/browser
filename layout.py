@@ -39,7 +39,7 @@ class BlockLayout:
 
         self.zoom = ProtectedField(self, "zoom", self.parent)
 
-        # 所有的descendants node是否需要重新layout（即是否有dirty的protected field）
+        # 所有的descendants node是否需要重新layout（即是否有某一个子layout object有dirty的protected field）
         self.has_dirty_descendants = False
 
     # 根据绘制方式创建layout tree
