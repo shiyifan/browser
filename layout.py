@@ -310,6 +310,8 @@ class BlockLayout:
             self.node.tag not in ["input", "button", "img", "iframe"]
         )
 
+    # 当前layout object是否需要relayout.
+    # 如果任意一个protected field是dirty或者子layout object需要relayout, 那么当前layout object就需要relayout
     def layout_needed(self):
         return (
             self.zoom.dirty
