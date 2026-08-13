@@ -262,6 +262,9 @@ def text_digest(text):
 
 
 def pf_n(pfield):
+    if pfield.already_inited is None:
+        return ""
+
     if pfield.value is not None:
         if pfield.dirty:
             return f"{round(pfield.value, 2)}!"

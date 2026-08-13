@@ -12,7 +12,7 @@ class ProtectedField:
 
         self.invalidations = set()  # 所有依赖于当前属性的属性
 
-        self.inited = None  # 是否已被第一次赋值, 仅作调试
+        self.already_inited = None  # 是否已被第一次赋值, 仅作调试
 
     # 该值需要更新，不能继续重用
     def mark(self):
@@ -25,10 +25,12 @@ class ProtectedField:
         return self.value
 
     def set(self, value):
-        if self.inited is None:
-            self.inited = False
-        elif self.inited == False:
-            self.inited = True
+        if self.already_inited is None:
+            # 第一次赋值
+            self.already_inited = False
+        elif self.already_inited == False:
+            # 第二次赋值。在此之后便可以打印"Changed"日志了
+            self.already_inited = True
 
         updated = value != self.value
 
@@ -38,7 +40,7 @@ class ProtectedField:
         # 仅在属性值更新时通知dependencies更新
         if updated:
 
-            if self.inited:
+            if self.already_inited:
                 log.w(f"Changed: {self}")
 
             self.notify()
