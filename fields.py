@@ -4,21 +4,40 @@ from utils import text_digest, log
 class ProtectedField:
     """表示layout object中会触发relayout的属性"""
 
-    def __init__(self, which, name):
+    def __init__(self, which, name, parent=None):
         self.value = None
-        self.dirty = True
         self.which = which
         self.name = name
+
+        # 该属性值是否已过期并需要更新.
+        #
+        # 注意：这仅表示当前属性值是否过期，而不代表其他object的属性值. 例如当表示layout object的"children"类型的属性时，
+        # 如果"dirty = True"，则仅表示"children"该属性需要更新，需要重新根据DOM node创建layout子结点，不表示"'children'
+        # 中某个子结点需要更新". 而layout类中的"has_dirty_descendants"负责表示"子结点需要更新"
+        self.dirty = True
 
         self.invalidations = set()  # 所有依赖于当前属性的属性
 
         self.already_inited = None  # 是否已被第一次赋值, 仅作调试
+
+        # 如果当前对象作为layout object的protected属性, 那么表示layout object在layout tree中的parent.
+        # 如果不是的话，那么该属性值为None
+        self.parent = parent
 
     # 该值需要更新，不能继续重用
     def mark(self):
         if self.dirty:
             return
         self.dirty = True
+
+        # 将当前属性所在的layout object的所有ancestor layout object均置为“某一子结点需要重新'layout'”的状态
+        self.set_ancestor_dirty_flags()
+
+    def set_ancestor_dirty_flags(self):
+        parent = self.parent
+        while parent and not parent.has_dirty_descendants:
+            parent.has_dirty_descendants = True
+            parent = parent.parent
 
     def get(self):
         assert not self.dirty

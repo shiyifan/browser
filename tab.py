@@ -156,10 +156,13 @@ class Tab:
             for property_name, animation in node.animations.items():
                 value = animation.animate()
                 if value:
+
                     # 这里直接修改ProtectedField中的属性值但没有"mark"以及"notify".
                     #
-                    # TODO: 由于绘制animation的过程帧时没有进行"layout"，因此这里设置的"dirty"flag将会保留至"paint"阶段，
-                    # 导致读取"style"属性时发生assert异常。但是这种使用方式违反了ProtectedField的设计原则.
+                    # TODO: 绘制animation的过程帧时没有进行"layout".
+                    # 如果这里调用"mark()",那么"dirty"flag将会保留至"paint"阶段，
+                    # 导致读取"style"属性时发生assert异常。
+                    # 但是当前使用方式违反了ProtectedField的设计原则.
                     node.style.get()[property_name] = value
 
                     # 不仅通过"render"重新收集绘制命令，而且让browser安排下一次的animation frame
@@ -312,16 +315,19 @@ class Tab:
             self.zoom *= 1.1
             for _, frame in self.window_id_to_frame.items():
                 frame.scroll *= 1.1
+                frame.document.zoom.mark()
         else:
             self.zoom *= 1 / 1.1
             for _, frame in self.window_id_to_frame.items():
                 frame.scroll *= 1.1
+                frame.document.zoom.mark()
 
         self.set_needs_render_all_frames()
 
     def reset_zoom(self):
         for _, frame in self.window_id_to_frame.items():
             frame.scroll /= self.zoom
+            frame.document.zoom.mark()
         self.zoom = 1
         self.set_needs_render_all_frames()
 

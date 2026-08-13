@@ -22,14 +22,14 @@ class BlockLayout:
         self.node = node  # DOM结点
         self.parent = parent
         self.previous = previous  # previous sibling
-        self.children = ProtectedField(self, "children")
+        self.children = ProtectedField(self, "children", self.parent)
 
         # 该layout相对于canvas左上角的绝对坐标
-        self.x = ProtectedField(self, "x")
-        self.y = ProtectedField(self, "y")
+        self.x = ProtectedField(self, "x", self.parent)
+        self.y = ProtectedField(self, "y", self.parent)
 
-        self.width = ProtectedField(self, "width")
-        self.height = ProtectedField(self, "height")
+        self.width = ProtectedField(self, "width", self.parent)
+        self.height = ProtectedField(self, "height", self.parent)
 
         # layout内的子结点相对于layout左上角的相对坐标
         # 所以子结点的绝对坐标等于"self.x + self.cursor_x"
@@ -37,10 +37,16 @@ class BlockLayout:
 
         node.layout_object = self
 
-        self.zoom = ProtectedField(self, "zoom")
+        self.zoom = ProtectedField(self, "zoom", self.parent)
+
+        # 所有的descendants node是否需要重新layout（即是否有dirty的protected field）
+        self.has_dirty_descendants = False
 
     # 根据绘制方式创建layout tree
     def layout(self):
+        if not self.layout_needed():
+            return
+
         self.zoom.copy(self.parent.zoom)
 
         # 根据layout tree中的父结点以及previous计算当前结点的x坐标、y坐标以及宽度width.
@@ -98,6 +104,8 @@ class BlockLayout:
         children = self.children.read(notify=self.height)
         new_height = sum([child.height.read(notify=self.height) for child in children])
         self.height.set(new_height)
+
+        self.has_dirty_descendants = False
 
     # 根据当前DOM结点以及所包含子结点的类型，确定当前节点的绘制方式
     #
@@ -302,6 +310,17 @@ class BlockLayout:
             self.node.tag not in ["input", "button", "img", "iframe"]
         )
 
+    def layout_needed(self):
+        return (
+            self.zoom.dirty
+            or self.width.dirty
+            or self.height.dirty
+            or self.x.dirty
+            or self.y.dirty
+            or self.children.dirty
+            or self.has_dirty_descendants
+        )
+
     def __repr__(self):
         label = None
         if isinstance(self.node, Element):
@@ -334,10 +353,15 @@ class DocumentLayout:
 
         self.zoom = ProtectedField(self, "zoom")
 
+        self.has_dirty_descendants = False
+
     # 对整个HTML文档内容布局
     #
     # 布局时额外添加四周的空白边距
     def layout(self, width, zoom):
+        if not self.layout_needed():
+            return
+
         self.width.set(width - 2 * dpx(const.HSTEP, zoom))  # "HSTEP"作为左右的空白边距
         self.x.set(dpx(const.HSTEP, zoom))
         self.y.set(dpx(const.VSTEP, zoom))  # "VSTEP"作为上下的空白边距
@@ -354,11 +378,23 @@ class DocumentLayout:
         child.layout()
         self.height.copy(child.height)
 
+        self.has_dirty_descendants = False
+
     def paint(self):
         return []
 
     def should_paint(self):
         return True
+
+    def layout_needed(self):
+        return (
+            self.x.dirty
+            or self.y.dirty
+            or self.width.dirty
+            or self.height.dirty
+            or self.zoom.dirty
+            or self.has_dirty_descendants
+        )
 
     def __repr__(self):
         x = pf_n(self.x)
@@ -395,20 +431,25 @@ class LineLayout:
         self.previous = previous  # 上一行
         self.children = []
 
-        self.x = ProtectedField(self, "x")
-        self.y = ProtectedField(self, "y")
-        self.width = ProtectedField(self, "width")
-        self.height = ProtectedField(self, "height")
+        self.x = ProtectedField(self, "x", self.parent)
+        self.y = ProtectedField(self, "y", self.parent)
+        self.width = ProtectedField(self, "width", self.parent)
+        self.height = ProtectedField(self, "height", self.parent)
 
-        self.ascent = ProtectedField(self, "ascent")
-        self.descent = ProtectedField(self, "descent")
+        self.ascent = ProtectedField(self, "ascent", self.parent)
+        self.descent = ProtectedField(self, "descent", self.parent)
 
         node.layout_object = self
 
-        self.zoom = ProtectedField(self, "zoom")
+        self.zoom = ProtectedField(self, "zoom", self.parent)
+
+        self.has_dirty_descendants = False
 
     # 计算baseline位置、确定行高
     def layout(self):
+        if not self.layout_needed():
+            return
+
         self.zoom.copy(self.parent.zoom)
         self.width.copy(self.parent.width)
         self.x.copy(self.parent.x)
@@ -463,6 +504,8 @@ class LineLayout:
         max_asc = self.ascent.read(notify=self.height)
         max_desc = self.descent.read(notify=self.height)
         self.height.set(max_asc + max_desc)
+
+        self.has_dirty_descendants = False
 
     def paint(self):
         # 由TextLayout负责绘制字符
@@ -537,6 +580,18 @@ class LineLayout:
 
         return cmds
 
+    def layout_needed(self):
+        return (
+            self.x.dirty
+            or self.y.dirty
+            or self.width.dirty
+            or self.height.dirty
+            or self.ascent.dirty
+            or self.descent.dirty
+            or self.zoom.dirty
+            or self.has_dirty_descendants
+        )
+
     def __repr__(self):
         label = None
         if isinstance(self.node, Element):
@@ -576,20 +631,26 @@ class TextLayout:
         self.children = []
 
         # 绘制所需的绝对坐标
-        self.x = ProtectedField(self, "x")
-        self.y = ProtectedField(self, "y")  # 由"LineLayout.layout()"在计算最大的ascent后赋值
-        self.height = ProtectedField(self, "height")
-        self.width = ProtectedField(self, "width")
+        self.x = ProtectedField(self, "x", self.parent)
+        # 由"LineLayout.layout()"在计算最大的ascent后赋值
+        self.y = ProtectedField(self, "y", self.parent)
+        self.height = ProtectedField(self, "height", self.parent)
+        self.width = ProtectedField(self, "width", self.parent)
 
-        self.font = ProtectedField(self, "font")
-        self.ascent = ProtectedField(self, "ascent")
-        self.descent = ProtectedField(self, "descent")
+        self.font = ProtectedField(self, "font", self.parent)
+        self.ascent = ProtectedField(self, "ascent", self.parent)
+        self.descent = ProtectedField(self, "descent", self.parent)
 
-        self.zoom = ProtectedField(self, "zoom")
+        self.zoom = ProtectedField(self, "zoom", self.parent)
+
+        self.has_dirty_descendants = False
 
         # "Text"DOM nodes don't have the layout object reference
 
     def layout(self):
+        if not self.layout_needed():
+            return
+
         self.zoom.copy(self.parent.zoom)
 
         zoom = self.zoom.read(notify=self.font)
@@ -617,6 +678,8 @@ class TextLayout:
         f = self.font.read(notify=self.height)
         self.height.set(linespace(f))
 
+        self.has_dirty_descendants = False
+
     def paint(self):
         node_style = self.node.style.get()
         color = node_style["color"]
@@ -630,6 +693,19 @@ class TextLayout:
 
     def self_rect(self):
         return Rect(self.x, self.y, self.x + self.width.get(), self.y + self.height)
+
+    def layout_needed(self):
+        return (
+            self.x.dirty
+            or self.y.dirty
+            or self.height.dirty
+            or self.width.dirty
+            or self.font.dirty
+            or self.ascent.dirty
+            or self.descent.dirty
+            or self.zoom.dirty
+            or self.has_dirty_descendants
+        )
 
     def __repr__(self):
         x = pf_n(self.x)
@@ -650,19 +726,21 @@ class EmbedLayout:
         self.children = []
 
         # 绘制所需的绝对坐标
-        self.x = ProtectedField(self, "x")
-        self.y = ProtectedField(self, "y")
-        self.height = ProtectedField(self, "height")
-        self.width = ProtectedField(self, "width")
+        self.x = ProtectedField(self, "x", self.parent)
+        self.y = ProtectedField(self, "y", self.parent)
+        self.height = ProtectedField(self, "height", self.parent)
+        self.width = ProtectedField(self, "width", self.parent)
 
         node.layout_object = self
 
-        self.zoom = ProtectedField(self, "zoom")
+        self.zoom = ProtectedField(self, "zoom", self.parent)
 
         # 对于某些inline layout object, 可能需要font确定高度，所以在基类中创建这三个属性，由子类决定是否赋值与调用
-        self.font = ProtectedField(self, "font")
-        self.ascent = ProtectedField(self, "ascent")
-        self.descent = ProtectedField(self, "descent")
+        self.font = ProtectedField(self, "font", self.parent)
+        self.ascent = ProtectedField(self, "ascent", self.parent)
+        self.descent = ProtectedField(self, "descent", self.parent)
+
+        self.has_dirty_descendants = False
 
     # 根据前一个inline element计算当前layout object的x坐标
     def layout(self):
@@ -697,6 +775,19 @@ class EmbedLayout:
 
         return Rect(x, y, x + w, y + h)
 
+    def layout_needed(self):
+        return (
+            self.x.dirty
+            or self.y.dirty
+            or self.height.dirty
+            or self.width.dirty
+            or self.zoom.dirty
+            or self.font.dirty
+            or self.ascent.dirty
+            or self.descent.dirty
+            or self.has_dirty_descendants
+        )
+
 
 # <input>或者<button>对应的layout object
 class InputLayout(EmbedLayout):
@@ -704,6 +795,9 @@ class InputLayout(EmbedLayout):
         super().__init__(node, parent, previous)  # "self.node"表示"<input>"或者"<button>"的DOM结点
 
     def layout(self):
+        if not self.layout_needed():
+            return
+
         super().layout()
 
         zoom = self.zoom.read(notify=self.width)
@@ -715,6 +809,8 @@ class InputLayout(EmbedLayout):
         height = self.height.read(notify=self.ascent)
         self.ascent.set(-height)
         self.descent.set(0)
+
+        self.has_dirty_descendants = False
 
     def paint(self):
         cmds = []
@@ -767,6 +863,9 @@ class ImageLayout(EmbedLayout):
         super().__init__(node, parent, previous)
 
     def layout(self):
+        if not self.layout_needed():
+            return
+
         super().layout()
 
         width_attr = self.node.attributes.get("width")
@@ -803,6 +902,8 @@ class ImageLayout(EmbedLayout):
         self.ascent.set(-height)
         self.descent.set(0)
 
+        self.has_dirty_descendants = False
+
     def paint(self):
         cmds = []
 
@@ -835,6 +936,9 @@ class IframeLayout(EmbedLayout):
         super().__init__(node, parent, previous, parent_frame)
 
     def layout(self):
+        if not self.layout_needed():
+            return
+
         super().layout()
 
         width_attr = self.node.attributes.get("width")
@@ -861,8 +965,16 @@ class IframeLayout(EmbedLayout):
         self.descent.set(0)
 
         # 将计算得到的width与height赋值给对应的"Frame"对象, 使得<iframe>内部可以正确地layout
-        self.node.frame.frame_height = self.height.get() - dpx(2, zoom)
-        self.node.frame.frame_width = self.width.get() - dpx(2, zoom)
+        f = self.node.frame
+        f_height = self.height.get() - dpx(2, zoom)
+        f_width = self.width.get() - dpx(2, zoom)
+        if f_width != f.frame_width:
+            f.frame_height = f_height
+            f.frame_width = f_width
+            f.document.width.mark()
+            f.document.height.mark()
+
+        self.has_dirty_descendants = False
 
     def paint(self):
         return []
