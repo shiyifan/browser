@@ -405,7 +405,7 @@ class Frame:
             # 焦点。这时的focused_frame不需要render, 即不需要重绘DOM element. 所以这种
             # 情况下不会进入到该if分支
 
-            focus.style.mark()  # 已获取焦点的DOM node需要更新style
+            dirty_style(focus)  # 已获取焦点的DOM node需要更新style
             focused_frame.set_needs_render()
 
         if node:
@@ -428,7 +428,7 @@ class Frame:
             # 目前只有"focusable"DOM node或者None被传入当前function。
             # 为了简单实现，不论是否会有focus相关的style在animation frame时应用至该node上，
             # 这里先将style置为dirty. 在animation frame时重新计算该node的style.
-            node.style.mark()
+            dirty_style(node)
 
     # 在网页中通过"tab"按键浏览, 将焦点置于下一个focusable的元素
     def advance_tab(self):
@@ -553,7 +553,10 @@ class Frame:
 
 # 根据DOM结点上"style"属性、css文件的代码创建CSS对象并赋值为"style"属性
 def style(node, rules, tab):
-    if node.style.dirty:
+    needs_style = any([field.dirty for field in node.style.values()])
+
+    # 仅在"node.style"中存在任意一个dirty的css property时重新计算style
+    if needs_style:
         # 仅在"style"属性为"dirty"时更新
 
         update_style(node, rules, tab)
@@ -564,14 +567,15 @@ def style(node, rules, tab):
 
 
 def update_style(node, rules, tab):
-    old_style = node.style.value
-    new_style = {}  # CSS解析后的对象
+    old_style = dict([(property, field.value) for property, field in node.style.items()])
+    new_style = const.CSS_PROPERTIES.copy()
 
     # 先解析当前节点的inherited property的值
     for property, default_value in const.INHERITED_PROPERTIES.items():
         if node.parent:
-            parent_style = node.parent.style.read(notify=node.style)
-            new_style[property] = parent_style[property]
+            parent_field = node.parent.style[property]
+            parent_value = parent_field.read(notify=node.style[property])
+            new_style[property] = parent_value
         else:
             new_style[property] = default_value
 
@@ -595,31 +599,28 @@ def update_style(node, rules, tab):
     # 如果DOM节点的"font-size"值为百分比数值，则根据父结点的值或者默认值计算具体"px"单位的数值
     if new_style["font-size"].endswith("%"):
         if node.parent:
-            parent_style = node.parent.style.read(notify=node.style)
-            parent_font_size = parent_style["font-size"]
+            parent_field = node.parent.style["font-size"]
+            parent_font_size = parent_field.read(notify=node.style["font-size"])
         else:
             parent_font_size = const.INHERITED_PROPERTIES["font-size"]
         node_pct = float(new_style["font-size"][:-1]) / 100
         parent_px = float(parent_font_size[:-2])
         new_style["font-size"] = str(node_pct * parent_px) + "px"
 
-    if old_style:
-        # 查找在css中"transition"声明的属性中，哪些属性的值发生了更新,
-        # 并在DOM node上根据更新的属性值创建animation对象，接着触发后续的animation frame
+    # 查找在css中"transition"声明的属性中，哪些属性的值发生了更新,
+    # 并在DOM node上根据更新的属性值创建animation对象，接着触发后续的animation frame
+    transitions = diff_styles(old_style, new_style)
+    for property, (old_value, new_value, num_frames) in transitions.items():
+        if property == "opacity":
+            animation = NumericAnimation(float(old_value), float(new_value), num_frames)
+            node.animations[property] = animation
+            new_style[property] = animation.animate()  # animation的第一帧
 
-        transitions = diff_styles(old_style, new_style)
-        for property, (old_value, new_value, num_frames) in transitions.items():
-            if property == "opacity":
-                animation = NumericAnimation(float(old_value), float(new_value), num_frames)
-                node.animations[property] = animation
-                new_style[property] = animation.animate()  # animation的第一帧
+            # 请求一次browser的animation frame, 以继续渲染animation后面的frame
+            tab.browser.set_needs_animation_frame(tab)
 
-                # 请求一次browser的animation frame, 以继续渲染animation后面的frame
-                tab.browser.set_needs_animation_frame(tab)
-
-    # 这里没有判断"old_style"与"new_style"是否存在不同，所以每进行一次render的"style", "node.style"
-    # 都将会更新, 并且"node.style"的所有依赖均变成dirty
-    node.style.set(new_style)
+    for property, field in node.style.items():
+        field.set(new_style[property])
 
 
 # 获取在"transition"声明的属性中，render前后属性值不同的属性。返回 "<css property>: (<旧值>, <新值>, <动画帧个数>)" 的键值对
@@ -627,10 +628,8 @@ def diff_styles(old_style, new_style):
     transitions = {}
 
     for property, num_frames in parse_transition(new_style.get("transition")).items():
-        # 目前仅解析css文件中以及DOM node的“style”属性中声明的css属性，对于其他未声明的css属性在重绘的"style"过程中
-        # 不会为其在"node.style"中创建默认值（例如未声明"opacity"时，"style"之后"node.style"中不会有"opacity: 1"的默认值）.
-        # 因此，transition中声明的属性如果未出现在old_style中，即使new_style中有该属性，也不会触发transition的动画.
-        if property not in old_style:
+        # 仅在重绘前后均显式声明了transition的property时才返回该property的transition
+        if property not in old_style or old_style[property] is None:
             continue
         if property not in new_style:
             continue

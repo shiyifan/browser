@@ -183,8 +183,8 @@ def absolute_bounds_for_obj(obj):
     # 顺着DOM Tree向上依次应用所有parent node上的"transform"
     cur = obj.node
     while cur:
-        cur_style = cur.style.get()
-        rect = map_translation(rect, parse_transform(cur_style.get("transform", "")))
+        transform = cur.style["transform"].get() or ""
+        rect = map_translation(rect, parse_transform(transform))
         cur = cur.parent
 
     return rect
@@ -275,3 +275,9 @@ def pf_n(pfield):
             return "<None>!"
         else:
             return "<None>"
+
+
+# 将node style的所有css property置为"dirty"
+def dirty_style(node):
+    for _, value in node.style.items():
+        value.mark()

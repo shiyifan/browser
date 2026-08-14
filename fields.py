@@ -24,7 +24,7 @@ class ProtectedField:
         # 如果不是的话，那么该属性值为None
         self.parent = parent
 
-    # 该值需要更新，不能继续重用
+    # 该值需要更新，不能继续重用. 此时先不notify dependencies
     def mark(self):
         if self.dirty:
             return

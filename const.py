@@ -92,6 +92,23 @@ INHERITED_PROPERTIES = {
     "color": "black",
 }
 
+# 支持解析的css properties以及对应的默认值（非css property的默认值，而是在python中的表示("Element.style")的默认值）.
+CSS_PROPERTIES = {
+    "font-size": None,
+    "font-style": None,
+    "font-weight": None,
+    "color": None,
+    "opacity": None,
+    "transition": None,
+    "transform": None,
+    "mix-blend-mode": None,
+    "border-radius": None,
+    "overflow": None,
+    "outline": None,
+    "background-color": None,
+    "image-rendering": None,
+}
+
 NAMED_COLORS = {
     "black": "#000000",
     "white": "#ffffff",

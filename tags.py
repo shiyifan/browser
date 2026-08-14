@@ -1,4 +1,5 @@
 from fields import ProtectedField
+import const
 
 
 # HTML代码中位于标签内外的纯文本
@@ -16,7 +17,9 @@ class Text:
         # 焦点，因此这个值始终为"None"
         self.layout_object = None
 
-        self.style = ProtectedField(self, "style")
+        self.style = dict(
+            [(property, ProtectedField(self, property)) for property in const.CSS_PROPERTIES]
+        )
 
     def __repr__(self):
         return f"#text({repr(self.text)})"
@@ -37,7 +40,11 @@ class Element:
         # 所以这两者有对应的layout object.
         self.layout_object = None
 
-        self.style = ProtectedField(self, "style")
+        # style是一个map, key是css属性名称，value是ProtectedField:
+        # { <css property name>: ProtectedField }
+        self.style = dict(
+            [(property, ProtectedField(self, property)) for property in const.CSS_PROPERTIES]
+        )
 
     def __repr__(self):
         return "<" + self.tag + ">"

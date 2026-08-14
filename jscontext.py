@@ -3,7 +3,7 @@ import json
 from threading import Timer, Thread
 from css_parser import CSSParser
 from layout import BlockLayout, ImageLayout, IframeLayout
-from utils import tree_to_list, log
+from utils import dirty_style, tree_to_list, log
 from html_parser import HTMLParser
 from task import Task
 
@@ -277,7 +277,7 @@ class JSContext:
 
         node = self.handle_to_node[handle]
         node.attributes["style"] = s
-        node.style.mark()
+        dirty_style(node)
         frame.set_needs_render()
 
     def setAttribute(self, handle, attr, value, window_id):

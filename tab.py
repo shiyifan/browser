@@ -157,13 +157,13 @@ class Tab:
                 value = animation.animate()
                 if value:
 
-                    # 这里直接修改ProtectedField中的属性值但没有"mark"以及"notify".
+                    # 当前仅支持绘制"opacity"transition的过渡帧，所以这里只会更新"opacity"的protected field
                     #
-                    # TODO: 绘制animation的过程帧时没有进行"layout".
-                    # 如果这里调用"mark()",那么"dirty"flag将会保留至"paint"阶段，
-                    # 导致读取"style"属性时发生assert异常。
-                    # 但是当前使用方式违反了ProtectedField的设计原则.
-                    node.style.get()[property_name] = value
+                    # 正常情况下，重绘时的"layout"阶段负责布局、重新计算dirty的layout object. 但绘制动画过渡帧时
+                    # 由于"composite"的优化机制没有进行"layout".
+                    # 在当前整个layout的过程中，没有protected field依赖于"opacity",
+                    # 因此这里即使更新了"opacity", 也没有任何dependencies变为"dirty", "paint"阶段不会发生"ProtectedField.get()"的assert错误.
+                    node.style[property_name].set(value)
 
                     # 不仅通过"render"重新收集绘制命令，而且让browser安排下一次的animation frame
                     self.set_needs_paint()

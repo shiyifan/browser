@@ -160,9 +160,8 @@ class BlockLayout:
     # 这里仅用于创建layout tree结构，而计算baseline、确定行高的流程由LineLayout负责完成
     def word(self, node, word):
         zoom = self.zoom.read(notify=self.children)
-        style = node.style.read(notify=self.children)
 
-        node_font = font(style, zoom)
+        node_font = font(node.style, zoom, notify=self.children)
         w = node_font.measureText(word)
         self.add_inline_child(node, w, TextLayout, word)
 
@@ -223,8 +222,7 @@ class BlockLayout:
 
         # 更新x坐标，作为同一line中下一个inline element的布局x坐标
         zoom = self.zoom.read(notify=self.children)
-        style = node.style.read(notify=self.children)
-        self.cursor_x += w + font(style, zoom).measureText(" ")
+        self.cursor_x += w + font(node.style, zoom, notify=self.children).measureText(" ")
 
     def new_line(self):
         self.cursor_x = 0
@@ -244,10 +242,10 @@ class BlockLayout:
         # 则无法由block layout绘制出来
         #
         # 目前背景色仅能由DOM节点本身对应的layout tree节点绘制
-        style = self.node.style.get()
-        bgcolor = style.get("background-color", "transparent")
+        style = self.node.style
+        bgcolor = style["background-color"].get() or "transparent"
         if bgcolor != "transparent":
-            radius = float(style.get("border-radius", "0px")[:-2])
+            radius = float((style["border-radius"].get() or "0px")[:-2])
             cmds.append(DrawRRect(self.self_rect(), radius, bgcolor))
 
         # 绘制由于"contenteditable"创建的编辑区域内的光标. 目前仅在最后的TextLayout后面添加光标
@@ -568,8 +566,7 @@ class LineLayout:
 
                 return cmds
 
-            effect_style = effect_node.style.get()
-            outline_str = effect_style.get("outline")
+            outline_str = effect_node.style["outline"].get()
             if parse_outline(outline_str):
                 outline_rect.join(child.self_rect())
                 outline_node = effect_node
@@ -656,9 +653,8 @@ class TextLayout:
         self.zoom.copy(self.parent.zoom)
 
         zoom = self.zoom.read(notify=self.font)
-        node_style = self.node.style.read(notify=self.font)
 
-        self.font.set(font(node_style, zoom))
+        self.font.set(font(self.node.style, zoom, notify=self.font))
 
         f = self.font.read(notify=self.width)
         self.width.set(f.measureText(self.word))
@@ -683,8 +679,7 @@ class TextLayout:
         self.has_dirty_descendants = False
 
     def paint(self):
-        node_style = self.node.style.get()
-        color = node_style["color"]
+        color = self.node.style["color"].get()
         x = self.x.get()
         y = self.y.get()
         font = self.font.get()
@@ -748,10 +743,9 @@ class EmbedLayout:
     def layout(self):
         self.zoom.copy(self.parent.zoom)
 
-        node_style = self.node.style.read(notify=self.font)
         zoom = self.zoom.read(notify=self.font)
 
-        self.font.set(font(node_style, zoom))
+        self.font.set(font(self.node.style, zoom, notify=self.font))
 
         if self.previous:
             # 使用相邻的前一个layout object的font计算两者间距
@@ -760,7 +754,7 @@ class EmbedLayout:
             prev_width = self.previous.width.read(notify=self.x)
 
             space = prev_font.measureText(" ")
-            self.x = prev_x + prev_width + space
+            self.x.set(prev_x + prev_width + space)
         else:
             self.x.copy(self.parent.x)
 
@@ -818,10 +812,10 @@ class InputLayout(EmbedLayout):
         cmds = []
 
         # 绘制背景色
-        node_style = self.node.style.get()
-        bgcolor = node_style.get("background-color", "transparent")
+        node_style = self.node.style
+        bgcolor = node_style["background-color"].get() or "transparent"
         if bgcolor != "transparent":
-            radius = float(node_style.get("border-radius", "0px")[:-2])
+            radius = float((node_style["border-radius"].get() or "0px")[:-2])
             cmds.append(DrawRRect(self.self_rect(), radius, bgcolor))
 
         # 绘制文字
@@ -835,7 +829,7 @@ class InputLayout(EmbedLayout):
                 # 如果<button>内包含非纯文本内容则不绘制
                 print("Ignoring HTML contents inside the button")
                 text = ""
-        color = node_style["color"]
+        color = node_style["color"].get()
         cmds.append(DrawText(self.x.get(), self.y.get(), text, self.font.get(), color))
 
         # 如果当前"<input>"已获取焦点，则绘制光标
@@ -909,16 +903,21 @@ class ImageLayout(EmbedLayout):
     def paint(self):
         cmds = []
 
+        x = self.x.get()
+        y = self.y.get()
+        w = self.width.get()
+        h = self.height.get()
+
         rect = Rect.MakeLTRB(
-            self.x,
+            x,
             # 对于第二个参数，如果图片高于font lineheight, 那么图片的顶部与font的ascent对齐，图片
             # 的上下边界充满整个line. 如果图片低于font lineheight, 那么图片的底部与font的descent对齐，
             # 图片的上面与font ascent之间会留出一小块空白区域
-            self.y + self.height - self.img_height,
-            self.x + self.width.get(),
-            self.y + self.height,
+            y + h - self.img_height,
+            x + w,
+            y + h,
         )
-        quality = self.node.style.get().get("image-rendering", "auto")
+        quality = self.node.style["image-rendering"].get() or "auto"
         cmds.append(DrawImage(self.node.image, rect, quality))
         return cmds
 
@@ -1035,17 +1034,16 @@ class IframeLayout(EmbedLayout):
 
 
 def paint_visual_effects(node, cmds, rect):
-    node_style = node.style.get()
-
-    opacity = float(node_style.get("opacity", "1.0"))
-    blend_mode = node_style.get("mix-blend-mode")
-    translation = parse_transform(node_style.get("transform", ""))
+    opacity = float(node.style["opacity"].get() or "1.0")
+    blend_mode = node.style["mix-blend-mode"].get()
+    translation = parse_transform(node.style["transform"].get() or "")
 
     # 如果"overflow"为"clip"，则根据"border-radius"裁剪当前layout对象的绘制区域
-    if node_style.get("overflow", "visible") == "clip":
+    overflow = node.style["overflow"].get() or "clip"
+    if overflow == "clip":
         if not blend_mode:
             blend_mode = "source-over"
-        border_radius = float(node_style.get("border-radius", "0px")[:-2])
+        border_radius = float((node.style["border-radius"].get() or "0px")[:-2])
 
         # 这里实例化Blend时，"node"的参数设置为"None",详情参见"Tab.run_animation_frame()"函数中"composited_updates"
         # 变量的相关注释
@@ -1072,7 +1070,7 @@ def parse_outline(outline_str):
 
 
 def paint_outline(node, cmds, rect, zoom):
-    outline = parse_outline(node.style.get().get("outline"))
+    outline = parse_outline(node.style["outline"].get())
     if not outline:
         return
 
@@ -1080,11 +1078,16 @@ def paint_outline(node, cmds, rect, zoom):
     cmds.append(DrawOutline(rect, color, dpx(thickness, zoom)))
 
 
-def font(style, zoom):
-    weight = style["font-weight"]
-    variant = style["font-style"]
+# 根据css style获取skia font
+#
+# notify: 获取skia font时，依赖于css font相关属性的protected field
+def font(style, zoom, notify):
+    weight = style["font-weight"].read(notify)
+    variant = style["font-style"].read(notify)
+    fsize = style["font-size"].read(notify)
+
     if variant == "normal":
         variant = "roman"
-    size = float(style["font-size"][:-2]) * 0.75
+    size = float(fsize[:-2]) * 0.75
     font_size = dpx(size, zoom)
     return get_font(font_size, weight, variant)
