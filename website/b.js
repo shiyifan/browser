@@ -1,7 +1,8 @@
 var button = document.getElementById('button');
+var p = document.getElementById('p');
 
 var count = 0;
 
 button.addEventListener('click', function (e) {
-  button.innerHTML = count++
+  p.style = 'opacity: 0';
 });
