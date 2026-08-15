@@ -4,7 +4,9 @@ from utils import text_digest, log
 class ProtectedField:
     """表示layout object中会触发relayout的属性"""
 
-    def __init__(self, which, name, parent=None):
+    def __init__(self, which, name, parent=None, dependencies=None):
+        """ "dependencies": 表示当前field所依赖的其他protected field"""
+
         self.value = None
         self.which = which
         self.name = name
@@ -16,13 +18,18 @@ class ProtectedField:
         # 中某个子结点需要更新". 而layout类中的"has_dirty_descendants"负责表示"子结点需要更新"
         self.dirty = True
 
-        self.invalidations = set()  # 所有依赖于当前属性的属性
+        self.invalidations = set()  # 所有依赖于当前field的protected field
 
         self.already_inited = None  # 是否已被第一次赋值, 仅作调试
 
         # 如果当前对象作为layout object的protected属性, 那么表示layout object在layout tree中的parent.
         # 如果不是的话，那么该属性值为None
         self.parent = parent
+
+        self.frozen_dependencies = dependencies is not None
+        if dependencies is not None:
+            for dependency in dependencies:
+                dependency.invalidations.add(self)
 
     # 该值需要更新，不能继续重用. 此时先不notify dependencies
     def mark(self):
@@ -73,12 +80,21 @@ class ProtectedField:
     # "notify": 依赖于当前field的其他protected field
     def read(self, notify):
         if notify:
-            self.invalidations.add(notify)
+            if notify.frozen_dependencies:
+                # 如果"notify"在创建时已显式传入了dependencies,那么不再将notify添加为当前的invalidation.
+                assert notify in self.invalidations
+            else:
+                self.invalidations.add(notify)
         return self.get()
 
     # 将另一个protected field赋值给当前field, 并将当前field添加为另一个field的依赖
     def copy(self, field):
         self.set(field.read(notify=self))
+
+    def set_dependencies(self, dependencies):
+        for dep in dependencies:
+            dep.invalidations.add(self)
+        self.frozen_dependencies = True
 
     def __repr__(self):
         if isinstance(self.value, list):

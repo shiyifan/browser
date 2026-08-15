@@ -24,11 +24,17 @@ class BlockLayout:
         self.previous = previous  # previous sibling
         self.children = ProtectedField(self, "children", self.parent)
 
-        # 该layout相对于canvas左上角的绝对坐标
-        self.x = ProtectedField(self, "x", self.parent)
-        self.y = ProtectedField(self, "y", self.parent)
+        y_deps = None
+        if self.previous:
+            y_deps = [self.previous.y, self.previous.height]
+        else:
+            y_deps = [self.parent.y]
 
-        self.width = ProtectedField(self, "width", self.parent)
+        # 该layout相对于canvas左上角的绝对坐标
+        self.x = ProtectedField(self, "x", self.parent, dependencies=[self.parent.x])
+        self.y = ProtectedField(self, "y", self.parent, dependencies=y_deps)
+
+        self.width = ProtectedField(self, "width", self.parent, dependencies=[self.parent.width])
         self.height = ProtectedField(self, "height", self.parent)
 
         # layout内的子结点相对于layout左上角的相对坐标
@@ -37,7 +43,7 @@ class BlockLayout:
 
         node.layout_object = self
 
-        self.zoom = ProtectedField(self, "zoom", self.parent)
+        self.zoom = ProtectedField(self, "zoom", self.parent, dependencies=[self.parent.zoom])
 
         # 所有的descendants node是否需要重新layout（即是否有某一个子layout object有dirty的protected field）
         self.has_dirty_descendants = False
@@ -81,6 +87,10 @@ class BlockLayout:
                     children.append(next)
                     previous = next
                 self.children.set(children)
+
+                height_deps = [child.height for child in children]
+                height_deps.append(self.children)
+                self.height.set_dependencies(height_deps)
         else:
             # 计算inline元素的绘制信息，并创建LineLayout以及TextLayout作为当前BlockLayout的子节点.
             # 由LineLayout以及TextLayout负责绘制与计算
@@ -93,6 +103,10 @@ class BlockLayout:
                 self.recurse(self.node)
                 self.children.set(self.temp_children)
                 self.temp_children = None
+
+                height_deps = [child.height for child in self.temp_children]
+                height_deps.append(self.children)
+                self.height.set_dependencies(height_deps)
 
         for child in self.children.get():
             child.layout()
@@ -344,14 +358,14 @@ class DocumentLayout:
         self.parent = None
         self.children = []
 
-        self.x = ProtectedField(self, "x")
-        self.y = ProtectedField(self, "y")
-        self.width = ProtectedField(self, "width")
+        self.x = ProtectedField(self, "x", dependencies=[])
+        self.y = ProtectedField(self, "y", dependencies=[])
+        self.width = ProtectedField(self, "width", dependencies=[])
         self.height = ProtectedField(self, "height")
 
         node.layout_object = self
 
-        self.zoom = ProtectedField(self, "zoom")
+        self.zoom = ProtectedField(self, "zoom", dependencies=[])
 
         self.has_dirty_descendants = False
 
@@ -369,6 +383,7 @@ class DocumentLayout:
         if not self.children:
             child = BlockLayout(self.node, self, None)
             self.children = [child]
+            self.height.set_dependencies([child.height])
         else:
             child = self.children[0]
 
@@ -431,17 +446,26 @@ class LineLayout:
         self.previous = previous  # 上一行
         self.children = []
 
-        self.x = ProtectedField(self, "x", self.parent)
-        self.y = ProtectedField(self, "y", self.parent)
-        self.width = ProtectedField(self, "width", self.parent)
-        self.height = ProtectedField(self, "height", self.parent)
+        y_deps = None
+        if self.previous:
+            y_deps = [self.previous.y, self.previous.height]
+        else:
+            y_deps = [self.parent.y]
 
+        self.x = ProtectedField(self, "x", self.parent, dependencies=[self.parent.x])
+        self.y = ProtectedField(self, "y", self.parent, dependencies=y_deps)
+        self.width = ProtectedField(self, "width", self.parent, dependencies=[self.parent.width])
+        self.height = ProtectedField(
+            self, "height", self.parent, dependencies=[self.ascent, self.descent]
+        )
+
+        self.initialized_fields = False  # 仅用于判断是否需要为"ascent", "descent"设置dep
         self.ascent = ProtectedField(self, "ascent", self.parent)
         self.descent = ProtectedField(self, "descent", self.parent)
 
         node.layout_object = self
 
-        self.zoom = ProtectedField(self, "zoom", self.parent)
+        self.zoom = ProtectedField(self, "zoom", self.parent, dependencies=[self.parent.zoom])
 
         self.has_dirty_descendants = False
 
@@ -449,6 +473,11 @@ class LineLayout:
     def layout(self):
         if not self.layout_needed():
             return
+
+        if not self.initialized_fields:
+            self.ascent.set_dependencies([child.ascent for child in self.children])
+            self.descent.set_dependencies([child.descent for child in self.children])
+            self.initialized_fields = True
 
         self.zoom.copy(self.parent.zoom)
         self.width.copy(self.parent.width)
@@ -629,18 +658,37 @@ class TextLayout:
         self.previous = previous  # 上一个word
         self.children = []
 
+        x_deps = None
+        if self.previous:
+            x_deps = [self.previous.x, self.previous.font, self.previous.width]
+        else:
+            x_deps = [self.parent.x]
+
         # 绘制所需的绝对坐标
-        self.x = ProtectedField(self, "x", self.parent)
+        self.x = ProtectedField(self, "x", self.parent, dependencies=x_deps)
         # 由"LineLayout.layout()"在计算最大的ascent后赋值
-        self.y = ProtectedField(self, "y", self.parent)
-        self.height = ProtectedField(self, "height", self.parent)
-        self.width = ProtectedField(self, "width", self.parent)
+        self.y = ProtectedField(
+            self, "y", self.parent, dependencies=[self.ascent, self.parent.y, self.parent.ascent]
+        )
+        self.height = ProtectedField(self, "height", self.parent, dependencies=[self.font])
+        self.width = ProtectedField(self, "width", self.parent, dependencies=[self.font])
 
-        self.font = ProtectedField(self, "font", self.parent)
-        self.ascent = ProtectedField(self, "ascent", self.parent)
-        self.descent = ProtectedField(self, "descent", self.parent)
+        self.font = ProtectedField(
+            self,
+            "font",
+            self.parent,
+            dependencies=[
+                self.zoom,
+                self.node.style["font-weight"],
+                self.node.style["font-style"],
+                self.node.style["font-size"],
+            ],
+        )
 
-        self.zoom = ProtectedField(self, "zoom", self.parent)
+        self.ascent = ProtectedField(self, "ascent", self.parent, dependencies=[self.font])
+        self.descent = ProtectedField(self, "descent", self.parent, dependencies=[self.font])
+
+        self.zoom = ProtectedField(self, "zoom", self.parent, dependencies=[self.parent.zoom])
 
         self.has_dirty_descendants = False
 
