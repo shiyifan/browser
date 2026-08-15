@@ -553,6 +553,9 @@ class Frame:
 
 # 根据DOM结点上"style"属性、css文件的代码创建CSS对象并赋值为"style"属性
 def style(node, rules, tab):
+    if not node.style:
+        init_style(node)
+
     needs_style = any([field.dirty for field in node.style.values()])
 
     # 仅在"node.style"中存在任意一个dirty的css property时重新计算style
@@ -564,6 +567,22 @@ def style(node, rules, tab):
     # 解析并创建子结点的CSS对象
     for child in node.children:
         style(child, rules, tab)
+
+
+def init_style(node):
+    style = {}
+
+    for property in const.CSS_PROPERTIES:
+        if node.parent and property in const.INHERITED_PROPERTIES:
+            # 创建每一个inherited css property时显式声明dependencies
+            style[property] = ProtectedField(
+                node, property, dependencies=[node.parent.style[property]]
+            )
+        else:
+            # 非inherited css property没有dependencies
+            style[property] = ProtectedField(node, property, dependencies=[])
+
+    node.style = style
 
 
 def update_style(node, rules, tab):
